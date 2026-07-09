@@ -270,6 +270,17 @@ Watch for these — they've bitten the project before:
   flipped by this.
 - **Exports have no venue column** — home/away must come from fixture records; row
   order in the CSVs does not encode the home team.
+- **ELO is STORED DATA in the master** (`ELO_A`/`ELO_B`/`Diff ELO` = pre-match
+  ratings). `run_pipeline` does **not** recompute it for loaded rows — only the weekly
+  `append_new_round` path extends it. Any bulk rebuild of rows MUST fill these columns
+  (via `update_elos_for_new_matches`), otherwise `Diff ELO` — the model's dominant
+  feature (coef ≈ 0.54) — silently becomes 0 and accuracy collapses toward the
+  intercept (~52%). This happened on 2026-07-09 and was fixed same day.
+- **SL historical ELO columns were decimal-corrupted** (values like `1906483` =
+  1906.483 with the separator lost, mixed ×100/×1000) — the SL model effectively ran
+  without ELO until 2026-07-09, when the full SL ELO history was recomputed from
+  results (start 2000 flat in 2022, K=27, season regression 0.30). SL 2026 accuracy
+  jumped from ~54% to ~71% once train + predict both had clean ELO.
 
 ---
 
