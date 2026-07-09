@@ -22,11 +22,12 @@ from sklearn.preprocessing import StandardScaler
 
 # ── Team name maps ─────────────────────────────────────────────────────────────
 SL_NAMES = {
-    "C":"Castleford Tigers","CF":"Catalans Dragons","HF":"Halifax Panthers",
-    "HFC":"Huddersfield Giants","HKR":"Hull KR","LB":"London Broncos",
-    "LH":"Leeds Rhinos","LS":"Leigh Leopards","SF":"Salford Red Devils",
-    "SH":"St Helens","TL":"Toulouse Olympique","WA":"Wakefield Trinity",
-    "WFT":"Warrington Wolves","WI":"Wigan Warriors",
+    "BD":"Bradford Bulls","C":"Castleford Tigers","CF":"Catalans Dragons",
+    "HF":"Hull FC","HFC":"Huddersfield Giants","HKR":"Hull KR",
+    "LB":"London Broncos","LH":"Leeds Rhinos","LS":"Leigh Leopards",
+    "SF":"Salford Red Devils","SH":"St Helens","TL":"Toulouse Olympique",
+    "WA":"Wakefield Trinity","WFT":"Warrington Wolves","WI":"Wigan Warriors",
+    "YK":"York Knights",
 }
 NRL_SHORT = {
     "Brisbane Broncos":"Brisbane","Canberra Raiders":"Canberra",
