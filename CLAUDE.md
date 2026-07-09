@@ -68,15 +68,13 @@ Learn these terms — they appear constantly in code, chat, and docs.
 - **EW / EM** — Expected Winner / Expected Margin (see above).
 - **xLadder** — model-based league standings ranked by underlying performance (vs the
   actual competition ladder). The project's namesake output.
-- **Gerard** — a client contact; the **Gerard scraper** pulls foxsports NRL data. The
-  "Gerard format" is a distinct CSV format the pipeline parses. Gerard is the **canonical
-  NRL data source**.
+- **Gerard** —the **Gerard scraper** pulls foxsports NRL data. The
+  "Gerard format" is a distinct CSV format the pipeline parses. 
 - **GIGOT** — a team-list system (GIGOT v3 team-list integration is out of MVP scope for
   the recruitment workstream).
-- **PCM** — Post-Contact Metres (a Gerard-specific stat used by the M4 model).
+- **PCM** — Post-Contact Metres.
 - **z-score** — standardization used in feature/rating computation.
-- **PCM, run metres, line breaks, tackle breaks, missed tackles** — Gerard-specific stat
-  set feeding model M4.
+- **PCM, run metres, line breaks, tackle breaks, missed tackles** 
 - **Contribution score / positional benchmark / competition translation factor** — terms
   from the newer Recruitment Intelligence workstream.
 - **NRL / SL** — National Rugby League / Super League.
@@ -124,7 +122,7 @@ The live pipeline (`xladder_pipeline.py`, v3.0 in repo `NRL_2026_MPT`) supports 
   better regularisation.
 - **Total** — Ridge regression for total points (`TOTAL_STATS`).
 
-(An earlier **M4** variant using Gerard-specific stats existed in previous iterations;
+(An earlier **M4** variant using stats existed in previous iterations;
 it is **not** in the current live pipeline.)
 
 Methods in the live code: **LogisticRegression** (win/loss), **Ridge** (margin/total),
@@ -212,7 +210,7 @@ team stats when reconstructing historical rounds.
 - **Train/test split:** train 2023–2024, test 2025. **Strict — no bleed.** 2025 is a
   sealed envelope until the model is finalised.
 - **Regress on DTS, not raw stats.** Invert sign for "lower is better" stats.
-- **Design around Gerard-available stats** where possible (canonical NRL source).
+- **Design around Gerard-available stats** where possible .
 - **Data availability is the primary constraint** on new features — not coding
   complexity. Check data first before scoping.
 
