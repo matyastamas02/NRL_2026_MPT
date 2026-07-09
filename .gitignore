@@ -1,0 +1,18 @@
+# secrets — never commit credentials
+*.json
+!.devcontainer/*.json
+.streamlit/secrets.toml
+*service_account*
+light-rhythm-*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# local artifacts
+*.png
+~$*.xlsx
+sheet_backup_*/
+updated_masters/
