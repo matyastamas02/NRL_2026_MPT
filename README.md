@@ -1,40 +1,50 @@
-xLadder Weekly App  v2.2
-========================
-NO WEEKLY FILE UPLOAD NEEDED after initial setup.
+# xLadder Pro — NRL / Super League analytics
 
-ONE-TIME SETUP (5 minutes):
-  1. Rename your NRL master xlsx to:   NRL_master.xlsx
-     Rename your SL master xlsx to:    SL_master.xlsx
-  2. Upload BOTH to the GitHub repo (alongside app.py)
-  3. Deploy on share.streamlit.io -> done
+Rugby-league analytics and betting-intelligence platform. Estimates each team's
+underlying performance from ~400 match-level stats, separates it from raw results, and
+produces per-fixture **Expected Winner** and **Expected Margin** plus a model-based
+league table (the *xLadder*).
 
-WEEKLY WORKFLOW (client):
-  1. Open the app URL in browser
-  2. Select league (NRL or SL) in sidebar
-  3. Go to "Weekly Input" tab
-  4. Enter match results + stats for the round -> Submit
-  5. Download:
-       - xLadder PNG      -> post on socials
-       - Margin PNG       -> post on socials
-       - Updated Master xlsx
-  6. Upload the Updated Master xlsx to GitHub
-     (click the filename -> Edit -> Upload -> Commit)
-  7. App auto-reloads within 1 minute. Done.
+**Live app:** Streamlit Cloud · **Data:** Google Sheets (primary) with the xlsx files
+in this repo as fallback.
 
-STATS TO ENTER PER MATCH:
-  NRL (4 stats per team):
-    PTB - Strong Tackle | Kick Chase - Good Chase
-    Receipt - Falcon | Kick - Crossfield
+## Repo layout
 
-  SL (10 stats per team):
-    PTB - Strong Tackle | Kick Chase - Good Chase
-    Receipt - Falcon | Kick - Crossfield
-    Set Complete - Total | Tackle Break
-    PTB - Won | Ball Run - Restart Return
-    Line Break | Pre-Contact Metres
+| Path | What it is |
+| --- | --- |
+| `app.py` | Streamlit app (8 tabs: Dashboard, xLadder, Team Stats, Betting, Bet History, Model, Weekly Input, Players) |
+| `xladder_pipeline.py` | Core pipeline v3.0 — models M3 / M3+ / Total, ELO (K=27), Form, backtests |
+| `NRL_master.xlsx`, `SL_master.xlsx` | Master match tables (one row = one match), local fallback for the Sheets data |
+| `docs/` | Project documentation and client briefs (TALLEC scope of work) |
+| `scripts/` | One-off data tooling (2026 season rebuild from restated stat exports) |
+| `CLAUDE.md` | Full project onboarding: domain glossary, conventions, data formats, gotchas |
 
-ELO: computed automatically (K=27). No manual input.
+## How data flows
 
-LOCAL RUN:
-  pip install -r requirements.txt
-  streamlit run app.py
+1. **Weekly:** client enters/uploads the round in the app's *Weekly Input* tab → the
+   app runs the pipeline and writes the updated master back to Google Sheets. No repo
+   upload needed.
+2. **Fallback:** if Sheets is unreachable the app reads the xlsx files in this repo —
+   keep them roughly in sync after bulk updates.
+3. **Bulk rebuilds** (e.g. a restated full-season export): see `scripts/`.
+
+## Credentials
+
+The app needs Streamlit secrets: `gcp_service_account` (service-account JSON fields) and
+`SHEET_ID` (or `NRL_SHEET_ID`/`SL_SHEET_ID`), plus `ODDS_API_KEY` for live odds.
+**Never commit any of these** — `.gitignore` blocks JSON key files by default.
+
+## Local run
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Without Sheets secrets it falls back to the local xlsx masters automatically.
+
+## Data state
+
+2026 season rebuilt on 2026-07-09 from the client's full-season "Model Stats Restarted"
+exports: NRL complete through Round 17, Super League through Round 16 (Bradford Bulls
+and York Knights included). Scores validated against official results.
