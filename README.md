@@ -1,6 +1,6 @@
 # xLadder Pro — NRL / Super League analytics
 
-> © 2026 Tamás Mátyás-Péter & Ádám Asztalos. All rights reserved — proprietary
+> © 2026 Tamás Mátyás-Péter, Michael Robert Wood & Ádám Asztalos. All rights reserved — proprietary
 > software, see [LICENSE](LICENSE). Not open source; no use or redistribution
 > without written permission.
 
