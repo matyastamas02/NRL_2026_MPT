@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Tamas Matyas-Peter and Adam Asztalos. All rights reserved.
+# Proprietary software - see LICENSE. No use or redistribution without written permission.
 """
 xLadder Pro  v3.1
 =================
