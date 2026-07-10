@@ -1,5 +1,9 @@
 # xLadder Pro — NRL / Super League analytics
 
+> © 2026 Tamás Mátyás-Péter & Ádám Asztalos. All rights reserved — proprietary
+> software, see [LICENSE](LICENSE). Not open source; no use or redistribution
+> without written permission.
+
 Rugby-league analytics and betting-intelligence platform. Estimates each team's
 underlying performance from ~400 match-level stats, separates it from raw results, and
 produces per-fixture **Expected Winner** and **Expected Margin** plus a model-based
