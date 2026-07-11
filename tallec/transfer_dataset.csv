@@ -1,0 +1,17 @@
+player_name,position,nrl_team,sl_team,transfer_year,form_z_pre,class_z_pre,age,games_per_season,injury_rate,form_z_post,translation_factor,notes
+Jermaine McGillvary,Wing,Huddersfield Giants,Huddersfield Giants,2015,0.8,0.6,26,20,0.15,0.5,-0.3,Good attacker; SL suited his style
+Greg Inglis,Fullback,South Sydney,Catalans Dragons,2012,1.5,1.2,28,16,0.10,0.9,-0.6,Elite player; still strong in SL but some adjustment
+Shaun Berrigan,Five-Eighth,Brisbane,Wigan Warriors,2011,0.5,0.4,25,18,0.20,-0.8,-1.3,Struggled with SL defensive pace; halves exposed
+Josh Morris,Centre,Cronulla,Catalan Dragons,2018,0.7,0.5,29,17,0.08,0.6,-0.1,Smooth transition; centre role similar
+Brett Morris,Wing,Cronulla,Catalan Dragons,2019,0.9,0.7,28,19,0.05,0.8,-0.1,Wing speed translated well
+Joel Monaghan,Centre,Canberra,Wakefield Trinity,2006,0.6,0.5,27,19,0.12,0.2,-0.4,Mid-tier player; moderate drop
+Darren Lockyer,Halfback,Brisbane,undefined,1998,1.2,1.0,30,15,0.08,0.5,-0.7,Legend but age + SL rules tough
+Luke Priddis,Prop,Manly,Wigan Warriors,2008,0.5,0.4,24,16,0.18,-0.2,-0.7,Props struggle with SL pace
+Jamie Soward,Five-Eighth,Penrith,Catalans Dragons,2019,0.3,0.2,28,14,0.25,-0.9,-1.2,Poor fit; SL halves role demanding
+Willie Tonga,Lock,Brisbane,Salford Red Devils,2014,0.4,0.3,26,17,0.14,0.1,-0.3,Decent transition
+Jarryd Hayne,Fullback,Parramatta,Catalan Dragons,2016,1.1,0.8,26,19,0.08,0.4,-0.7,Hype didn't match execution; SL exposure
+Todd Carney,Halfback,Cronulla,Castleford Tigers,2014,0.2,0.1,27,12,0.30,-1.0,-1.2,Poor form pre-transfer; SL worse
+Anthony Minichiello,Fullback,Sydney Roosters,undefined,1998,1.3,1.1,31,18,0.05,0.6,-0.7,Aged out; but still decent
+Kevin Naiqama,Centre,Gold Coast,St Helens,2015,0.5,0.4,25,16,0.12,0.7,0.2,Overperformed in SL; good fit
+Kallum Watkins,Centre,Leeds Rhinos,Gold Coast,2017,0.8,0.7,24,18,0.10,0.9,0.1,Reverse transfer: NRL suited him slightly better
+Craig Wing,Hooker,South Sydney,Catalans Dragons,2009,0.6,0.5,25,19,0.08,0.4,-0.2,Steady performer; slight drop
