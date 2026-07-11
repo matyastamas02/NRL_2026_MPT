@@ -41,7 +41,7 @@ DB_PATH = Path(__file__).parent / "tallec.db"
 
 @st.cache_resource
 def get_db():
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, check_same_thread=False)
     con.row_factory = sqlite3.Row
     return con
 
@@ -170,15 +170,10 @@ if page == "🔍 Search":
                 st.metric("Career Tries", int(total_tries))
 
             st.write("**All Matches**")
-            st.dataframe(
-                stats[["season", "round", "team", "opposition", "minutes", "all_run_metres", "tackles", "tries"]].astype({
-                    "minutes": "int",
-                    "all_run_metres": "int",
-                    "tackles": "int",
-                    "tries": "int",
-                }),
-                use_container_width=True
-            )
+            display_stats = stats[["season", "round", "team", "opposition", "minutes", "all_run_metres", "tackles", "tries"]].copy()
+            for c in ["minutes", "all_run_metres", "tackles", "tries"]:
+                display_stats[c] = display_stats[c].fillna(0).astype(int)
+            st.dataframe(display_stats, use_container_width=True)
         else:
             st.info("No match stats available for this player.")
     else:
@@ -265,7 +260,7 @@ elif page == "🔄 Comparison":
 
         st.metric("Predicted Form (SL)", f"{predicted_form_score:.0f}", delta=f"{translation_delta:.0f}")
         st.metric("Position", position)
-        st.metric("Confidence Band", f"±{prediction['confidence_band']/12*100:.0f} pts")
+        st.metric("Confidence Band", f"±{prediction['confidence_band'] * 12:.0f} pts")
 
     st.divider()
     st.info(f"**Model Estimate:** {nrl_player_name} would rate **{predicted_form_score:.0f}/100** as {position} in SL.\n\n"

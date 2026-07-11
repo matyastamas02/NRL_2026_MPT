@@ -49,8 +49,10 @@ def predict_translation(player_name, position, form_z, class_z, age=26, games_pe
     X[features.index("games_per_season")] = games_per_season
     X[features.index("injury_rate")] = injury_rate
 
-    # One-hot position
-    pos_code = position_map.get(position, "FB")  # Default to Fullback
+    # One-hot position (normalize Gerard position names to transfer-dataset names)
+    position_aliases = {"Winger": "Wing", "Interchange": "Lock", "Reserve": "Lock"}
+    position_norm = position_aliases.get(position, position)
+    pos_code = position_map.get(position_norm, "FB")  # Default to Fullback
     pos_feature = f"pos_{pos_code}"
     if pos_feature in features:
         X[features.index(pos_feature)] = 1
@@ -59,9 +61,11 @@ def predict_translation(player_name, position, form_z, class_z, age=26, games_pe
     X_scaled = scaler.transform(X.reshape(1, -1))
     translation_factor = model.predict(X_scaled)[0]
 
-    # Confidence: position-specific residual std
-    position_confidence = position_residuals.get(position, residuals_std) if not isinstance(position_residuals, pd.Series) else position_residuals.get(position, residuals_std)
-    if pd.isna(position_confidence):
+    # Confidence: position-specific residual std, floored at the global RMSE
+    # (per-position stds come from very few holdout samples - never claim tighter
+    # confidence than the model's overall error)
+    position_confidence = position_residuals.get(position, residuals_std)
+    if pd.isna(position_confidence) or position_confidence < residuals_std:
         position_confidence = residuals_std
     confidence_band = 1.96 * position_confidence  # 95% CI
 
