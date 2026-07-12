@@ -54,7 +54,11 @@ def load_all_players():
     SELECT p.player_id, p.name, p.teams, p.positions, p.matches, p.total_minutes,
            COALESCE(r.form_score, 50) as form_score,
            COALESCE(r.class_score, 50) as class_score,
-           COALESCE(r.positional_benchmark, 50) as benchmark_score
+           COALESCE(r.positional_benchmark, 50) as benchmark_score,
+           COALESCE(r.divergence, 0) as divergence,
+           COALESCE(r.confidence, 'low') as confidence,
+           COALESCE(r.shrinkage_B, 0) as shrinkage_B,
+           COALESCE(r.n_games, 0) as n_games
     FROM players p
     LEFT JOIN player_ratings r ON p.player_id = r.player_id
     ORDER BY p.name
@@ -139,13 +143,32 @@ if page == "🔍 Search":
         st.divider()
 
         # Ratings
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Form Score", f"{player['form_score']:.0f}/100")
         with col2:
             st.metric("Class Score", f"{player['class_score']:.0f}/100")
         with col3:
-            st.metric("Benchmark", f"{player['benchmark_score']:.0f}/100")
+            st.metric("Divergence", f"{player['divergence']:+.2f}",
+                      help="Form minus Class (z-scores). Positive = recent form above structural level.")
+        with col4:
+            conf = str(player["confidence"]).upper()
+            icon = {"HIGH": "🟢", "MEDIUM": "🟡", "LOW": "🔴"}.get(conf, "⚪")
+            st.metric("Confidence", f"{icon} {conf}",
+                      help="How much the raw stats are trusted vs the positional average.")
+
+        # Honesty note: shrinkage on small samples
+        B = float(player["shrinkage_B"])
+        ng = int(player["n_games"])
+        if ng > 0:
+            st.caption(
+                f"Rated on **{ng} game{'s' if ng != 1 else ''}**. "
+                f"Bayesian shrinkage keeps **{B*100:.0f}%** of the raw signal and "
+                f"pulls the rest toward the positional average — with this little "
+                f"data the model is deliberately cautious. Ratings sharpen as more "
+                f"rounds arrive.")
+        else:
+            st.caption("No ratable minutes yet — rating defaults to the positional average (50).")
 
         st.divider()
 
