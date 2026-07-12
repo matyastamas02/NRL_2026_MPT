@@ -55,6 +55,23 @@ NRL_MASTER = BASE_DIR / "NRL_master.xlsx"
 SL_MASTER  = BASE_DIR / "SL_master.xlsx"
 BETS_FILE  = BASE_DIR / "bets_history.json"
 
+# ── Secrets access (safe) ──────────────────────────────────────────────────────
+# Newer Streamlit raises StreamlitSecretNotFoundError on ANY st.secrets access
+# (even `"x" in st.secrets`) when no secrets file/config exists — older versions
+# returned False. Wrap every membership check so the documented "no secrets ->
+# local xlsx fallback" path can't crash the app at startup.
+def _has_secret(key):
+    try:
+        return key in st.secrets
+    except Exception:
+        return False
+
+def _get_secret(key, default=None):
+    try:
+        return st.secrets[key]
+    except Exception:
+        return default
+
 # ── Google Sheets helpers ─────────────────────────────────────────────────────
 def _gs_client():
     scopes = ["https://www.googleapis.com/auth/spreadsheets",
@@ -131,8 +148,8 @@ def write_master_to_sheets(df, league):
 def _test_sheets_connection():
     """Returns (ok: bool, error: str)"""
     if not GSPREAD_OK: return False, "gspread not installed"
-    if "gcp_service_account" not in st.secrets: return False, "no gcp_service_account in secrets"
-    sheet_key = "NRL_SHEET_ID" if "NRL_SHEET_ID" in st.secrets else "SHEET_ID" if "SHEET_ID" in st.secrets else None
+    if not _has_secret("gcp_service_account"): return False, "no gcp_service_account in secrets"
+    sheet_key = "NRL_SHEET_ID" if _has_secret("NRL_SHEET_ID") else "SHEET_ID" if _has_secret("SHEET_ID") else None
     if not sheet_key: return False, "no SHEET_ID in secrets"
     try:
         gc = _gs_client()
@@ -143,15 +160,15 @@ def _test_sheets_connection():
 
 def has_sheets_config():
     if not (GSPREAD_OK
-            and "gcp_service_account" in st.secrets
-            and ("NRL_SHEET_ID" in st.secrets or "SHEET_ID" in st.secrets)):
+            and _has_secret("gcp_service_account")
+            and (_has_secret("NRL_SHEET_ID") or _has_secret("SHEET_ID"))):
         return False
     ok, _ = _test_sheets_connection()
     return ok
 
 def get_sheets_status():
     if not GSPREAD_OK: return "gspread not installed"
-    if "gcp_service_account" not in st.secrets: return "no credentials in secrets"
+    if not _has_secret("gcp_service_account"): return "no credentials in secrets"
     ok, err = _test_sheets_connection()
     return "" if ok else err
 ELO_K      = 27
@@ -385,7 +402,7 @@ with st.sidebar:
     mver="v1" if "original" in model_ver else "v2"
     master_path=NRL_MASTER if league=="NRL" else SL_MASTER
     st.markdown("---")
-    if GSPREAD_OK and "gcp_service_account" in st.secrets:
+    if GSPREAD_OK and _has_secret("gcp_service_account"):
         ok, err = _test_sheets_connection()
         if ok:
             st.markdown('<div class="ok">Google Sheets connected — auto-save on</div>',unsafe_allow_html=True)
