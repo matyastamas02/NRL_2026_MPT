@@ -96,8 +96,18 @@ def read_master_from_sheets(league):
         gc  = _gs_client()
         sh  = gc.open_by_key(st.secrets[sheet_key])
         ws  = sh.worksheet(ws_name)
-        data = ws.get_all_records(numericise_ignore=["all"])
-        df  = pd.DataFrame(data)
+        # Use raw values, not get_all_records(): the latter is fragile across
+        # gspread versions (numericise_ignore handling changed) and RAISES on
+        # non-unique/blank headers — fatal for the ~400-column master. We do our
+        # own numeric conversion below anyway, so raw strings are all we need.
+        values = ws.get_all_values()
+        if not values:
+            return None, False
+        header = [h.strip() for h in values[0]]
+        df = pd.DataFrame(values[1:], columns=header)
+        # drop blank-named trailing columns and de-duplicate header collisions
+        df = df.loc[:, [c != "" for c in df.columns]]
+        df = df.loc[:, ~pd.Index(df.columns).duplicated(keep="first")]
         for col in df.columns:
             col_data = df[col].astype(str).str.strip()
             # Skip obviously non-numeric columns
