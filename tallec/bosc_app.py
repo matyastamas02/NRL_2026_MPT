@@ -27,12 +27,20 @@ st.markdown("""
   --text: #EDF1F9;
   --text-dim: #9AA8C7;
 }
-[data-testid="stAppViewContainer"] { background-color: var(--bg); }
-.stMetric { background-color: var(--panel); border-radius: 8px; padding: 12px; }
+[data-testid="stAppViewContainer"], .stApp { background-color: var(--bg); }
+/* force readable text everywhere (Cloud default base is light -> dark text on
+   our dark bg was invisible) */
+.stApp, .stApp p, .stApp span, .stApp label, .stApp li,
+.stMarkdown, h1, h2, h3, h4, h5, h6 { color: var(--text); }
+.stCaption, [data-testid="stCaptionContainer"], small { color: var(--text-dim) !important; }
+.stMetric { background-color: var(--panel); border-radius: 8px; padding: 12px 14px; }
+[data-testid="stMetricValue"] { color: var(--text) !important; }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: var(--text-dim) !important; }
+[data-testid="stMetricDelta"] { color: var(--text-dim) !important; }
+/* dataframes / tables */
+.stDataFrame, .stDataFrame * { color: var(--text); }
 .stTabs [data-baseweb="tab"] { color: var(--text-dim); }
 .stTabs [data-baseweb="tab-list"] { border-color: var(--panel); }
-h1 { color: var(--text); }
-h2 { color: var(--text); margin-top: 24px; }
 </style>
 """, unsafe_allow_html=True)
 

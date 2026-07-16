@@ -274,6 +274,15 @@ Watch for these — they've bitten the project before:
   (via `update_elos_for_new_matches`), otherwise `Diff ELO` — the model's dominant
   feature (coef ≈ 0.54) — silently becomes 0 and accuracy collapses toward the
   intercept (~52%). This happened on 2026-07-09 and was fixed same day.
+- **Making the repo PRIVATE breaks Streamlit Cloud deploy.** Streamlit Cloud clones
+  the repo on every startup; if the repo is private and the Streamlit GitHub App/OAuth
+  connection lacks access, it fails with `🐙 Failed to download the sources ... Make sure
+  the repository and the branch exist and you have write access` and the app shows
+  "Oh no. Error running app." This is NOT a code/deps/secrets issue — no push or
+  reboot helps until access is restored. Fix: github.com/settings/installations →
+  Streamlit → grant Repository access to `NRL_2026_MPT` (or make repo public), then
+  Manage app → Reboot. (Happened 2026-07-12 after the repo was made private for IP
+  protection; the actual cause was only visible in the Manage-app logs.)
 - **SL historical ELO columns were decimal-corrupted** (values like `1906483` =
   1906.483 with the separator lost, mixed ×100/×1000) — the SL model effectively ran
   without ELO until 2026-07-09, when the full SL ELO history was recomputed from

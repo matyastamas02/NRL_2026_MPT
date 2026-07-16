@@ -35,7 +35,17 @@ import pandas as pd
 
 BASE = Path(__file__).parent
 DB = BASE / "tallec.db"
-CONFIG = json.loads((BASE / "config.json").read_text())
+
+# config.json is optional — fall back to the same defaults it ships with so the
+# engine never hard-fails if the file is absent (it is *.json-gitignored).
+_DEFAULT_CONFIG = {
+    "form_calculation": {"window_matches": 5},
+    "data_quality_thresholds": {"min_minutes_for_form": 20},
+}
+try:
+    CONFIG = json.loads((BASE / "config.json").read_text())
+except (FileNotFoundError, ValueError):
+    CONFIG = _DEFAULT_CONFIG
 
 # ── Core per-minute stats and position emphasis ────────────────────────────
 # Each raw stat -> per-minute rate name. "lower is better" stats (errors) get
