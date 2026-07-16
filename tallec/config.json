@@ -1,0 +1,52 @@
+{
+  "rating_weights": {
+    "form_weight": 0.60,
+    "class_weight": 0.30,
+    "divergence_weight": 0.10,
+    "description": "Combined player rating = form_weight * Form + class_weight * Class + divergence_weight * recent variance. Sum = 1.0"
+  },
+  "form_calculation": {
+    "window_matches": 5,
+    "z_score_normalize": true,
+    "include_bench": false,
+    "description": "Rolling 5-match form on raw stats for player's position group, z-scored. Bench minutes excluded to isolate playing form."
+  },
+  "class_calculation": {
+    "elo_k": 27,
+    "elo_starting": 2000.0,
+    "elo_season_regression": 0.30,
+    "description": "Performance-weighted ELO, similar to xLadder team Class. Initialized at 2000, updates on player's per-minute performance vs peer group."
+  },
+  "positional_benchmark": {
+    "scale_min": 0,
+    "scale_max": 100,
+    "scale_mean": 50,
+    "group_min_matches": 10,
+    "description": "0-100 scale where 50 = peer group median across all competitions. Calculated from rolling 5-match percentile within position + competition."
+  },
+  "competition_translation_model": {
+    "features": [
+      "form_z_score",
+      "class_z_score",
+      "positional_benchmark",
+      "age",
+      "games_per_season",
+      "injury_rate"
+    ],
+    "method": "Ridge regression on historical NRL↔SL transfers",
+    "output": "competition_translation_factor [-2.0 to +2.0 multiplier on rating]",
+    "description": "How a player's expected performance translates across leagues. E.g. -0.5 = expect 0.5 z-score drop in SL."
+  },
+  "weekly_update_schedule": {
+    "day": "Friday",
+    "time_utc": "16:00",
+    "source": "Stats Perform CSV",
+    "pipeline": "parse → normalize → aggregate to player-match → compute ratings → update Sheet"
+  },
+  "data_quality_thresholds": {
+    "min_minutes_for_form": 20,
+    "min_matches_for_class": 3,
+    "bench_time_threshold": 0.8,
+    "description": "Ratings computed only when player meets these thresholds (e.g., form only if played 20+ mins that week)"
+  }
+}
