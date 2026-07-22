@@ -55,51 +55,36 @@ def get_db():
 
 con = get_db()
 
-@st.cache_data
-def load_all_players():
-    """Load all players from DB with their ratings."""
-    query = """
-    SELECT p.player_id, p.name, p.teams, p.positions, p.matches, p.total_minutes,
-           COALESCE(r.form_score, 50) as form_score,
-           COALESCE(r.class_score, 50) as class_score,
-           COALESCE(r.positional_benchmark, 50) as benchmark_score,
-           COALESCE(r.divergence, 0) as divergence,
-           COALESCE(r.confidence, 'low') as confidence,
-           COALESCE(r.shrinkage_B, 0) as shrinkage_B,
-           COALESCE(r.n_games, 0) as n_games
-    FROM players p
-    LEFT JOIN player_ratings r ON p.player_id = r.player_id
-    ORDER BY p.name
-    """
-    return pd.read_sql(query, con)
+SEASON = 2026
 
 @st.cache_data
-def get_player_stats(player_id):
-    """Get raw stats for a player (all matches)."""
+def load_all_players(comp):
+    """Players active in `comp` this season, joined to their ratings."""
+    query = """
+    SELECT r.player_id, p.name, p.teams, p.total_minutes,
+           r.form_score, r.class_score,
+           r.positional_benchmark as benchmark_score,
+           r.divergence, r.confidence, r.shrinkage_B, r.n_games
+    FROM player_ratings r
+    JOIN players p ON p.player_id = r.player_id
+    WHERE r.competition = ? AND r.season = ?
+    ORDER BY p.name
+    """
+    df = pd.read_sql(query, con, params=(comp, SEASON))
+    df["positions"] = "Unknown"   # no position field in the Stats Perform feed yet
+    return df
+
+@st.cache_data
+def get_player_stats(player_id, comp):
+    """Get raw match stats for a player in a competition (all seasons held)."""
     query = """
     SELECT season, round, team, opposition, minutes, all_run_metres, tackles,
            tackle_breaks, tries, fantasy, p_c_m, errors
     FROM player_match_stats
-    WHERE player_id = ?
+    WHERE player_id = ? AND competition = ?
     ORDER BY season DESC, round DESC
     """
-    return pd.read_sql(query, con, params=(player_id,))
-
-@st.cache_data
-def get_position_peers(position, limit=10):
-    """Get top 10 peers in same position by form score."""
-    query = """
-    SELECT p.player_id, p.name, p.teams,
-           COALESCE(r.form_score, 50) as form_score,
-           COALESCE(r.class_score, 50) as class_score,
-           p.total_minutes
-    FROM players p
-    LEFT JOIN player_ratings r ON p.player_id = r.player_id
-    WHERE p.positions LIKE ?
-    ORDER BY COALESCE(r.form_score, 50) DESC
-    LIMIT ?
-    """
-    return pd.read_sql(query, con, params=(f"%{position}%", limit))
+    return pd.read_sql(query, con, params=(player_id, comp))
 
 # Radar axes: (label, per-what) — computed as percentile ranks across qualified players
 RADAR_METRICS = [
@@ -112,14 +97,15 @@ RADAR_METRICS = [
 ]
 
 @st.cache_data
-def load_player_metrics(min_minutes=40):
+def load_player_metrics(comp, min_minutes=40):
     """Aggregate per-player rate metrics + their percentile ranks (0-100)."""
     q = """
     SELECT player_id, player as name, team, position, minutes,
            all_run_metres, p_c_m, tackles, tackle_breaks, line_breaks, tries, fantasy
     FROM player_match_stats
+    WHERE competition = ? AND season = ?
     """
-    pm = pd.read_sql(q, con)
+    pm = pd.read_sql(q, con, params=(comp, SEASON))
     for c in ["all_run_metres","p_c_m","tackles","tackle_breaks","line_breaks","tries","fantasy"]:
         pm[c] = pm[c].fillna(0)
     agg = pm.groupby("player_id").agg(
@@ -140,20 +126,26 @@ def load_player_metrics(min_minutes=40):
     return agg
 
 @st.cache_data
-def load_contribution():
+def load_contribution(comp):
     """GIGOT contribution ratings (player share of own team's output)."""
     try:
         return pd.read_sql(
-            "SELECT * FROM player_contribution_rating ORDER BY contribution_rating DESC", con)
+            "SELECT * FROM player_contribution_rating WHERE competition = ? "
+            "ORDER BY contribution_rating DESC", con, params=(comp,))
     except Exception:
         return pd.DataFrame()
 
 @st.cache_data
-def load_round_composites():
-    """Per-match composite performance scores from the rating engine."""
-    from player_rating_engine import PlayerRatingEngine, load_player_matches
-    raw = load_player_matches()
-    eng = PlayerRatingEngine("NRL")
+def load_round_composites(comp):
+    """Per-match composite performance scores from the rating engine, this season."""
+    import player_rating_engine as pre
+    cols = ["player_id", "player", "season", "round", "team", "position", "minutes",
+            "all_run_metres", "p_c_m", "tackle_breaks", "line_breaks", "tackles",
+            "offloads", "try_assists", "tries", "errors"]
+    raw = pd.read_sql(
+        f"SELECT {', '.join(cols)} FROM player_match_stats "
+        f"WHERE competition = ? AND season = ?", con, params=(comp, SEASON))
+    eng = pre.PlayerRatingEngine(comp)
     pm = eng._composite(raw)
     return pm[["player_id","player","team","position","season","round",
                "minutes","composite","ratable"]]
@@ -166,31 +158,40 @@ st.markdown("# 🏉 BOSC")
 st.markdown("*Player Intelligence — Recruitment Analytics for Super League*")
 st.divider()
 
-# ─── Navigation ────────────────────────────────────────────────────────
-page = st.selectbox(
-    "Select section:",
-    ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🔄 Comparison",
-     "🏉 Squad (GIGOT)", "📈 Trends"],
-    label_visibility="collapsed"
-)
+# ─── League + Navigation ───────────────────────────────────────────────
+nav1, nav2 = st.columns([1, 3])
+with nav1:
+    comp = st.selectbox("League:", ["SL", "NRL"],
+                        format_func=lambda c: {"SL": "🇬🇧 Super League",
+                                               "NRL": "🇦🇺 NRL"}[c])
+with nav2:
+    page = st.selectbox(
+        "Select section:",
+        ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🔄 Comparison",
+         "🏉 Squad (GIGOT)", "📈 Trends"],
+        label_visibility="collapsed")
+st.caption(f"{'Super League' if comp=='SL' else 'NRL'} · 2026 season · ratings are "
+           f"competition-relative (position data pending from provider).")
 
 # ─── PAGE 1: Search & Profile ──────────────────────────────────────────
 if page == "🔍 Search":
     col1, col2 = st.columns([2, 1])
 
-    all_players = load_all_players()
+    all_players = load_all_players(comp)
 
     with col1:
         search_term = st.text_input("Search player name...")
     with col2:
-        position_filter = st.selectbox("Position:", ["All"] + sorted(all_players["positions"].dropna().unique().tolist()))
+        team_filter = st.selectbox(
+            "Team:", ["All"] + sorted(
+                {t.split(";")[0].strip() for t in all_players["teams"].dropna()}))
 
     # Filter
     filtered = all_players.copy()
     if search_term:
         filtered = filtered[filtered["name"].str.contains(search_term, case=False, na=False)]
-    if position_filter != "All":
-        filtered = filtered[filtered["positions"].str.contains(position_filter, na=False)]
+    if team_filter != "All":
+        filtered = filtered[filtered["teams"].str.contains(team_filter, na=False)]
 
     if not filtered.empty:
         # Player picker
@@ -204,8 +205,7 @@ if page == "🔍 Search":
             st.metric("Player", player["name"])
             st.metric("Team", player["teams"].split(";")[0].strip() if player["teams"] else "—")
         with col2:
-            st.metric("Position", player["positions"].split(";")[0].strip() if player["positions"] else "—")
-            st.metric("Matches", int(player["matches"]))
+            st.metric("Games rated", int(player["n_games"]))
         with col3:
             st.metric("Minutes Played", int(player["total_minutes"]))
 
@@ -243,7 +243,7 @@ if page == "🔍 Search":
 
         # Raw stats table
         st.subheader("Match Statistics (5-Match & Career)")
-        stats = get_player_stats(player_id)
+        stats = get_player_stats(player_id, comp)
         if not stats.empty:
             # Recent 5-game summary
             recent = stats.head(5)
@@ -286,10 +286,11 @@ if page == "🔍 Search":
 
         if st.session_state["shortlist"]:
             with st.expander(f"📋 Shortlist ({len(st.session_state['shortlist'])})", expanded=False):
-                sl = all_players[all_players["name"].isin(st.session_state["shortlist"])]
-                sl_view = sl[["name","teams","positions","matches","form_score",
+                sl = all_players[all_players["name"].isin(st.session_state["shortlist"])].copy()
+                sl["team"] = sl["teams"].str.split(";").str[0].str.strip()
+                sl_view = sl[["name","team","n_games","form_score",
                               "class_score","confidence"]].copy()
-                sl_view.columns = ["Player","Team","Pos","GP","Form","Class","Conf"]
+                sl_view.columns = ["Player","Team","GP","Form","Class","Conf"]
                 st.dataframe(sl_view.round(0), use_container_width=True, hide_index=True)
                 st.download_button("⬇️ Export shortlist (CSV)",
                                    sl_view.to_csv(index=False).encode(),
@@ -303,8 +304,8 @@ elif page == "⚖️ Compare":
     st.write("Two players side by side. Radar axes are **percentile ranks** across "
              "all players with ≥ 40 minutes — 100 = best in the database.")
 
-    metrics = load_player_metrics()
-    all_players = load_all_players()
+    metrics = load_player_metrics(comp)
+    all_players = load_all_players(comp)
     names = metrics.sort_values("name")["name"].tolist()
 
     default_b = 1 if len(names) > 1 else 0
@@ -367,61 +368,60 @@ elif page == "⚖️ Compare":
 
 # ─── PAGE 2: Positional Benchmarks ─────────────────────────────────────
 elif page == "📊 Benchmarks":
-    st.subheader("Positional Benchmarks")
-    st.write("Top performers by position, ranked by Form score.")
+    st.subheader("Benchmarks")
+    st.info("Position data isn't in the current provider feed, so these are "
+            "**competition-wide** benchmarks (0–100, 50 = league median). "
+            "Once a position source is supplied these split into positional "
+            "benchmarks — the intended view.")
 
-    all_players = load_all_players()
+    all_players = load_all_players(comp)
+    all_players["team"] = all_players["teams"].str.split(";").str[0].str.strip()
 
-    # Get unique positions
-    positions_list = []
-    for pos_str in all_players["positions"].dropna():
-        for p in pos_str.split(";"):
-            p_clean = p.strip()
-            if p_clean and p_clean not in positions_list:
-                positions_list.append(p_clean)
+    tab_lead, tab_team, tab_dist = st.tabs(
+        ["League leaders", "By team", "Form vs Class"])
 
-    position_tabs = st.tabs(sorted(positions_list)[:6])  # First 6 positions
+    with tab_lead:
+        st.write("**Top 15 by Form**")
+        lead = all_players.nlargest(15, "form_score")[
+            ["name", "team", "form_score", "class_score", "confidence"]].copy()
+        lead.columns = ["Player", "Team", "Form", "Class", "Conf"]
+        st.dataframe(lead.round(0), use_container_width=True, hide_index=True)
 
-    for idx, position in enumerate(sorted(positions_list)[:6]):
-        with position_tabs[idx]:
-            peers = get_position_peers(position, limit=10)
-            if not peers.empty:
-                st.write(f"**Top 10 {position}s by Form**")
-                # Rename for display
-                display_df = peers[["name", "teams", "form_score", "class_score", "total_minutes"]].copy()
-                display_df.columns = ["Player", "Team", "Form", "Class", "Minutes"]
-                display_df["Team"] = display_df["Team"].str.split(";").str[0].str.strip()
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+    with tab_team:
+        team = st.selectbox("Team:", sorted(all_players["team"].dropna().unique()))
+        sq = all_players[all_players["team"] == team].nlargest(20, "form_score")[
+            ["name", "form_score", "class_score", "divergence", "confidence"]].copy()
+        sq.columns = ["Player", "Form", "Class", "Diverg", "Conf"]
+        st.dataframe(sq.round(2), use_container_width=True, hide_index=True)
 
-                # Scatter: Form vs Class
-                st.write(f"**Form vs Class Distribution**")
-                scatter_data = peers.copy()
-                scatter_data["Size"] = scatter_data["total_minutes"] / 10  # Scale for bubble size
-                st.scatter_chart(scatter_data, x="form_score", y="class_score", size="Size", height=300)
-            else:
-                st.info(f"No players found for {position}")
+    with tab_dist:
+        st.write("**Form vs Class** — bubble size = minutes played")
+        sc = all_players.copy()
+        sc["Size"] = sc["total_minutes"].fillna(0) / 10
+        st.scatter_chart(sc, x="form_score", y="class_score", size="Size", height=380)
 
 # ─── PAGE 3: NRL ↔ SL Comparison ───────────────────────────────────────
 elif page == "🔄 Comparison":
-    st.subheader("NRL ↔ SL Competition Translation")
-    st.write("Estimate how an NRL player would perform in Super League.")
+    st.subheader("NRL → SL Competition Translation")
+    st.write("Estimate how an NRL player would perform in Super League. "
+             "(Independent of the league selector — source is always NRL, target SL.)")
 
-    all_players = load_all_players()
+    nrl_players = load_all_players("NRL")
+    sl_players = load_all_players("SL")
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.write("**NRL Player**")
-        nrl_player_name = st.selectbox("Select NRL player:", all_players["name"].values, key="nrl_search")
-        nrl_player = all_players[all_players["name"] == nrl_player_name].iloc[0]
+        nrl_player_name = st.selectbox("Select NRL player:", nrl_players["name"].values, key="nrl_search")
+        nrl_player = nrl_players[nrl_players["name"] == nrl_player_name].iloc[0]
 
         st.metric("Current Form", f"{nrl_player['form_score']:.0f}")
         st.metric("Class (Strength)", f"{nrl_player['class_score']:.0f}")
-        st.metric("Position", nrl_player["positions"].split(";")[0].strip() if nrl_player["positions"] else "—")
 
     with col2:
         st.write("**SL Equivalent (Model Estimate)**")
-        position = nrl_player["positions"].split(";")[0].strip() if nrl_player["positions"] else "Fullback"
+        position = "Fullback"   # position source pending; model uses a neutral prior
 
         # Real translation model prediction
         # Estimate form_z and class_z from 0-100 scores
@@ -445,19 +445,19 @@ elif page == "🔄 Comparison":
         translation_delta = prediction["translation_factor"] * 12  # Scale to 0-100
 
         st.metric("Predicted Form (SL)", f"{predicted_form_score:.0f}", delta=f"{translation_delta:.0f}")
-        st.metric("Position", position)
         st.metric("Confidence Band", f"±{prediction['confidence_band'] * 12:.0f} pts")
 
     st.divider()
-    st.info(f"**Model Estimate:** {nrl_player_name} would rate **{predicted_form_score:.0f}/100** as {position} in SL.\n\n"
+    st.info(f"**Model Estimate:** {nrl_player_name} would rate **{predicted_form_score:.0f}/100** in SL.\n\n"
             f"{prediction['interpretation']}")
 
-    # Similar SL players
-    st.subheader("Most Similar SL Players (Current Comparable Level)")
-    similar = all_players[
-        (all_players["positions"].str.contains(position, na=False))
-    ].nlargest(5, "form_score")[["name", "teams", "form_score", "class_score"]]
-    st.dataframe(similar, use_container_width=True, hide_index=True)
+    # Closest SL players by rating level
+    st.subheader("SL players at a comparable level")
+    sl_players["gap"] = (sl_players["form_score"] - predicted_form_score).abs()
+    similar = sl_players.nsmallest(5, "gap")[["name", "teams", "form_score", "class_score"]].copy()
+    similar["teams"] = similar["teams"].str.split(";").str[0].str.strip()
+    similar.columns = ["Player", "Team", "Form", "Class"]
+    st.dataframe(similar.round(0), use_container_width=True, hide_index=True)
 
 # ─── PAGE: Squad & Contribution (GIGOT) ────────────────────────────────
 elif page == "🏉 Squad (GIGOT)":
@@ -466,7 +466,7 @@ elif page == "🏉 Squad (GIGOT)":
              "(attack 45% · defence 35% · points 20%), percentile-scaled so the "
              "median contributor = 50. This is real data, not a mock.")
 
-    contrib = load_contribution()
+    contrib = load_contribution(comp)
     if contrib.empty:
         st.warning("No contribution data — run gigot_contribution.py first.")
     else:
@@ -517,7 +517,7 @@ elif page == "📈 Trends":
     st.write("Composite performance score per match (position-relative, from the "
              "rating engine) — who moved up or down between the two rounds we have.")
 
-    pm = load_round_composites()
+    pm = load_round_composites(comp)
     rated = pm[pm["ratable"]]
     rounds = sorted(rated["round"].unique())
     if len(rounds) < 2:
