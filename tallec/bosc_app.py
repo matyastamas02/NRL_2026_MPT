@@ -61,7 +61,7 @@ SEASON = 2026
 def load_all_players(comp):
     """Players active in `comp` this season, joined to their ratings."""
     query = """
-    SELECT r.player_id, p.name, p.teams, p.total_minutes,
+    SELECT r.player_id, p.name, p.teams, p.total_minutes, p.positions,
            r.form_score, r.class_score,
            r.positional_benchmark as benchmark_score,
            r.divergence, r.confidence, r.shrinkage_B, r.n_games
@@ -70,9 +70,7 @@ def load_all_players(comp):
     WHERE r.competition = ? AND r.season = ?
     ORDER BY p.name
     """
-    df = pd.read_sql(query, con, params=(comp, SEASON))
-    df["positions"] = "Unknown"   # no position field in the Stats Perform feed yet
-    return df
+    return pd.read_sql(query, con, params=(comp, SEASON))
 
 @st.cache_data
 def get_player_stats(player_id, comp):
@@ -205,6 +203,7 @@ if page == "🔍 Search":
             st.metric("Player", player["name"])
             st.metric("Team", player["teams"].split(";")[0].strip() if player["teams"] else "—")
         with col2:
+            st.metric("Position", player.get("positions", "Unknown") or "Unknown")
             st.metric("Games rated", int(player["n_games"]))
         with col3:
             st.metric("Minutes Played", int(player["total_minutes"]))
@@ -369,16 +368,30 @@ elif page == "⚖️ Compare":
 # ─── PAGE 2: Positional Benchmarks ─────────────────────────────────────
 elif page == "📊 Benchmarks":
     st.subheader("Benchmarks")
-    st.info("Position data isn't in the current provider feed, so these are "
-            "**competition-wide** benchmarks (0–100, 50 = league median). "
-            "Once a position source is supplied these split into positional "
-            "benchmarks — the intended view.")
 
     all_players = load_all_players(comp)
     all_players["team"] = all_players["teams"].str.split(";").str[0].str.strip()
+    known_pos = all_players[all_players["positions"].fillna("Unknown") != "Unknown"]
+    pos_cov = len(known_pos) / len(all_players) if len(all_players) else 0
+    if pos_cov < 0.4:
+        st.info(f"Position data covers only {pos_cov:.0%} of {comp} players "
+                f"(the metadata is NRL/NSW-Cup-centric). Positional view is shown "
+                f"where known; the rest fall back to competition-wide.")
 
-    tab_lead, tab_team, tab_dist = st.tabs(
-        ["League leaders", "By team", "Form vs Class"])
+    tab_pos, tab_lead, tab_team, tab_dist = st.tabs(
+        ["By position", "League leaders", "By team", "Form vs Class"])
+
+    with tab_pos:
+        groups = sorted(known_pos["positions"].dropna().unique())
+        if groups:
+            gsel = st.selectbox("Position:", groups)
+            pool = known_pos[known_pos["positions"] == gsel].nlargest(15, "form_score")[
+                ["name", "team", "form_score", "class_score", "divergence", "confidence"]].copy()
+            pool.columns = ["Player", "Team", "Form", "Class", "Diverg", "Conf"]
+            st.write(f"**Top {gsel}s by Form** — rated against other {gsel}s")
+            st.dataframe(pool.round(2), use_container_width=True, hide_index=True)
+        else:
+            st.info("No position data available for this competition yet.")
 
     with tab_lead:
         st.write("**Top 15 by Form**")

@@ -78,10 +78,14 @@ POSITION_WEIGHTS = {
 
 # Gerard position string -> benchmark group
 POSITION_GROUP = {
-    "Fullback": "Fullback", "Winger": "Winger", "Centre": "Centre",
-    "Five-Eighth": "Halves", "Halfback": "Halves", "Hooker": "Hooker",
-    "Prop": "Prop", "2nd Row": "Back Row", "Lock": "Back Row",
-    "Interchange": "Bench", "Reserve": "Bench",
+    # Stats Perform metadata position strings
+    "Full Back": "Fullback", "Winger": "Winger", "Centre": "Centre",
+    "Five-Eighth": "Halves", "Half Back": "Halves", "Hooker": "Hooker",
+    "Prop": "Prop", "Second Row": "Back Row", "Lock": "Back Row",
+    "Interchange": "Bench", "Unknown": "Bench",
+    # legacy Gerard-seed strings (kept for back-compat)
+    "Fullback": "Fullback", "Halfback": "Halves", "2nd Row": "Back Row",
+    "Reserve": "Bench",
 }
 
 MIN_MINUTES = CONFIG["data_quality_thresholds"]["min_minutes_for_form"]  # 20
