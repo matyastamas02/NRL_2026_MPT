@@ -154,19 +154,26 @@ def write_master_to_sheets(df, league):
         st.warning(f"Could not save to Google Sheets: {e}")
         return False
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 def _test_sheets_connection():
-    """Returns (ok: bool, error: str)"""
+    """Returns (ok: bool, error: str). Retries once on transient (5xx) errors
+    before giving up, so a momentary Google-side blip doesn't get cached as
+    "down" for the full TTL."""
     if not GSPREAD_OK: return False, "gspread not installed"
     if not _has_secret("gcp_service_account"): return False, "no gcp_service_account in secrets"
     sheet_key = "NRL_SHEET_ID" if _has_secret("NRL_SHEET_ID") else "SHEET_ID" if _has_secret("SHEET_ID") else None
     if not sheet_key: return False, "no SHEET_ID in secrets"
-    try:
-        gc = _gs_client()
-        gc.open_by_key(st.secrets[sheet_key])
-        return True, ""
-    except Exception as e:
-        return False, str(e)
+    last_err = ""
+    for attempt in range(2):
+        try:
+            gc = _gs_client()
+            gc.open_by_key(st.secrets[sheet_key])
+            return True, ""
+        except Exception as e:
+            last_err = str(e)
+            if attempt == 0:
+                import time; time.sleep(1.5)
+    return False, last_err
 
 def has_sheets_config():
     if not (GSPREAD_OK
