@@ -45,7 +45,10 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
 
+import time
+
 import player_rating_engine as pre
+import runtime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
@@ -64,6 +67,7 @@ def norm_name(s):
 
 
 # ── 1. composites, standardized within each competition-season pool ───────────
+_t0 = time.time()
 con = sqlite3.connect(DB)
 COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
         "all_run_metres", "p_c_m", "tackle_breaks", "line_breaks", "tackles",
@@ -261,6 +265,11 @@ allp[keep].to_sql("translation_pairs", con, if_exists="replace", index=False)
 pd.DataFrame([{k: v for k, v in m.items() if k not in ("model", "scaler", "features")}
               for m in out.values()]).to_sql("translation_model_meta", con,
                                              if_exists="replace", index=False)
+runtime.record_model_run(
+    "translation_model_v2",
+    {k: {kk: vv for kk, vv in m.items() if kk not in ("model", "scaler", "features")}
+     for k, m in out.items()},
+    time.time() - _t0, script="fit_translation_v2.py")
 with open(os.path.join(BASE, "translation_model_v2.pkl"), "wb") as f:
     pickle.dump({"layers": out, "position_group": POS_GROUP,
                  "built": "2026-08-19", "min_games": MIN_GAMES}, f)

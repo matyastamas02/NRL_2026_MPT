@@ -61,10 +61,47 @@ the boundaries are enforced in code, not just documented.
 | `gigot_v2.py` | nothing — evaluation only, writes `gigot_v2_results.csv` | when the question is asked again |
 | `fit_translation_v2.py` | translation tables + `translation_model_v2.pkl` | when a season completes |
 | `gigot_contribution.py` | **nothing** — import-only module holding the formula | — |
+| `runtime.py` | the audit log in `tallec_audit.db`; snapshots into `_backups/` | imported by every writer |
 
 Shared definitions live in `sp_schema.py` (field mapping, position groups, the
 career-position rule) and `config.json` (rating weights, contribution weights, the
 position-coverage threshold). Change them there, not in a copy.
+
+## Safety, and how to see what happened
+
+Every script that writes to the database does it inside `runtime.guarded_write`. That
+takes a snapshot first, **restores it automatically if anything raises**, and records
+the attempt either way. Eight snapshots are kept in `_backups/` (git-ignored — they are
+full copies of an 85 MB file).
+
+The audit log lives in `tallec_audit.db`, a separate file on purpose: it used to live
+inside `tallec.db`, which meant a rollback restored a snapshot taken before the failure
+was recorded, so the recovery erased the record of what it was recovering from.
+
+```
+python runtime.py            # provenance and audit row counts
+python runtime.py backups    # what snapshots exist
+python runtime.py restore    # put the most recent one back
+```
+
+`data_imports` has one row per write: what ran, with which arguments, which commit,
+rows before and after, which snapshot it took, and whether it succeeded or rolled back.
+`model_runs` has one row per rating or model rebuild with the fit statistics, so two
+numbers taken a week apart can be traced to different runs. The app footer shows the
+commit, the config hash and when the ratings were last rebuilt.
+
+## Tests
+
+```
+python -m pytest tests -q
+```
+
+27 tests, synthetic data only, never touches `tallec.db`. Every one corresponds to a
+bug that shipped at least once: the float player-id that forked every identity, the
+Interchange rule, the position-coverage gate, shrinkage rising with evidence, the
+leakage claim, the scoring validation, the cross-club round repeat, and the rollback.
+One test asserts a *known* weakness — that fitting the standardization on the whole
+pool is not a strict walk-forward — so that nobody mistakes it for the strict version.
 
 ## Weekly update — the procedure
 

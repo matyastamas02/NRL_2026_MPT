@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 import sp_schema as sp
+import runtime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DL = os.path.dirname(BASE)
@@ -51,6 +52,8 @@ SPLITS = [
 ]
 TALTY = "23574"      # the correct player in the same-club duplicate pair
 
+_guard = runtime.guarded_write("resolve_duplicates")
+_guard.__enter__()
 con = sqlite3.connect(DB)
 
 # ── 1. split the two identifiers that cover two people ───────────────────────
@@ -169,3 +172,4 @@ print(f"\nplayers registry: {len(players):,} | rows: "
 print(f"same-player-same-club-same-round duplicates remaining: {int(bad.n[0])}")
 con.close()
 print("\nrun regenerate_full.py next")
+_guard.__exit__(None, None, None)

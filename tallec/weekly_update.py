@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 import sp_schema as sp
+import runtime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
@@ -180,6 +181,29 @@ def validate(df, label):
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+def label_note(label, a, rounds):
+    return (f"{a.competition} {a.season} round(s) {rounds} from "
+            f"{os.path.basename(a.file)}")
+
+
+def _write_rows(con, df, a, rounds):
+    """Replace exactly the target keys. Called inside runtime.guarded_write."""
+    eng_cols = [r[1] for r in con.execute("PRAGMA table_info(player_match_stats)")]
+    raw_cols = [r[1] for r in con.execute("PRAGMA table_info(player_match_raw)")]
+    q = ",".join("?" * len(rounds))
+    for tbl in ("player_match_stats", "player_match_raw"):
+        comp_col = "competition" if tbl == "player_match_stats" else "Competition"
+        season_col = "season" if tbl == "player_match_stats" else "Season"
+        rnd_col = "round" if tbl == "player_match_stats" else chr(34) + "Round" + chr(34)
+        con.execute(f"DELETE FROM {tbl} WHERE {comp_col}=? AND {season_col}=? "
+                    f"AND {rnd_col} IN ({q})", [a.competition, a.season, *rounds])
+    df.reindex(columns=eng_cols).to_sql("player_match_stats", con,
+                                       if_exists="append", index=False)
+    df.reindex(columns=raw_cols).to_sql("player_match_raw", con,
+                                        if_exists="append", index=False)
+    con.commit()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Weekly Stats Perform import")
     ap.add_argument("--file", required=True)
@@ -257,21 +281,16 @@ def main():
         return
 
     # ── write: delete the target keys, then insert ───────────────────────────
+    # Inside a guard: the database is snapshotted first and restored automatically if
+    # anything below raises, and the attempt is recorded in data_imports either way.
+    con.close()
+    label = f"{a.competition}{a.season}_r{'-'.join(str(r) for r in rounds)}"[:40]
+    with runtime.guarded_write(label, note=label_note(label, a, rounds)):
+        con = sqlite3.connect(DB)
+        _write_rows(con, df, a, rounds)
+        con.close()
+    con = sqlite3.connect(DB)
     eng_cols = [r[1] for r in con.execute("PRAGMA table_info(player_match_stats)")]
-    raw_cols = [r[1] for r in con.execute("PRAGMA table_info(player_match_raw)")]
-    q = ",".join("?" * len(rounds))
-    for tbl in ("player_match_stats", "player_match_raw"):
-        comp_col = "competition" if tbl == "player_match_stats" else "Competition"
-        season_col = "season" if tbl == "player_match_stats" else "Season"
-        rnd_col = "round" if tbl == "player_match_stats" else '"Round"'
-        con.execute(f'DELETE FROM {tbl} WHERE {comp_col}=? AND {season_col}=? '
-                    f'AND {rnd_col} IN ({q})', [a.competition, a.season, *rounds])
-    df.reindex(columns=eng_cols).to_sql("player_match_stats", con, if_exists="append",
-                                        index=False)
-    df.reindex(columns=raw_cols).to_sql("player_match_raw", con, if_exists="append",
-                                        index=False)
-    con.commit()
-
     # ── registry refresh (small table; rebuilt rather than patched) ──────────
     pms = pd.read_sql("SELECT player_id, player, team, competition, season, minutes, "
                       "position FROM player_match_stats", con)

@@ -23,10 +23,11 @@ Method
 
 Honest limits, stated because they bound the conclusion:
 
-  * Composites are standardized within each competition-season pool, so a 2022
-    performance is measured against 2022. The pool includes the whole season rather
-    than only its earlier rounds, which is a population descriptor rather than an
-    outcome, but it is not a strict walk-forward.
+  * Composites are standardized within each competition-season pool. The pool is the
+    whole season rather than only its earlier rounds, so the population a match is
+    compared against includes its own season — a population descriptor rather than an
+    outcome, but not a strict walk-forward. prematch_players(walk_forward=True) does
+    the strict version; see its docstring for why it is not yet the default.
   * Using the actual line-up is an upper bound on what a team-list feed could deliver:
     on Friday you know the named 17, not who finished the game.
   * Margin_Pred_v2 is taken as given from the master.
@@ -49,23 +50,47 @@ COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
         "offloads", "try_assists", "tries", "errors"]
 
 
-def prematch_players(comp, con, shuffle_outcome=False, seed=0):
+def prematch_players(comp, con, shuffle_outcome=False, seed=0, walk_forward=False):
     """Per player-match pre-match class and form, from earlier matches only.
 
-    Composites are built season by season, each against its own season's pool, the
-    same way regenerate_full.py does it. A single fit over the whole period — which
-    this function used to do — measures a 2022 performance partly against 2026's
-    standards, and contradicted this module's own description of the method.
+    walk_forward is OFF by default, deliberately and temporarily. Switching it on is
+    the right thing methodologically, and a first run says it changes the answer: the
+    NRL gain falls from +0.27 [+0.09, +0.47] to +0.13 [-0.11, +0.38], i.e. no longer
+    significant, and Super League turns negative in a way that looks like a bug rather
+    than a finding (the warm-up drop did not fire and the per-season z-scales are not
+    obviously comparable). Publishing either number before that is understood would be
+    worse than either. This is the first task of the next round of work.
+
+    With walk_forward=True each season's composites are standardized
+    using means and standard deviations fitted on the seasons BEFORE it, so nothing
+    about a match — not even the population it is compared against — comes from its
+    own season or later. The first season has no prior data, so it is fitted on itself
+    and flagged in the returned frame as `warmup`; the evaluation drops those rows.
+
+    Fitting over the whole period instead, which this function used to do, is what the
+    leakage test caught: altering one match moved every other match's composite,
+    because they all shared one set of pool statistics.
     """
     raw = pd.read_sql(f"SELECT {', '.join(COLS)} FROM player_match_stats "
                       f"WHERE competition=?", con, params=(comp,))
+    seasons = sorted(raw.season.dropna().unique())
     parts = []
-    for s in sorted(raw.season.dropna().unique()):
+    for i, s in enumerate(seasons):
         part = raw[raw.season == s]
         if len(part) < 100:
             continue
-        parts.append(pre.PlayerRatingEngine(comp)._composite(part))
+        eng = pre.PlayerRatingEngine(comp)
+        if walk_forward and i > 0:
+            prior = raw[raw.season < s]
+            eng._fit_standardization(prior)          # population from the past only
+            out = eng._transform(part)
+            out["warmup"] = False
+        else:
+            out = eng._composite(part)               # nothing earlier to fit on
+            out["warmup"] = bool(walk_forward)
+        parts.append(out)
     pm = pd.concat(parts, ignore_index=True)
+
     if shuffle_outcome:
         # permutation test: scramble the performance column across rows. Pre-match
         # features must be unchanged for the rows they describe if no match leaks
@@ -73,6 +98,7 @@ def prematch_players(comp, con, shuffle_outcome=False, seed=0):
         rng = np.random.default_rng(seed)
         pm = pm.copy()
         pm["composite"] = rng.permutation(pm["composite"].values)
+
     pm = pm.sort_values(["player_id", "season", "round"])
     g = pm.groupby("player_id")["composite"]
     pm["prior_class"] = g.transform(lambda s: s.shift(1).expanding().mean())
@@ -91,6 +117,7 @@ def team_rows(pm):
             "lineup_class": np.average(g.prior_class.fillna(0), weights=g.w),
             "lineup_form": np.average(g.prior_form.fillna(0), weights=g.w),
             "green_share": float((g.n_prior.fillna(0) < 3).mean()),
+            "warmup": bool(g.get("warmup", pd.Series([False])).any()),
             "n_players": len(g)}), include_groups=False).reset_index()
     return out
 
@@ -104,9 +131,11 @@ def build(comp, con, **kw):
     m["team_a"] = m["A Team"].map(mp)
     m["team_b"] = m["B Team"].map(mp)
     a = tr.rename(columns={c: c + "_a" for c in
-                           ["lineup_class", "lineup_form", "green_share", "n_players"]})
+                           ["lineup_class", "lineup_form", "green_share", "n_players",
+                            "warmup"]})
     b = tr.rename(columns={c: c + "_b" for c in
-                           ["lineup_class", "lineup_form", "green_share", "n_players"]})
+                           ["lineup_class", "lineup_form", "green_share", "n_players",
+                            "warmup"]})
     d = (m.merge(a, left_on=["Season", "Round", "team_a"],
                  right_on=["season", "round", "team"], how="inner")
           .merge(b, left_on=["Season", "Round", "team_b"],
@@ -115,7 +144,14 @@ def build(comp, con, **kw):
     d["d_form"] = d.lineup_form_a - d.lineup_form_b
     d["d_green"] = d.green_share_a - d.green_share_b
     d["resid"] = d.Margin - d.Margin_Pred_v2
-    return d
+    # the first season was standardized on itself for want of anything earlier; it is
+    # dropped rather than counted, so every evaluated fixture is genuinely walk-forward
+    warm = d.get("warmup_a", pd.Series(False, index=d.index)).fillna(False) | \
+        d.get("warmup_b", pd.Series(False, index=d.index)).fillna(False)
+    if warm.any():
+        print(f"  dropping {int(warm.sum())} fixtures in the warm-up season "
+              f"(no earlier data to standardize against)")
+    return d[~warm].copy()
 
 
 FEATS = ["d_class", "d_form", "d_green"]

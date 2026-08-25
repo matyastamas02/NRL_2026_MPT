@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 from predict_translation import translate, available_pairs, COMP_NAME
 from sp_schema import POSITION_GROUP
+import runtime
 
 st.set_page_config(
     page_title="BOSC — Player Intelligence",
@@ -748,7 +749,32 @@ elif page == "📈 Trends":
 st.divider()
 _cov = pd.read_sql("SELECT competition, min(season) s0, max(season) s1, count(*) n "
                    "FROM player_match_stats GROUP BY 1 ORDER BY 1", con)
-st.caption("BOSC — built on " + f"{_cov.n.sum():,}" + " Stats Perform player-match records: "
-           + " · ".join(f"{COMP_NAME.get(r.competition, r.competition)} {r.s0}-{r.s1}"
-                        for r in _cov.itertuples())
-           + ". Ratings and competition translation are recomputed by regenerate_full.py.")
+
+
+@st.cache_data
+def _build_info():
+    """Which code and which run produced the numbers on screen."""
+    prov = runtime.provenance()
+    try:
+        last = pd.read_sql("SELECT run_at, target FROM model_runs "
+                           "ORDER BY id DESC LIMIT 1", runtime.audit_con())
+        ran = f"{last.run_at[0][:16].replace('T', ' ')} UTC" if len(last) else "unknown"
+    except Exception:
+        ran = "unknown"
+    return prov, ran
+
+
+_prov, _ran = _build_info()
+st.caption(
+    "BOSC — built on " + f"{_cov.n.sum():,}" + " Stats Perform player-match records: "
+    + " · ".join(f"{COMP_NAME.get(r.competition, r.competition)} {r.s0}-{r.s1}"
+                 for r in _cov.itertuples())
+    + f". Ratings last rebuilt {_ran}."
+)
+st.caption(
+    f"build {_prov['commit']}"
+    + (" (uncommitted changes)" if _prov["dirty"] else "")
+    + f" · config {_prov['config_hash']} · database {_prov['db_mb']} MB, "
+      f"{_prov['db_rows']:,} rows. Every figure here can be traced to the run that "
+      f"produced it — see the model_runs and data_imports tables."
+)

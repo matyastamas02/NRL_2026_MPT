@@ -23,6 +23,8 @@ import unicodedata
 
 import pandas as pd
 
+import runtime
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
 
@@ -38,6 +40,8 @@ def parse_dob(s):
     return iso.fillna(dmy)
 
 
+_guard = runtime.guarded_write("unify_sl_ids")
+_guard.__enter__()
 con = sqlite3.connect(DB)
 d = pd.read_sql(
     'SELECT s.player_id, r."Full Name" nm, r."Date of Birth" dob '
@@ -112,3 +116,4 @@ else:
     print(f"SL rows now under a permanent id: {int(hist.n[0]):,} "
           f"across {int(hist.seasons[0])} seasons")
 con.close()
+_guard.__exit__(None, None, None)
