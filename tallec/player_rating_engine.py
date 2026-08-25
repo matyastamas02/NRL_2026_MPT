@@ -90,23 +90,51 @@ POSITION_GROUP = {
 
 MIN_MINUTES = CONFIG["data_quality_thresholds"]["min_minutes_for_form"]  # 20
 FORM_WINDOW = CONFIG["form_calculation"]["window_matches"]                # 5
+# share of the pool that must have a known position before ratings are computed
+# within position group rather than across the whole competition
+MIN_POS_COVERAGE = CONFIG.get("positional_benchmark", {}).get("min_position_coverage", 0.90)
 
 
 class PlayerRatingEngine:
-    def __init__(self, comp_code="NRL"):
+    def __init__(self, comp_code="NRL", force_mode=None):
         self.comp = comp_code
+        # force_mode="competition_relative" makes the engine ignore position even
+        # when coverage allows it. Cross-competition work needs BOTH sides
+        # standardized the same way, and Super League has no position source.
+        self.force_mode = force_mode
         self.sigma2 = None   # within-player (game-to-game) variance
         self.tau2 = None     # between-player (true talent) variance
         self.grand_mean = 0.0
+        self.position_mode = "competition_relative"
+        self.position_coverage = 0.0
 
     # ── 1. Standardization (fit / transform split) ────────────────────────
     # Standardization params are POPULATION descriptors ("what's an average
     # prop"), not outcome data — fitting them on the full pool is a design
     # choice, and separating fit from transform lets us fit on train and apply
     # to test unchanged once real multi-season data arrives.
+    # Standardizing within position group only works if we know the position of
+    # (nearly) the whole pool. With partial coverage the composite stops being
+    # comparable across players — the ones whose position is unknown all land in
+    # one bucket whose mean/std is a blend of every position — and the "50 = pool
+    # average" reading of the benchmark breaks. Below the coverage threshold we
+    # therefore pool the whole competition, which is what the engine did before
+    # any position source existed. `position_mode` records which applied.
+    def _position_groups(self, df):
+        known = df["position"].notna() & (df["position"] != "Unknown")
+        self.position_coverage = float(known.mean()) if len(df) else 0.0
+        if self.force_mode == "competition_relative":
+            self.position_mode = "competition_relative"
+            return pd.Series("Bench", index=df.index)
+        if self.position_coverage >= MIN_POS_COVERAGE:
+            self.position_mode = "position_relative"
+            return df["position"].map(POSITION_GROUP).fillna("Bench")
+        self.position_mode = "competition_relative"
+        return pd.Series("Bench", index=df.index)
+
     def _fit_standardization(self, df):
         df = df.copy()
-        df["group"] = df["position"].map(POSITION_GROUP).fillna("Bench")
+        df["group"] = self._position_groups(df)
         mins = df["minutes"].clip(lower=1)
         self.norm = {}  # group -> rate -> (mean, std)
         for raw, (rate, sign) in RATE_STATS.items():
@@ -119,7 +147,9 @@ class PlayerRatingEngine:
     def _transform(self, df):
         """Apply fitted standardization -> per-match composite z-score."""
         df = df.copy()
-        df["group"] = df["position"].map(POSITION_GROUP).fillna("Bench")
+        df["group"] = (df["position"].map(POSITION_GROUP).fillna("Bench")
+                       if self.position_mode == "position_relative"
+                       else pd.Series("Bench", index=df.index))
         mins = df["minutes"].clip(lower=1)
         for raw, (rate, sign) in RATE_STATS.items():
             df[rate] = sign * (df[raw].fillna(0.0) if raw in df else 0.0) / mins
@@ -184,8 +214,12 @@ class PlayerRatingEngine:
         return 100.0 * 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
     # ── 3a. Snapshot ratings (all games) — for BOSC scouting ───────────────
-    def compute_snapshot(self, raw):
-        pm = self._composite(raw)
+    def compute_snapshot(self, raw=None, pm=None):
+        """Snapshot ratings. Pass `pm` to supply composites computed elsewhere —
+        multi-season Class needs each match standardized against ITS OWN season's
+        pool, which a single _composite() call over the whole history cannot do."""
+        if pm is None:
+            pm = self._composite(raw)
         self._fit_variance_components(pm)
         rated = pm[pm["ratable"]]
 
@@ -211,6 +245,7 @@ class PlayerRatingEngine:
                 "form_score": self._to_0_100(form_z),
                 "positional_benchmark": self._to_0_100(class_z),
                 "confidence": "high" if B > 0.5 else "medium" if B > 0.2 else "low",
+                "rating_basis": self.position_mode,
             })
         return pd.DataFrame(rows).sort_values("class_z", ascending=False)
 
