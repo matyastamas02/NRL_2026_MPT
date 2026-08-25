@@ -1,108 +1,133 @@
 # -*- coding: utf-8 -*-
-"""Regenerate ratings + contribution on the full-season data, PER COMPETITION.
+"""Regenerate ratings + contribution, PER COMPETITION, over the full history.
 
-NRL and SL are rated in separate pools (a Super League winger is judged against
-Super League, not against the NRL). Ratings/contribution are computed for the
-current season (2026); earlier SL seasons stay in the DB for history/trends.
+THIS SCRIPT IS THE SINGLE WRITER of player_ratings, player_contribution and
+player_contribution_rating. The contribution formula lives in gigot_contribution.py
+(import-only) so the two files cannot drift apart.
 
-Position is not in the Stats Perform feed, so standardization is currently
-competition-relative, not position-relative — flagged until a position source
-arrives.
+Two design decisions worth knowing before reading the numbers.
+
+**Each competition is its own pool.** A Super League forward is judged against Super
+League, never against the NRL. Cross-competition comparison is the translation
+model's job (`predict_translation.py`), not the rating's.
+
+**Class spans every season the player has; Form is his last five matches.** Each
+match is standardized against ITS OWN season's pool, so a strong 2023 is measured
+against 2023 — then Class averages across them. That is why composites are built
+season by season rather than in one pass over the whole history.
+
+**One standardization mode per competition, for the whole history.** The mode is
+chosen from the competition's overall position coverage, not per season. Otherwise a
+player's 2026 matches could be position-relative while his 2024 matches were
+competition-relative, and averaging them into one Class would be meaningless. Super
+League is therefore competition-relative throughout (17% coverage overall, despite
+2026 being complete), and the Australian competitions are position-relative.
+
+Ratings are published for players active in each competition's most recent season —
+that is who a recruiter is looking at — but built from everything they have played.
 """
-import sqlite3, os
-import pandas as pd, numpy as np
+import os
+import sqlite3
+
+import numpy as np
+import pandas as pd
+
 import player_rating_engine as pre
+import gigot_contribution as gc
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
-SEASON = 2026
+COMPS = ["NRL", "SL", "NSW", "QLD"]
+COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
+        "all_run_metres", "p_c_m", "tackle_breaks", "line_breaks", "tackles",
+        "offloads", "try_assists", "tries", "errors"]
 
 
-def load_comp_season(con, comp, season):
-    cols = ["player_id", "player", "season", "round", "team", "position", "minutes",
-            "all_run_metres", "p_c_m", "tackle_breaks", "line_breaks", "tackles",
-            "offloads", "try_assists", "tries", "errors"]
-    q = (f"SELECT {', '.join(cols)} FROM player_match_stats "
-         f"WHERE competition=? AND season=?")
-    return pd.read_sql(q, con, params=(comp, season))
+def load(con, comp, season=None):
+    q = f"SELECT {', '.join(COLS)} FROM player_match_stats WHERE competition=?"
+    p = [comp]
+    if season is not None:
+        q += " AND season=?"
+        p.append(season)
+    return pd.read_sql(q, con, params=p)
+
+
+def competition_mode(df):
+    """One mode for the whole history, from overall coverage."""
+    known = df["position"].notna() & (df["position"] != "Unknown")
+    cov = float(known.mean()) if len(df) else 0.0
+    return (None if cov >= pre.MIN_POS_COVERAGE else "competition_relative"), cov
 
 
 con = sqlite3.connect(DB)
+rating_frames, contrib_frames, match_frames = [], [], []
 
-# ── Ratings per competition ────────────────────────────────────────────────
-rating_frames = []
-for comp in ["NRL", "SL"]:
-    raw = load_comp_season(con, comp, SEASON)
-    if raw.empty:
+for comp in COMPS:
+    hist = load(con, comp)
+    if hist.empty:
         continue
-    eng = pre.PlayerRatingEngine(comp)
-    snap = eng.compute_snapshot(raw)
+    seasons = sorted(hist.season.dropna().unique())
+    current = int(seasons[-1])
+    force, cov = competition_mode(hist)
+
+    # composites season by season, each against its own season's pool
+    pm_parts = []
+    for s in seasons:
+        part = hist[hist.season == s]
+        if len(part) < 100:
+            continue
+        eng_s = pre.PlayerRatingEngine(comp, force_mode=force)
+        pm_parts.append(eng_s._composite(part))
+    pm = pd.concat(pm_parts, ignore_index=True).sort_values(["player_id", "season", "round"])
+
+    eng = pre.PlayerRatingEngine(comp, force_mode=force)
+    eng.position_mode = ("competition_relative" if force else "position_relative")
+    snap = eng.compute_snapshot(pm=pm)
+
+    # publish the players active in the most recent season
+    active = set(load(con, comp, current).player_id)
+    snap = snap[snap.player_id.isin(active)].copy()
     snap["competition"] = comp
-    snap["season"] = SEASON
     snap["comp_code"] = comp
+    snap["season"] = current
     snap["positional_benchmark"] = snap["class_score"]
     snap["competition_translation_factor"] = 0.0
-    snap["updated_at"] = "2026-07-22"
+    snap["updated_at"] = "2026-08-20"
     rating_frames.append(snap)
-    print(f"{comp} {SEASON}: rated {len(snap)} players "
-          f"(sigma^2={eng.sigma2:.3f}, tau^2={eng.tau2:.3f}, "
-          f"reliability={eng.tau2/(eng.tau2+eng.sigma2):.2f})")
+    print(f"{comp}: rated {len(snap)} players active in {current}, from "
+          f"{len(pm):,} player-matches across {int(seasons[0])}-{current} "
+          f"| {eng.position_mode} (coverage {cov*100:.0f}%) "
+          f"| sigma^2={eng.sigma2:.3f} tau^2={eng.tau2:.3f} "
+          f"reliability={eng.tau2/(eng.tau2+eng.sigma2):.2f} "
+          f"| median games {snap.n_games.median():.0f}")
+
+    # contribution: current season only — it is a share of this season's team output
+    df = pd.read_sql(f"SELECT {', '.join(gc.INPUT_COLS)} FROM player_match_stats "
+                     f"WHERE competition=? AND season=?", con, params=(comp, current))
+    if not df.empty:
+        per_match = gc.compute_contribution(df, comp)
+        match_frames.append(per_match)
+        contrib_frames.append(gc.aggregate_contribution(per_match, comp))
 
 ratings = pd.concat(rating_frames, ignore_index=True)
 cols = ["player_id", "season", "comp_code", "competition", "form_score", "form_z",
         "class_score", "class_z", "divergence", "positional_benchmark",
         "competition_translation_factor", "updated_at", "shrinkage_B",
-        "n_games", "confidence"]
+        "n_games", "confidence", "rating_basis"]
 ratings[cols].to_sql("player_ratings", con, if_exists="replace", index=False)
+con.execute("CREATE INDEX IF NOT EXISTS ix_ratings_comp ON player_ratings(competition, season)")
 
-# ── Contribution per competition (share of own team's output) ───────────────
-ATT = ["all_run_metres", "p_c_m", "tackle_breaks", "line_breaks"]
-DEF = ["tackles"]
-PTS = ["tries", "try_assists"]
-W = {"att": 0.45, "def": 0.35, "pts": 0.20}
-
-contrib_frames = []
-for comp in ["NRL", "SL"]:
-    df = pd.read_sql(
-        "SELECT player_id, player, team, season, round, minutes, "
-        + ", ".join(ATT + DEF + PTS)
-        + " FROM player_match_stats WHERE competition=? AND season=?",
-        con, params=(comp, SEASON))
-    if df.empty:
-        continue
-    for c in ATT + DEF + PTS:
-        df[c] = df[c].fillna(0)
-    tot = df.groupby(["season", "round", "team"])[ATT + DEF + PTS].transform("sum")
-    for c in ATT + DEF + PTS:
-        df[f"s_{c}"] = np.where(tot[c] > 0, df[c] / tot[c], 0.0)
-    df["att"] = df[[f"s_{c}" for c in ATT]].mean(axis=1)
-    df["dfe"] = df[[f"s_{c}" for c in DEF]].mean(axis=1)
-    df["pts"] = df[[f"s_{c}" for c in PTS]].mean(axis=1)
-    df["share"] = W["att"]*df["att"] + W["def"]*df["dfe"] + W["pts"]*df["pts"]
-    df["contribution_rating"] = df["share"].rank(pct=True) * 100
-    agg = (df.groupby("player_id").agg(
-                name=("player", "first"), team=("team", "first"),
-                matches=("round", "count"), minutes=("minutes", "sum"),
-                attack_share=("att", "mean"), defence_share=("dfe", "mean"),
-                contribution_rating=("contribution_rating", "mean"))
-           .reset_index())
-    agg["competition"] = comp
-    contrib_frames.append(agg)
-    print(f"{comp} contribution: {len(agg)} players")
-
+per_match_all = pd.concat(match_frames, ignore_index=True)
+per_match_all.to_sql("player_contribution", con, if_exists="replace", index=False)
 contrib = pd.concat(contrib_frames, ignore_index=True).sort_values(
     "contribution_rating", ascending=False)
 contrib.to_sql("player_contribution_rating", con, if_exists="replace", index=False)
-
-# ── patch players table with a positions placeholder + competition ──────────
-players = pd.read_sql("SELECT * FROM players", con)
-if "positions" not in players.columns:
-    players["positions"] = "Unknown"
-    players.to_sql("players", con, if_exists="replace", index=False)
-
 con.commit()
-print(f"\nplayer_ratings: {len(ratings)} rows | player_contribution_rating: {len(contrib)} rows")
-print("Top 5 SL contributors:")
-print(contrib[contrib.competition == "SL"].head(5)[
-    ["name", "team", "contribution_rating"]].round(1).to_string(index=False))
+
+print(f"\nplayer_ratings: {len(ratings)} rows | "
+      f"player_contribution: {len(per_match_all)} rows | "
+      f"player_contribution_rating: {len(contrib)} rows")
+print(pd.read_sql("SELECT competition, season, count(*) players, "
+                  "round(avg(n_games),1) avg_games, rating_basis "
+                  "FROM player_ratings GROUP BY 1,2,5 ORDER BY 1", con).to_string(index=False))
 con.close()

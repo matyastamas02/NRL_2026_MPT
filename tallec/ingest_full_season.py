@@ -16,8 +16,10 @@ Data reality (flagged to the client):
   * SL has permanent Player ID only from 2026; earlier seasons keyed by name.
   * NRL 337 cols vs SL 269 cols share 269 — cross-league work uses that core.
 """
-import sqlite3, glob, os, re, unicodedata
+import sqlite3, glob, os, re, sys, unicodedata
 import pandas as pd, numpy as np
+
+import sp_schema as sp
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DL = os.path.dirname(BASE)
@@ -26,27 +28,28 @@ NRL_FILE = os.path.join(DL, "Player Level Stats NRL.xlsx")
 SL_GLOB = os.path.join(DL, "sl21_players", "SL2*.csv")
 DICT_FILE = os.path.join(DL, "BOSC_Full_Metric_Rate_Review_v2.xlsx")
 
-# canonical Stats Perform field -> lowercase engine-compat key (what the rating
-# engine, gigot_contribution and bosc_app already query). Only the mapped subset
-# is duplicated to lowercase; the full canonical set is stored verbatim too.
-ENGINE_MAP = {
-    "Ball Runs - Metres Gained":        "all_run_metres",
-    "Ball Runs - Post Contact Metres":  "p_c_m",
-    "Tackle Break":                     "tackle_breaks",
-    "Line Break":                       "line_breaks",
-    "Tackle - Total Made":              "tackles",
-    "Offload - Successful":             "offloads",
-    "Try Assists":                      "try_assists",
-    "Try Scored - Total":               "tries",
-    "Errors":                           "errors",
-    "Receipts":                         "receipts",
-    "Ball Runs - Total":                "ball_runs_total",
-    "Pass - Attempted":                 "passes",
-}
+# canonical Stats Perform field -> lowercase engine-compat key. Defined once in
+# sp_schema so this script and ingest_aus_history.py cannot drift apart.
+ENGINE_MAP = sp.ENGINE_MAP
+slugify = sp.slugify
 
-def slugify(name):
-    s = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+# ── guard: this script REBUILDS its tables with if_exists="replace", so it would
+# delete any competition it does not load itself (the Australian history added by
+# ingest_aus_history.py, 85k rows). Refuse to run in that state unless forced.
+MANAGES = {"NRL", "SL"}
+if os.path.exists(DB):
+    _con = sqlite3.connect(DB)
+    try:
+        present = {r[0] for r in _con.execute(
+            "SELECT DISTINCT competition FROM player_match_stats")}
+    except sqlite3.OperationalError:
+        present = set()
+    _con.close()
+    foreign = present - MANAGES
+    if foreign and "--force" not in sys.argv:
+        sys.exit(f"ABORT: {DB} also holds {sorted(foreign)}, which this script does not "
+                 f"load and would delete.\nRun ingest_aus_history.py after this one to "
+                 f"restore them, or pass --force if that is what you want.")
 
 def load_one(df, comp, season):
     df = df.copy()
@@ -64,7 +67,8 @@ def load_one(df, comp, season):
     df["opposition"] = df.get("Opposition")
     df["round"] = pd.to_numeric(df["Round"], errors="coerce")
     df["minutes"] = pd.to_numeric(df["Minutes"], errors="coerce").fillna(0)
-    df["position"] = "Unknown"          # no position field in Stats Perform feed
+    df["position"] = "Unknown"          # no position field in these two feeds
+    df["position_source"] = "unknown"   # filled later from the Australian file
     for src, dst in ENGINE_MAP.items():
         df[dst] = pd.to_numeric(df[src], errors="coerce") if src in df.columns else np.nan
     # fantasy proxy (no official fantasy col): standard-ish attacking+defensive blend
@@ -98,15 +102,14 @@ con = sqlite3.connect(DB)
 # gigot_contribution and bosc_app query). SQLite is case-insensitive on column
 # names, so keep this strictly disjoint from the canonical Title-Case set.
 ENGINE_COLS = (["player_id", "player", "team", "opposition", "Competition", "Season",
-                "round", "minutes", "position", "fantasy"]
+                "round", "minutes", "position", "position_source", "fantasy"]
                + list(ENGINE_MAP.values()))
 eng = raw[ENGINE_COLS].rename(columns={"Competition": "competition", "Season": "season"})
 eng.to_sql("player_match_stats", con, if_exists="replace", index=False)
 
 # ── raw table: full canonical Stats Perform fields (for the metric dictionary /
 # Rate section). Join key = player_id + Competition + Season + round.
-_drop_from_canon = set(ENGINE_MAP.values()) | {
-    "player", "team", "opposition", "minutes", "position", "fantasy", "round"}
+_drop_from_canon = sp.LOWER_ALIASES
 canon = [c for c in raw.columns if c not in _drop_from_canon]
 raw[canon].to_sql("player_match_raw", con, if_exists="replace", index=False)
 print(f"player_match_stats (engine): {len(eng)} rows, {eng.shape[1]} cols")
