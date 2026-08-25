@@ -17,17 +17,58 @@ import sqlite3
 import pandas as pd
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DL = os.path.dirname(BASE)
 DB = os.path.join(BASE, "tallec.db")
-MASTERS = {"NRL": os.path.join(DL, "NRL_2026_MPT", "NRL_master.xlsx"),
-           "SL": os.path.join(DL, "NRL_2026_MPT", "SL_master.xlsx")}
+
+
+def _find_master(name):
+    """Locate an xLadder match master inside the NRL_2026_MPT checkout.
+
+    This module runs from two layouts — a working copy beside the checkout, and
+    inside it as NRL_2026_MPT/tallec — so one hardcoded path is wrong in one of them.
+    The search is restricted to a directory actually named NRL_2026_MPT: an earlier
+    version searched by filename alone and picked up a months-old copy of
+    NRL_master.xlsx that happened to sit in the parent folder.
+    """
+    here = BASE
+    for _ in range(4):
+        if os.path.basename(here) == "NRL_2026_MPT":
+            cand = os.path.join(here, name)
+            if os.path.exists(cand):
+                return cand
+        cand = os.path.join(here, "NRL_2026_MPT", name)
+        if os.path.exists(cand):
+            return cand
+        parent = os.path.dirname(here)
+        if parent == here:
+            break
+        here = parent
+    return None
+
+
+# columns the fixture join and the GIGOT evaluation cannot do without
+REQUIRED = ["Season", "Round", "A Team", "B Team", "A Score", "B Score", "Margin"]
+
+MASTERS = {"NRL": _find_master("NRL_master.xlsx"),
+           "SL": _find_master("SL_master.xlsx")}
 
 
 def load_master(comp, cols=None):
+    path = MASTERS[comp]
+    if not path:
+        raise FileNotFoundError(
+            f"{comp} match master not found. Looked for {comp}_master.xlsx inside an "
+            f"NRL_2026_MPT directory, starting from {BASE} and walking up. team_map "
+            f"and gigot_v2 need it to join fixtures to player data.")
     keep = ["Match ID", "Season", "Round", "A Team", "B Team", "A Score", "B Score",
             "Margin", "Total", "Home Advantage", "Home_flag", "ELO_A", "ELO_B",
             "Diff ELO", "Played", "Margin_Pred_v1", "Margin_Pred_v2"]
-    d = pd.read_excel(MASTERS[comp])
+    d = pd.read_excel(path)
+    absent = [c for c in REQUIRED if c not in d.columns]
+    if absent:
+        raise ValueError(
+            f"{path} is missing {absent}. That is the shape of an older master; the "
+            f"current one carries the fixture, score and margin columns. Point at the "
+            f"file the xLadder pipeline writes.")
     have = [c for c in (cols or keep) if c in d.columns]
     return d[have].copy()
 

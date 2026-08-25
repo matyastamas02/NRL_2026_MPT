@@ -49,7 +49,7 @@ Currently in `tallec.db`:
 | NRL | 2025 | 6,766 |
 | NRL | 2026 | 4,921 |
 | NSW | 2021 | 2,207 |
-| NSW | 2022 | 3,100 |
+| NSW | 2022 | 3,102 |
 | NSW | 2023 | 5,506 |
 | NSW | 2024 | 5,518 |
 | NSW | 2025 | 5,094 |
@@ -57,7 +57,7 @@ Currently in `tallec.db`:
 | QLD | 2022 | 4,260 |
 | QLD | 2023 | 5,356 |
 | QLD | 2024 | 5,399 |
-| QLD | 2025 | 5,373 |
+| QLD | 2025 | 5,387 |
 | SL | 2021 | 4,673 |
 | SL | 2022 | 5,663 |
 | SL | 2023 | 5,652 |
@@ -118,10 +118,10 @@ against exactly one Full Back, Half Back, Five-Eighth, Hooker and Lock:
 | Prop | 5,039 |
 | Second Row | 5,035 |
 | Half Back | 2,521 |
-| Lock | 2,520 |
 | Full Back | 2,520 |
-| Five-Eighth | 2,519 |
+| Lock | 2,520 |
 | Hooker | 2,519 |
+| Five-Eighth | 2,519 |
 
 This is better than a primary position: a player who covers hooker one week and comes off
 the bench the next is recorded correctly in each match.
@@ -271,22 +271,26 @@ in the NRL - the population a club actually recruits from.
 
 ## 9. Load status
 
-Loaded into `tallec.db` by `ingest_aus_history.py` on 2026-08-19 —
-85,659 of the 85,675 rows, the 16 key-breaking rows excluded and kept in the
-`excluded_rows` table. The database now holds **122,343 player-match rows**
-and is 78 MB.
+Loaded into `tallec.db` by `ingest_aus_history.py` on 2026-08-19.
+The 16 key-breaking rows were held out pending an answer, and restored on 2026-08-25
+by `resolve_duplicates.py` once the provider confirmed the cause: two of the
+three identifiers were each covering **two different players** (there are two Blake
+Moores and two James Walshes), and the remaining same-club pair was a mis-typed name
+on a team sheet. All 85,675 rows of this file are now loaded, and the database holds
+**122,359 player-match rows** across four competitions at 90 MB, with a
+UNIQUE index on player + competition + season + round + team.
 
 | Competition | Seasons | Player-match rows | Distinct players |
 |---|---|---|---|
 | NRL | 2020-2026 | 44,961 | 927 |
-| NSW Cup | 2021-2025 | 21,425 | 1,234 |
-| Queensland Cup | 2021-2025 | 24,194 | 1,188 |
-| SL | 2021-2026 | 31,763 | 1,103 |
+| NSW Cup | 2021-2025 | 21,427 | 1,234 |
+| Queensland Cup | 2021-2025 | 24,208 | 1,190 |
+| SL | 2021-2026 | 31,763 | 834 |
 
 The Stats Perform Player ID turned out to be **global**: of the 137 SL 2026 players who
 also appear in this file, 133 carry an identical ID. Earlier loads had keyed some rows by
 name-slug because their source files carried no ID column, so the load re-keys those to the
-permanent ID - 513 keys, 67 of them confirmed by matching date of birth, and
+permanent ID - 784 keys, 67 of them confirmed by matching date of birth, and
 13 candidate matches rejected because the dates of birth disagreed. Every change is
 recorded in the `player_id_map` table. NRL 2025 and NRL 2026 now share
 364 players under one ID, where before the re-key they shared none.
@@ -297,12 +301,12 @@ therefore gets:
 | Competition | Position known | Standardization |
 |---|---|---|
 | NRL | 98% | position-relative |
-| NSW Cup | 100% | not rated |
-| Queensland Cup | 91% | not rated |
-| SL | 8% | competition-relative |
+| NSW Cup | 100% | position-relative |
+| Queensland Cup | 91% | position-relative |
+| SL | 100% | position-relative |
 
-Super League stays competition-relative: only its players who have also played in
-Australia carry a position, and standardizing within position group on a partially known
-pool would make the composite incomparable across players. The rating engine gates on
-`min_position_coverage` in `config.json` (0.90) and records the outcome in
-`player_ratings.rating_basis`.
+Super League was competition-relative while its history carried no position. A
+2021-2026 master with per-match positions arrived on 2026-08-25, so **all four
+competitions are now rated within position group**. The rating engine gates on
+`min_position_coverage` in `config.json` (0.90) and records the outcome
+in `player_ratings.rating_basis`.

@@ -23,11 +23,11 @@ justify wiring it in and not enough to build the pitch around.
 | --- | --- | --- |
 | xLadder `Margin_Pred_v2` as shipped | 16.41 | 20.77 |
 | same, recalibrated on the training seasons | 16.41 | 20.76 |
-| recalibrated + player layer | **15.95** | 20.67 |
+| recalibrated + player layer | **15.91** | 20.55 |
 
 Paired bootstrap over 4,000 resamples of the held-out season:
 
-- all three player features: **+0.46 MAE [95% CI +0.04, +0.89]**
+- all three player features: **+0.50 MAE [95% CI +0.04, +0.89]**
 - `d_class` alone: **+0.22 MAE [95% CI +0.01, +0.42]**
 
 Both intervals exclude zero, so the gain is real. It is also small.
@@ -66,7 +66,7 @@ gain is modest.
 
 The leakage claim is tested, not asserted: permuting the composite column across rows
 and rebuilding drops the correlation between real and permuted `d_class` to +0.06
-(NRL) and +0.01 (SL). The features carry information about players; destroying the
+(NRL) and +0.08 (SL). The features carry information about players; destroying the
 performance data destroys the features without touching the row keys.
 
 **Known limits.** The standardization means and standard deviations are fitted over
@@ -85,8 +85,8 @@ pre-match ELO difference and home advantage.
 
 | | Out-of-sample fixtures | Baseline MAE | + player layer | Gain |
 | --- | --- | --- | --- | --- |
-| NRL 2023–2026 | 752 | 14.66 | 14.39 | **+0.27 [+0.08, +0.48]** |
-| Super League 2023–2025 | 494 | 13.53 | 13.37 | +0.16 [−0.33, +0.61] |
+| NRL 2023–2026 | 752 | 14.66 | 14.39 | **+0.27 [+0.09, +0.47]** |
+| Super League 2023–2025 | 494 | 13.53 | 13.36 | +0.17 [−0.29, +0.62] |
 
 Both point estimates land in the same place — around a quarter of a point of margin
 error. The NRL result clears significance on 752 fixtures; Super League, on 494,

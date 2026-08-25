@@ -8,7 +8,7 @@ margin prediction, so that is the benchmark rather than something re-derived her
 Method
 
   1. Every player-match gets a composite performance score from the rating engine,
-     standardized within its competition-season pool.
+     standardized within its own competition-season pool.
   2. For each player-match, PRE-MATCH ratings are built from his earlier matches only:
      class  = mean of every prior composite
      form   = mean of the last five prior composites
@@ -23,9 +23,10 @@ Method
 
 Honest limits, stated because they bound the conclusion:
 
-  * The standardization means and standard deviations are fitted on the whole period,
-    as the engine ships. That is a population descriptor rather than an outcome, but
-    it is not a strict walk-forward.
+  * Composites are standardized within each competition-season pool, so a 2022
+    performance is measured against 2022. The pool includes the whole season rather
+    than only its earlier rounds, which is a population descriptor rather than an
+    outcome, but it is not a strict walk-forward.
   * Using the actual line-up is an upper bound on what a team-list feed could deliver:
     on Friday you know the named 17, not who finished the game.
   * Margin_Pred_v2 is taken as given from the master.
@@ -49,11 +50,22 @@ COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
 
 
 def prematch_players(comp, con, shuffle_outcome=False, seed=0):
-    """Per player-match pre-match class and form, from earlier matches only."""
+    """Per player-match pre-match class and form, from earlier matches only.
+
+    Composites are built season by season, each against its own season's pool, the
+    same way regenerate_full.py does it. A single fit over the whole period — which
+    this function used to do — measures a 2022 performance partly against 2026's
+    standards, and contradicted this module's own description of the method.
+    """
     raw = pd.read_sql(f"SELECT {', '.join(COLS)} FROM player_match_stats "
                       f"WHERE competition=?", con, params=(comp,))
-    eng = pre.PlayerRatingEngine(comp)
-    pm = eng._composite(raw)
+    parts = []
+    for s in sorted(raw.season.dropna().unique()):
+        part = raw[raw.season == s]
+        if len(part) < 100:
+            continue
+        parts.append(pre.PlayerRatingEngine(comp)._composite(part))
+    pm = pd.concat(parts, ignore_index=True)
     if shuffle_outcome:
         # permutation test: scramble the performance column across rows. Pre-match
         # features must be unchanged for the rows they describe if no match leaks
