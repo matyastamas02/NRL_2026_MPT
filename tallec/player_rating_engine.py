@@ -3,6 +3,12 @@
 
 Replaces the mock ratings with defensible statistics. Three ideas do the work:
 
+0. Availability-aware blending. A stat that a season never recorded must not be
+   scored as if every player was average at it: post-contact metres only appear from
+   2025, and spending 24% of a prop's weight on a dead input compressed every earlier
+   composite. Each pool decides which rates it recorded and the position weights are
+   renormalised over those.
+
 1. Position-relative standardization. A prop's 90 run metres and a fullback's
    150 are not comparable; every per-minute stat is z-scored WITHIN its
    (position group, competition) peer pool, then blended by a position-specific
@@ -93,6 +99,13 @@ FORM_WINDOW = CONFIG["form_calculation"]["window_matches"]                # 5
 # share of the pool that must have a known position before ratings are computed
 # within position group rather than across the whole competition
 MIN_POS_COVERAGE = CONFIG.get("positional_benchmark", {}).get("min_position_coverage", 0.90)
+# A rate counts as recorded in a pool when more than this share of rows carry a
+# non-zero value. Post-contact metres are absent before 2025 (0-6% of rows) and present
+# after (96-98%); try assists are sparse but real all along (13-17%). Anything below
+# the threshold is dropped from the blend and its weight redistributed, so a season
+# that never recorded a stat is not silently scored as if every player was average at
+# it — which compressed every pre-2025 composite and broke cross-season comparison.
+MIN_RATE_COVERAGE = CONFIG.get("data_quality_thresholds", {}).get("min_rate_coverage", 0.10)
 
 
 class PlayerRatingEngine:
@@ -107,6 +120,8 @@ class PlayerRatingEngine:
         self.grand_mean = 0.0
         self.position_mode = "competition_relative"
         self.position_coverage = 0.0
+        self.available = None   # rates this pool recorded; set by _fit_standardization
+        self.dropped = []
 
     # ── 1. Standardization (fit / transform split) ────────────────────────
     # Standardization params are POPULATION descriptors ("what's an average
@@ -139,10 +154,28 @@ class PlayerRatingEngine:
         self.norm = {}  # group -> rate -> (mean, std)
         for raw, (rate, sign) in RATE_STATS.items():
             df[rate] = sign * (df[raw].fillna(0.0) if raw in df else 0.0) / mins
+        # which rates this pool actually recorded
+        self.available = []
+        self.dropped = []
+        for raw, (rate, _) in RATE_STATS.items():
+            share = float((df[raw].fillna(0) != 0).mean()) if raw in df else 0.0
+            (self.available if share > MIN_RATE_COVERAGE else self.dropped).append(rate)
         for grp, g in df.groupby("group"):
             self.norm[grp] = {r: (g[r].mean(), g[r].std() or np.nan)
                               for r in RATE_ORDER}
         return self
+
+    def _weights(self, grp):
+        """Position weights renormalised over the rates this pool recorded."""
+        w = np.array(POSITION_WEIGHTS.get(grp, POSITION_WEIGHTS["Bench"]), dtype=float)
+        if self.available is not None and self.dropped:
+            mask = np.array([r in self.available for r in RATE_ORDER], dtype=float)
+            w = w * mask
+            total = w.sum()
+            # a position whose whole weight vector is unavailable falls back to an
+            # equal blend of what is left rather than to all zeros
+            w = w / total if total > 0 else mask / max(mask.sum(), 1)
+        return w
 
     def _transform(self, df):
         """Apply fitted standardization -> per-match composite z-score."""
@@ -157,7 +190,7 @@ class PlayerRatingEngine:
         for grp in df["group"].unique():
             mask = (df["group"] == grp).values
             params = self.norm.get(grp, self.norm.get("Bench"))
-            w = np.array(POSITION_WEIGHTS.get(grp, POSITION_WEIGHTS["Bench"]))
+            w = self._weights(grp)
             zmat = np.zeros((mask.sum(), len(RATE_ORDER)))
             for j, r in enumerate(RATE_ORDER):
                 mu, sd = params[r]

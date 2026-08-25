@@ -175,6 +175,49 @@ def test_fitting_the_standardization_on_the_whole_pool_is_not_leak_free():
                              "and the walk-forward caveat can be dropped")
 
 
+# ── stat availability ───────────────────────────────────────────────────────
+def test_a_stat_the_pool_never_recorded_is_dropped_not_scored_as_average():
+    """Post-contact metres only exist from 2025. Spending a quarter of a prop's weight
+    on a column of zeros compressed every earlier composite, and made a walk-forward
+    fit produce z-scores around +13 for that rate."""
+    df = _matches(n_rounds=6)
+    df["p_c_m"] = 0.0                     # the stat this pool never recorded
+    eng = pre.PlayerRatingEngine("TEST")
+    eng._fit_standardization(df)
+    assert "pcm_pm" in eng.dropped
+    w = eng._weights("Prop")
+    assert abs(w.sum() - 1.0) < 1e-9, "weights must be renormalised over what remains"
+    assert w[pre.RATE_ORDER.index("pcm_pm")] == 0.0
+
+
+def test_a_sparse_but_real_stat_is_kept():
+    """Try assists are zero for most players in every season. Sparse is not absent."""
+    df = _matches(n_rounds=6)
+    eng = pre.PlayerRatingEngine("TEST")
+    eng._fit_standardization(df)
+    assert "ta_pm" not in eng.dropped
+
+
+def test_weights_still_sum_to_one_when_nothing_is_dropped():
+    eng = pre.PlayerRatingEngine("TEST")
+    eng._fit_standardization(_matches(n_rounds=6))
+    for grp in ("Prop", "Halves", "Bench"):
+        assert abs(eng._weights(grp).sum() - 1.0) < 1e-9
+
+
+def test_a_missing_stat_does_not_blow_up_a_later_season():
+    """The regression test for the real failure: fit where the stat is absent,
+    transform where it is present, and the composite must stay on scale."""
+    early = _matches(n_rounds=6, seed=1)
+    early["p_c_m"] = 0.0
+    late = _matches(n_rounds=6, seed=2)          # p_c_m present and substantial
+    eng = pre.PlayerRatingEngine("TEST")
+    eng._fit_standardization(early)
+    out = eng._transform(late)
+    assert abs(out["composite"].mean()) < 1.0, "a mean far from zero means it exploded"
+    assert out["composite"].std() < 1.5
+
+
 # ── contribution ────────────────────────────────────────────────────────────
 def test_contribution_shares_sum_to_one_within_a_team_match():
     df = _matches(n_players=34, n_rounds=3)
