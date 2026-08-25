@@ -23,11 +23,11 @@ justify wiring it in and not enough to build the pitch around.
 | --- | --- | --- |
 | xLadder `Margin_Pred_v2` as shipped | 16.41 | 20.77 |
 | same, recalibrated on the training seasons | 16.41 | 20.76 |
-| recalibrated + player layer | **15.91** | 20.55 |
+| recalibrated + player layer | **15.96** | 20.61 |
 
 Paired bootstrap over 4,000 resamples of the held-out season:
 
-- all three player features: **+0.50 MAE [95% CI +0.04, +0.89]**
+- all three player features: **+0.45 MAE [95% CI +0.04, +0.89]**
 - `d_class` alone: **+0.22 MAE [95% CI +0.01, +0.42]**
 
 Both intervals exclude zero, so the gain is real. It is also small.
@@ -69,11 +69,27 @@ and rebuilding drops the correlation between real and permuted `d_class` to +0.0
 (NRL) and +0.08 (SL). The features carry information about players; destroying the
 performance data destroys the features without touching the row keys.
 
-**Known limits.** The standardization means and standard deviations are fitted over
-the whole period, as the engine ships — a population descriptor rather than an
-outcome, but not a strict walk-forward. And using the actual line-up is an *upper
-bound* on what a team-list feed could deliver: on Friday you know the named 17, not
-who finished the match.
+**Standardization is walk-forward.** Each season is converted to z-scores using means
+and standard deviations fitted on the seasons *before* it, so no part of a match's own
+season enters its measurement. Getting there found a data bug rather than a
+methodological one, and it is worth recording:
+
+Turning walk-forward on initially collapsed the result — the NRL gain fell to +0.13 and
+Super League went negative. The cause was **post-contact metres, which this data only
+records from 2025 onwards**: 0 to 6 per cent of rows carry a value before, 96 to 98 per
+cent after, in all four competitions. A fit on earlier seasons therefore saw a mean of
+0.004 with a standard deviation of 0.068 where 2025 had 0.92, producing z-scores around
++13 for that one rate — and it carried 24 per cent of a prop's weight.
+
+The engine now decides per pool which rates were actually recorded and renormalises the
+position weights over those (`min_rate_coverage` in `config.json`; try assists sit at
+13-17 per cent and are sparse-but-real, so the threshold separates them). With that
+fixed the strict walk-forward version reproduces the original numbers. Four tests pin
+the behaviour so it cannot regress.
+
+**The remaining limit** is the one that matters most: using the actual line-up is an
+*upper bound* on what a team-list feed could deliver. On Friday you know the named 17,
+not who finished the match.
 
 ## A second baseline, one we control
 
@@ -85,8 +101,8 @@ pre-match ELO difference and home advantage.
 
 | | Out-of-sample fixtures | Baseline MAE | + player layer | Gain |
 | --- | --- | --- | --- | --- |
-| NRL 2023–2026 | 752 | 14.66 | 14.39 | **+0.27 [+0.09, +0.47]** |
-| Super League 2023–2025 | 494 | 13.53 | 13.36 | +0.17 [−0.29, +0.62] |
+| NRL 2023–2026 | 752 | 14.66 | 14.39 | **+0.27 [+0.08, +0.46]** |
+| Super League 2023–2025 | 494 | 13.53 | 13.32 | +0.21 [−0.27, +0.67] |
 
 Both point estimates land in the same place — around a quarter of a point of margin
 error. The NRL result clears significance on 752 fixtures; Super League, on 494,

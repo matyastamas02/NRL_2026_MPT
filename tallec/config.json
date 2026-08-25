@@ -29,7 +29,8 @@
   },
   "data_quality_thresholds": {
     "min_minutes_for_form": 20,
-    "description": "Ratings computed only when player meets these thresholds (e.g., form only if played 20+ mins that week)"
+    "description": "min_minutes_for_form: a match counts toward Form/Class only above this. min_rate_coverage: a stat counts toward the composite only if more than this share of the pool's rows carry a non-zero value - post-contact metres are absent before 2025 and would otherwise consume a quarter of a prop's weight as a dead input. Weights are renormalised over the stats that remain.",
+    "min_rate_coverage": 0.1
   },
   "_note": "Only settings the code actually reads live here. Removed 2026-08-25: rating_weights and class_calculation (the latter described an ELO mechanism for player Class that the engine does not use - Class is a shrunk mean of position-standardized composites), competition_translation_model (the fitted model and its feature list live in translation_model_v2.pkl), and weekly_update_schedule (weekly_update.py takes its arguments on the command line). Unused keys that describe a mechanism the code does not implement are worse than no documentation."
 }

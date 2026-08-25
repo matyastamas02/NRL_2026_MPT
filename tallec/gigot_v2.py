@@ -23,11 +23,11 @@ Method
 
 Honest limits, stated because they bound the conclusion:
 
-  * Composites are standardized within each competition-season pool. The pool is the
-    whole season rather than only its earlier rounds, so the population a match is
-    compared against includes its own season — a population descriptor rather than an
-    outcome, but not a strict walk-forward. prematch_players(walk_forward=True) does
-    the strict version; see its docstring for why it is not yet the default.
+  * Composites are standardized walk-forward: each season is converted to z-scores
+    using means and standard deviations fitted on the seasons before it, so no part of
+    a match's own season enters its measurement. Rates a pool never recorded are
+    dropped and the position weights renormalised, which is what makes the comparison
+    across seasons valid at all.
   * Using the actual line-up is an upper bound on what a team-list feed could deliver:
     on Friday you know the named 17, not who finished the game.
   * Margin_Pred_v2 is taken as given from the master.
@@ -50,22 +50,25 @@ COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
         "offloads", "try_assists", "tries", "errors"]
 
 
-def prematch_players(comp, con, shuffle_outcome=False, seed=0, walk_forward=False):
+def prematch_players(comp, con, shuffle_outcome=False, seed=0, walk_forward=True):
     """Per player-match pre-match class and form, from earlier matches only.
 
-    walk_forward is OFF by default, deliberately and temporarily. Switching it on is
-    the right thing methodologically, and a first run says it changes the answer: the
-    NRL gain falls from +0.27 [+0.09, +0.47] to +0.13 [-0.11, +0.38], i.e. no longer
-    significant, and Super League turns negative in a way that looks like a bug rather
-    than a finding (the warm-up drop did not fire and the per-season z-scales are not
-    obviously comparable). Publishing either number before that is understood would be
-    worse than either. This is the first task of the next round of work.
+Walk-forward is the default, and getting there found a data bug rather than a
+    methodological one. Switching it on initially collapsed the result — the NRL gain
+    fell from +0.27 to +0.13 and Super League went negative — which turned out to be
+    post-contact metres: recorded only from 2025 onwards, so a fit on earlier seasons
+    saw a mean of 0.004 and a standard deviation of 0.068 where 2025 had 0.92, giving
+    z-scores around +13 for that one rate. The engine now drops rates a pool never
+    recorded and renormalises the position weights over the rest; with that fixed the
+    strict version reproduces the original numbers, +0.27 [+0.08, +0.46] on the NRL.
 
     With walk_forward=True each season's composites are standardized
     using means and standard deviations fitted on the seasons BEFORE it, so nothing
     about a match — not even the population it is compared against — comes from its
     own season or later. The first season has no prior data, so it is fitted on itself
-    and flagged in the returned frame as `warmup`; the evaluation drops those rows.
+    and flagged as `warmup`; the evaluation drops those fixtures. In practice it drops
+    none: the match masters start in 2022 while the player data starts in 2020 (NRL)
+    and 2021 (SL), so the warm-up seasons predate every fixture being scored.
 
     Fitting over the whole period instead, which this function used to do, is what the
     leakage test caught: altering one match moved every other match's composite,
