@@ -20,6 +20,7 @@ in this repo as fallback.
 | `xladder_pipeline.py` | Core pipeline v3.0 — models M3 / M3+ / Total, ELO (K=27), Form, backtests |
 | `NRL_master.xlsx`, `SL_master.xlsx` | Master match tables (one row = one match), local fallback for the Sheets data |
 | `docs/` | Project documentation and client briefs (TALLEC scope of work) |
+| `tallec/` | **TALLEC / BOSC** — player-level ratings, positional benchmarks and the measured competition-translation ladder across NRL, Super League, NSW Cup and Queensland Cup. Its own Streamlit app (`tallec/bosc_app.py`, deployed at bosc-tallec.streamlit.app) reading the bundled `tallec/tallec.db`. See `tallec/README.md` for the data state, the weekly import procedure and which script writes what. |
 | `scripts/` | One-off data tooling (2026 season rebuild from restated stat exports) |
 | `CLAUDE.md` | Full project onboarding: domain glossary, conventions, data formats, gotchas |
 

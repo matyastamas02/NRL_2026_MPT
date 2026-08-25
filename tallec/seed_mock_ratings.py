@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
 """Seed player_ratings table with mock data for BOSC UI testing."""
+import sys as _sys
+
+# This is a legacy entry point. regenerate_full.py is the only writer of
+# player_ratings and player_contribution*, and ingest_aus_history.py /
+# weekly_update.py the only writers of the match tables — see README, "which script
+# writes what". Running this would overwrite a live table from a narrower or older
+# code path, so it refuses unless the caller is explicit.
+if __name__ == "__main__" and "--i-know-this-overwrites" not in _sys.argv:
+    _sys.exit(__doc__.strip().splitlines()[0] + "\n\n"
+              "REFUSED: this script overwrites a table that another script owns.\n"
+              "Use regenerate_full.py (ratings) or weekly_update.py (match data).\n"
+              "Pass --i-know-this-overwrites to run it anyway.")
+
 import sqlite3
 import pandas as pd
 import numpy as np

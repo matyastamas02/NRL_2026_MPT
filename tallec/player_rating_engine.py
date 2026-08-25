@@ -355,18 +355,31 @@ def write_ratings_to_db(snapshot, comp_code="NRL", season=2026, rnd=12):
     con.close()
 
 
-def load_player_matches(comp="NRL"):
+def load_player_matches(comp="NRL", season=None):
+    """Rows for ONE competition. The comp argument used to be accepted and ignored,
+    which returned all four competitions pooled into a single rating pool."""
     con = sqlite3.connect(DB)
     cols = ["player_id", "player", "season", "round", "team", "position", "minutes"]
     cols += list(RATE_STATS.keys())
     have = pd.read_sql("PRAGMA table_info(player_match_stats)", con)["name"].tolist()
     cols = [c for c in cols if c in have]
-    df = pd.read_sql(f"SELECT {', '.join(cols)} FROM player_match_stats", con)
+    q = f"SELECT {', '.join(cols)} FROM player_match_stats WHERE competition = ?"
+    params = [comp]
+    if season is not None:
+        q += " AND season = ?"
+        params.append(season)
+    df = pd.read_sql(q, con, params=params)
     con.close()
     return df
 
 
 if __name__ == "__main__":
+    # regenerate_full.py owns player_ratings. This block predates it and writes the
+    # table from a single competition's pool with replace semantics.
+    import sys
+    if "--i-know-this-overwrites" not in sys.argv:
+        sys.exit("REFUSED: regenerate_full.py is the writer of player_ratings.\n"
+                 "Pass --i-know-this-overwrites to run this legacy path anyway.")
     raw = load_player_matches()
     eng = PlayerRatingEngine("NRL")
     snap = eng.compute_snapshot(raw)

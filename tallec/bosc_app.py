@@ -656,23 +656,33 @@ elif page == "🏉 Squad (GIGOT)":
         squad = contrib[contrib["team"] == team].sort_values(
             "contribution_rating", ascending=False).reset_index(drop=True)
 
-        # what-if team list simulator
-        st.markdown("**Team-list simulator** — untick players to see the expected "
-                    "contribution loss (the *Player Availability* signal that feeds "
-                    "the GIGOT match model).")
+        # what-if team list simulator — compared against the club's strongest
+        # SEVENTEEN, not against everyone who has appeared this season. Comparing a
+        # 17-man line-up with a 30-plus-man season squad mostly measures squad size.
+        LINEUP = 17
+        st.markdown("**Team-list simulator** — untick players to see what the line-up "
+                    "gives up against this club's strongest available seventeen. That "
+                    "gap is the *Player Availability* signal the GIGOT match model uses.")
         available = st.multiselect("Available players:", squad["name"].tolist(),
                                    default=squad["name"].tolist())
-        full = squad["contribution_rating"].sum()
-        got = squad[squad["name"].isin(available)]["contribution_rating"].sum()
-        missing = squad[~squad["name"].isin(available)]
+        best17 = squad.nlargest(LINEUP, "contribution_rating")
+        best = best17["contribution_rating"].sum()
+        picked = (squad[squad["name"].isin(available)]
+                  .nlargest(LINEUP, "contribution_rating"))
+        got = picked["contribution_rating"].sum()
+        missing = best17[~best17["name"].isin(available)]
 
         k1, k2, k3 = st.columns(3)
-        k1.metric("Full-squad expected contribution", f"{full:.0f}")
-        k2.metric("Selected line-up", f"{got:.0f}", delta=f"{got-full:+.0f}")
-        pct = (got - full) / full * 100 if full else 0
-        k3.metric("Impact", f"{pct:+.1f}%")
+        k1.metric(f"Strongest {LINEUP}", f"{best:.0f}")
+        k2.metric(f"Best {LINEUP} from those available", f"{got:.0f}",
+                  delta=f"{got-best:+.0f}")
+        pct = (got - best) / best * 100 if best else 0
+        k3.metric("Line-up strength lost", f"{pct:+.1f}%")
+        st.caption(f"Both figures are a seventeen. {len(squad)} players have appeared "
+                   f"for this club this season, so the squad list below is deeper than "
+                   f"any line-up.")
         if len(missing):
-            st.caption("Missing: " + ", ".join(
+            st.caption("Out of the strongest seventeen: " + ", ".join(
                 f"{r['name']} ({r['contribution_rating']:.0f})"
                 for _, r in missing.iterrows()))
 
