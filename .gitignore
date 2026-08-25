@@ -16,3 +16,11 @@ venv/
 ~$*.xlsx
 sheet_backup_*/
 updated_masters/
+
+# TALLEC operational data — local only, never committed
+# _backups holds full copies of tallec.db taken before every guarded write
+# (450 MB at eight retained snapshots), and the audit log is per-machine.
+_backups/
+tallec/_backups/
+tallec_audit.db
+tallec/tallec_audit.db

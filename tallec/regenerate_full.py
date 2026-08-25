@@ -32,7 +32,10 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
+import time
+
 import player_rating_engine as pre
+import runtime
 import gigot_contribution as gc
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -59,8 +62,10 @@ def competition_mode(df):
     return (None if cov >= pre.MIN_POS_COVERAGE else "competition_relative"), cov
 
 
+_t0 = time.time()
 con = sqlite3.connect(DB)
 rating_frames, contrib_frames, match_frames = [], [], []
+_stats = {}
 
 for comp in COMPS:
     hist = load(con, comp)
@@ -94,6 +99,10 @@ for comp in COMPS:
     snap["competition_translation_factor"] = 0.0
     snap["updated_at"] = "2026-08-20"
     rating_frames.append(snap)
+    _stats[comp] = {"players": int(len(snap)), "season": current,
+                    "rows": int(len(pm)), "mode": eng.position_mode,
+                    "coverage": round(cov, 3), "sigma2": round(eng.sigma2, 4),
+                    "tau2": round(eng.tau2, 4), "median_games": float(snap.n_games.median())}
     print(f"{comp}: rated {len(snap)} players active in {current}, from "
           f"{len(pm):,} player-matches across {int(seasons[0])}-{current} "
           f"| {eng.position_mode} (coverage {cov*100:.0f}%) "
@@ -127,6 +136,8 @@ con.commit()
 print(f"\nplayer_ratings: {len(ratings)} rows | "
       f"player_contribution: {len(per_match_all)} rows | "
       f"player_contribution_rating: {len(contrib)} rows")
+runtime.record_model_run("player_ratings+contribution", _stats, time.time() - _t0,
+                         script="regenerate_full.py")
 print(pd.read_sql("SELECT competition, season, count(*) players, "
                   "round(avg(n_games),1) avg_games, rating_basis "
                   "FROM player_ratings GROUP BY 1,2,5 ORDER BY 1", con).to_string(index=False))
