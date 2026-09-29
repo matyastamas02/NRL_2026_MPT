@@ -58,6 +58,10 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
 OUT = os.path.join(BASE, "ARRIVAL_REPORT.md")
 ENTRY_TYPES = ("first", "returning")
+# The competition the client recruits INTO. Leeds Rhinos plays in Super League.
+CLIENT_TARGET = "SL"
+CLIENT_SOURCES = ("NRL", "NSW", "QLD")
+# the Australian second tier, which feeds the NRL rather than Super League
 FEEDERS = ("NSW", "QLD")
 # a direction needs this many arrivals in the training window before it gets its own term
 MIN_PAIR_ARRIVALS = 10
@@ -246,6 +250,40 @@ def auc_ci(y, p, players=None, n=2000, seed=0):
     return point, float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
 
 
+BASELINE = "source_minutes"      # the single column a new model must beat, fixed in advance
+
+
+def paired_auc_ci(g, outcome, model_col, base_col, n=2000, seed=0):
+    """Bootstrap the DIFFERENCE between two AUCs on the same rows, clustered on players.
+
+    Resampling the same players for both predictors keeps the comparison paired, which
+    is the only way the difference can carry an interval worth reading: the two AUCs are
+    computed on identical data and move together.
+    """
+    y = np.asarray(g[outcome], dtype=bool)
+    if y.all() or not y.any():
+        return np.nan, np.nan, np.nan
+    m = np.asarray(g[model_col], dtype=float)
+    v = pd.to_numeric(g[base_col], errors="coerce")
+    b = np.asarray(v.fillna(v.median()), dtype=float)
+    point = auc(y, m) - auc(y, b)
+    players = np.asarray(g.player_id) if "player_id" in g else np.arange(len(g))
+    uniq = pd.unique(players)
+    if len(uniq) < 8:
+        return point, np.nan, np.nan
+    at = {q: np.where(players == q)[0] for q in uniq}
+    rng = np.random.default_rng(seed)
+    vals = []
+    for _ in range(n):
+        take = np.concatenate([at[q] for q in rng.choice(uniq, uniq.size, True)])
+        a1, a2_ = auc(y[take], m[take]), auc(y[take], b[take])
+        if not (np.isnan(a1) or np.isnan(a2_)):
+            vals.append(a1 - a2_)
+    if len(vals) < 50:
+        return point, np.nan, np.nan
+    return point, float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
+
+
 def baselines(d, outcome, min_arrivals=8):
     """What a single raw column achieves inside each direction, with no model at all.
 
@@ -266,6 +304,17 @@ def baselines(d, outcome, min_arrivals=8):
         r["model"] = auc(g[outcome], g.p_arrive)
         r["best_single"] = max(r[c] for c in NUMERIC if not np.isnan(r[c]))
         r["model_beats_best"] = "yes" if r["model"] > r["best_single"] else "NO"
+        # The paired difference, with an interval. The fifth external review pointed out
+        # that comparing a model's point estimate against the MAXIMUM of five observed
+        # AUCs and calling it a win is the same fault this project had just corrected
+        # elsewhere: a selected maximum is biased upward and neither figure carried an
+        # interval. The comparison is therefore made against a baseline fixed in advance
+        # — source minutes, the strongest single column and the one the review named —
+        # and bootstrapped over players.
+        pt, lo, hi = paired_auc_ci(g, outcome, "p_arrive", BASELINE)
+        r["vs " + BASELINE] = pt
+        r["ci_low"], r["ci_high"] = lo, hi
+        r["clear"] = "yes" if (lo > 0 or hi < 0) else "no"
         rows.append(r)
     return pd.DataFrame(rows).sort_values("direction")
 
@@ -445,21 +494,36 @@ def main():
     W.append(f"\n`lift` is the hit rate in the slice divided by the {base:.2%} base "
              f"rate.\n")
 
-    # the direction the client actually asks about
-    fn = d[d.source.isin(FEEDERS) & (d.target == "NRL")]
-    if len(fn) > 50:
-        W.append("\n\n## Feeder to NRL, on its own\n")
-        W.append("The question Leeds asks, and the only direction where the answer is "
-                 "quoted to anyone.\n")
+    # The direction the client actually asks about. Leeds Rhinos is a Super League club,
+    # so its question is who arrives in Super League. Until the fifth external review on
+    # 2026-09-29 this section reported feeder-to-NRL under that heading, which is a
+    # pathway into a competition the client does not recruit into.
+    for label, frame, note in (
+            ("Into Super League — the client's direction",
+             d[d.source.isin(CLIENT_SOURCES) & (d.target == CLIENT_TARGET)],
+             "Leeds recruits into Super League. This is who arrives there."),
+            ("Feeder to NRL — not the client's direction",
+             d[d.source.isin(FEEDERS) & (d.target == "NRL")],
+             "Reported because an Australian club would ask it, and because this "
+             "pathway carries the most arrivals.")):
+        if len(frame) <= 50:
+            continue
+        W.append(f"\n\n## {label}\n")
+        W.append(note + "\n")
         W.append(md(pd.DataFrame([dict(
-            n=len(fn), arrivals=int(fn[a.outcome].sum()),
-            base_rate=float(fn[a.outcome].mean()),
-            auc=auc(fn[a.outcome], fn.p_arrive),
-            brier=brier(fn[a.outcome], fn.p_arrive),
-            brier_base=brier(fn[a.outcome],
-                             np.full(len(fn), fn[a.outcome].mean())))]), "{:.4f}"))
-        W.append("\n")
-        W.append(md(lift(fn, a.outcome), "{:.3f}"))
+            n=len(frame), arrivals=int(frame[a.outcome].sum()),
+            base_rate=float(frame[a.outcome].mean()),
+            auc=auc(frame[a.outcome], frame.p_arrive),
+            brier=brier(frame[a.outcome], frame.p_arrive),
+            brier_base=brier(frame[a.outcome],
+                             np.full(len(frame), frame[a.outcome].mean())))]), "{:.4f}"))
+        pt, lo, hi = paired_auc_ci(frame, a.outcome, "p_arrive", BASELINE)
+        if not np.isnan(lo):
+            clear = lo > 0 or hi < 0
+            W.append(f"\nAgainst `{BASELINE}` alone: {pt:+.3f} AUC [{lo:+.3f}, "
+                     f"{hi:+.3f}]"
+                     + (", clear of zero.\n" if clear else ", which contains zero.\n"))
+        W.append(md(lift(frame, a.outcome), "{:.3f}"))
 
     W.append("\n\n## Verdict\n")
     if not np.isnan(weighted) and weighted < 0.55:
@@ -478,13 +542,16 @@ def main():
     else:
         bl = baselines(d, a.outcome)
         beats = int((bl.model_beats_best == "yes").sum())
-        W.append(f"**There is usable signal, and the model now finds it.** It separates "
-                 f"arrivals from the rest inside a direction as well as across them, "
-                 f"and it beats the best single raw column in {beats} of {len(bl)} "
-                 f"directions — including both of the client's. That is the condition "
-                 f"for showing it at all, and the previous version failed it without "
-                 f"anyone noticing, because nothing compared the model with its own "
-                 f"inputs.\n")
+        clear_beats = int((bl["clear"] == "yes").sum()) if "clear" in bl else 0
+        W.append(f"**There is usable signal, and the model finds it — in some "
+                 f"directions.** It beats the best single raw column in {beats} of "
+                 f"{len(bl)} directions on point estimates. Measured properly, against "
+                 f"`{BASELINE}` fixed in advance with a paired interval, the advantage "
+                 f"is clear of zero in {clear_beats} of {len(bl)}. The fifth external "
+                 f"review was right that comparing a model against the maximum of five "
+                 f"observed AUCs, with no interval on either, is the same fault this "
+                 f"project had just corrected elsewhere — a selected maximum is biased "
+                 f"upward and neither number said how sure it was.\n")
         W.append("\nIt is still not a probability to quote at a player. The directions "
                  "where it loses to a single column are the thin ones, the calibration "
                  "above over-predicts in the upper bins, and the population is everyone "

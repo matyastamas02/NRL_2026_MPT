@@ -63,7 +63,15 @@ ALPHA = f3.ALPHA
 # the cohort a recruitment question is about: men entering a competition,
 # not men already shuttling across it
 ENTRY_TYPES = ("first", "returning")
-# the feeder competitions a Super League or NRL club recruits from
+# The competition the client recruits INTO. Leeds Rhinos is a Super League club and the
+# question the project exists to answer is "this NRL or second-tier Australian player —
+# what would he do in Super League". From 2026-09-23 until the fifth external review on
+# 2026-09-29 this file called feeder-to-NRL "the question Leeds asks" and reported it as
+# the headline cohort. That is a pathway into the NRL, which Leeds does not recruit into.
+# Three report regenerations carried the error.
+CLIENT_TARGET = "SL"
+CLIENT_SOURCES = ("NRL", "NSW", "QLD")
+# the second-tier Australian competitions, which feed the NRL rather than Super League
 FEEDERS = ("NSW", "QLD")
 # how each type reads in a sentence
 LONG = {"first": "first season in the competition",
@@ -431,6 +439,12 @@ def main():
       "conditioning rather than flexibility. This comparison did not exist in this "
       "project until 2026-09-24, and its absence let an arrival model score 0.44 on a "
       "feature worth 0.71 by itself for a month.\n")
+    A("\nThe line is a least-squares fit while the comparison is on MAE. An earlier "
+      "version of this section called that a mismatch in the line's favour; the fifth "
+      "external review refitted an MAE-optimal line and found it changes almost nothing "
+      "— 20.20 against the least-squares line's 20.60 overall, with the model at 20.12 "
+      "and still not separable on the client's direction. The remark was wrong and is "
+      "withdrawn.\n")
     simple = beats_the_simple_thing(d)
     A(md(simple, "{:.2f}"))
     A("\n\n`vs line` is the model's mean absolute error subtracted from the "
@@ -449,15 +463,13 @@ def main():
           + (" — " + ", ".join(f"{r['direction']} by {-r['vs line']:.2f}"
                                for _, r in behind.iterrows()) if len(behind) else "")
           + ".\n")
-        fn_rows = simple[simple.direction.isin([f"{s}->NRL" for s in FEEDERS])]
-        fn = d[d.source.isin(FEEDERS) & (d.target == "NRL")]
-        b = boot(fn, "line_direction", "model") if len(fn) > 20 else None
-        if len(fn_rows) and b is not None:
+        cl = d[d.source.isin(CLIENT_SOURCES) & (d.target == CLIENT_TARGET)]
+        b = boot(cl, "line_direction", "model") if len(cl) > 20 else None
+        if b is not None:
             clear = b[1] > 0 or b[2] < 0
-            A(f"\n**On the client's own pathways the model is not distinguishable from "
-              f"a straight line.** Taking the two feeder-to-NRL directions together, "
-              f"{len(fn)} moves, it is ahead by {b[0]:+.2f} points with an interval of "
-              f"[{b[1]:+.2f}, {b[2]:+.2f}]"
+            A(f"\n**On the client's own direction the model is not distinguishable from "
+              f"a straight line.** Everything entering Super League, {len(cl)} moves, "
+              f"{b[0]:+.2f} points with an interval of [{b[1]:+.2f}, {b[2]:+.2f}]"
               + (", clear of zero.\n" if clear else ", which contains zero.\n"))
             A("\nThat is the honest description of what the conditional model is worth "
               "where it is sold. It is not an argument for deleting it: a line cannot "
@@ -531,46 +543,68 @@ def main():
 
     # ── the one cohort the client actually asks about ────────────────────────
     A("\n\n## The headline use case, on its own\n")
-    A("Leeds asks one question: a man is playing in the NSW Cup or the Queensland Cup "
-      "and has never played in the NRL — what would he do there? Every figure above "
-      "pools that with returners and with moves in other directions. This is that "
-      "cohort alone, and it is the number to quote when anyone asks whether the system "
-      "works.\n")
-    fn = d[d.source.isin(FEEDERS) & (d.target == "NRL")
-           & (d.transition_type == "first")]
-    if len(fn) >= 20:
+    A("Leeds Rhinos is a Super League club, so the question the project exists to answer "
+      "is: this man is playing in the NRL, the NSW Cup or the Queensland Cup — what "
+      "would he do in Super League. Every figure above pools that with moves in other "
+      "directions. This is that cohort alone.\n")
+    A("\nIt is also a correction. From 23 September until the fifth external review on "
+      "the 29th this section reported feeder-to-NRL as the client's cohort and called it "
+      "the question Leeds asks. That is a pathway *into* the NRL, which Leeds does not "
+      "recruit into, and the mistake survived three regenerations of this report. What "
+      "it said was true of feeder-to-NRL and wrong about the client.\n")
+    cl = d[d.source.isin(CLIENT_SOURCES) & (d.target == CLIENT_TARGET)]
+    if len(cl) >= 20:
         rows = []
         for tgt, oname in (("class_target", "shrunk (published)"),
                            ("class_target_raw", "unshrunk season mean")):
-            if tgt not in fn.columns or fn[tgt].isna().all():
+            if tgt not in cl.columns or cl[tgt].isna().all():
                 continue
-            s_ = score(fn, tgt)
+            s_ = score(cl, tgt)
             for _, r in s_.iterrows():
                 rows.append(dict(outcome=oname, **r.to_dict()))
         A(md(pd.DataFrame(rows), "{:.2f}"))
-        A(f"\n{len(fn)} players over {fn.origin.nunique()} origins.\n")
+        first = int((cl.transition_type == "first").sum())
+        A(f"\n{len(cl)} moves over {cl.origin.nunique()} origins, "
+          f"{cl.player_id.nunique()} players, {first} of them entering Super League for "
+          f"the first time.\n")
 
-        vs50 = boot(fn, "flat50", "model")
-        vsnone = boot(fn, "class_source", "model")
-        if vs50 and vsnone:
-            clear50 = vs50[2] < 0 or vs50[1] > 0
-            clearnone = vsnone[2] < 0 or vsnone[1] > 0
-            A(f"**Against a flat 50 the model is not distinguishable here.** It is "
-              f"ahead by {vs50[0]:.2f} points with a player-clustered interval of "
-              f"[{vs50[1]:+.2f}, {vs50[2]:+.2f}]"
-              + (", clear of zero.\n" if clear50 else
-                 " — which contains zero. On the cohort the product exists to serve, "
-                 "at this sample size, we cannot show the model beats assuming every "
-                 "arrival is average.\n"))
-            A(f"**Against carrying his feeder rating across unchanged it clearly is.** "
-              f"{vsnone[0]:.2f} points [{vsnone[1]:+.2f}, {vsnone[2]:+.2f}]"
-              + (", clear of zero.\n" if clearnone else ", containing zero.\n"))
-            A("Read together: what the model reliably does is stop a feeder rating "
-              "being taken at face value. What it has not yet been shown to do is rank "
-              "one arrival above another. Those are different products, and only the "
-              "first is evidenced.\n")
+        def verdict(b, what):
+            if b is None:
+                return
+            clear = b[1] > 0 or b[2] < 0
+            A(f"\n**{what}** {b[0]:+.2f} points [{b[1]:+.2f}, {b[2]:+.2f}]"
+              + (", clear of zero.\n" if clear else ", which contains zero.\n"))
+        verdict(boot(cl, "class_source", "model"),
+                "Against carrying his Australian rating across unchanged:")
+        verdict(boot(cl, "flat50", "model"),
+                "Against assuming every arrival is average:")
+        verdict(boot(cl, "line_direction", "model"),
+                "Against a two-parameter straight line for the same direction:")
+        A("\nRead together, and this is the sentence to hand the client. The correction "
+          "is large and certain — carrying an Australian number into Super League "
+          "unchanged is the worst thing that can be done with it. The model also beats "
+          "assuming every arrival is average, which is more than could be shown on the "
+          "feeder-to-NRL pathway this section used to report. What it still cannot show "
+          "is that the conditional apparatus beats a straight line, so the honest claim "
+          "is a calibrated correction rather than a recruit ranking.\n")
     else:
-        A(f"Too few — {len(fn)} — to say anything.\n")
+        A(f"Too few — {len(cl)} — to say anything.\n")
+
+    A("\n\n## The other pathway: feeder to NRL\n")
+    A("Not the client's direction. Kept because it is where the arrival model has its "
+      "data, and because an NRL club would ask it.\n")
+    fn = d[d.source.isin(FEEDERS) & (d.target == "NRL")
+           & (d.transition_type == "first")]
+    if len(fn) >= 20:
+        A(md(score(fn), "{:.2f}"))
+        b50 = boot(fn, "flat50", "model")
+        bnone = boot(fn, "class_source", "model")
+        if b50 and bnone:
+            A(f"\n{len(fn)} players. Against a flat 50: {b50[0]:+.2f} "
+              f"[{b50[1]:+.2f}, {b50[2]:+.2f}]. Against leaving the rating alone: "
+              f"{bnone[0]:+.2f} [{bnone[1]:+.2f}, {bnone[2]:+.2f}].\n")
+    else:
+        A(f"Too few — {len(fn)}.\n")
 
     # Written from the numbers. Three things fall out of the table above and all three
     # are uncomfortable, which is what a rolling test is for.

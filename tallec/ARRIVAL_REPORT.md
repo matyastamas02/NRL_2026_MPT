@@ -57,20 +57,20 @@ The pooled figure above can look respectable for a reason that helps nobody: dir
 
 A model given a column has to beat that column. The first version of this model did not, and nothing in the old report would have shown it: minutes played in the source competition rank NSW Cup arrivals at 0.71 on their own, while the fitted model managed 0.44. That is what a coefficient compromise looks like — one slope per feature, shared across pathways that do not work the same way.
 
-| direction | n | arrivals | class_source | source_matches | source_minutes | mins_pg | age | model | best_single | model_beats_best |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| NRL->NSW | 800 | 71 | 0.349 | 0.337 | 0.326 | 0.452 | 0.347 | 0.734 | 0.452 | yes |
-| NRL->QLD | 941 | 29 | 0.504 | 0.317 | 0.353 | 0.508 | 0.490 | 0.608 | 0.508 | yes |
-| NRL->SL | 1035 | 42 | 0.415 | 0.389 | 0.376 | 0.439 | 0.728 | 0.746 | 0.728 | yes |
-| NSW->NRL | 715 | 75 | 0.621 | 0.682 | 0.706 | 0.593 | 0.339 | 0.758 | 0.706 | yes |
-| NSW->QLD | 1007 | 79 | 0.429 | 0.612 | 0.579 | 0.515 | 0.538 | 0.589 | 0.612 | NO |
-| NSW->SL | 1009 | 26 | 0.609 | 0.595 | 0.624 | 0.575 | 0.717 | 0.662 | 0.717 | NO |
-| QLD->NRL | 1070 | 34 | 0.621 | 0.618 | 0.647 | 0.581 | 0.275 | 0.656 | 0.647 | yes |
-| QLD->NSW | 1179 | 48 | 0.523 | 0.623 | 0.672 | 0.607 | 0.373 | 0.694 | 0.672 | yes |
-| QLD->SL | 1186 | 22 | 0.687 | 0.691 | 0.657 | 0.516 | 0.515 | 0.665 | 0.691 | NO |
-| SL->NRL | 984 | 14 | 0.557 | 0.655 | 0.698 | 0.599 | 0.375 | 0.696 | 0.698 | NO |
-| SL->NSW | 983 | 12 | 0.483 | 0.434 | 0.462 | 0.522 | 0.464 | 0.489 | 0.522 | NO |
-| SL->QLD | 986 | 15 | 0.532 | 0.427 | 0.471 | 0.507 | 0.449 | 0.559 | 0.532 | yes |
+| direction | n | arrivals | class_source | source_matches | source_minutes | mins_pg | age | model | best_single | model_beats_best | vs source_minutes | ci_low | ci_high | clear |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NRL->NSW | 800 | 71 | 0.349 | 0.337 | 0.326 | 0.452 | 0.347 | 0.734 | 0.452 | yes | 0.408 | 0.283 | 0.525 | yes |
+| NRL->QLD | 941 | 29 | 0.504 | 0.317 | 0.353 | 0.508 | 0.490 | 0.608 | 0.508 | yes | 0.255 | 0.077 | 0.439 | yes |
+| NRL->SL | 1035 | 42 | 0.415 | 0.389 | 0.376 | 0.439 | 0.728 | 0.746 | 0.728 | yes | 0.370 | 0.231 | 0.508 | yes |
+| NSW->NRL | 715 | 75 | 0.621 | 0.682 | 0.706 | 0.593 | 0.339 | 0.758 | 0.706 | yes | 0.052 | 0.004 | 0.098 | yes |
+| NSW->QLD | 1007 | 79 | 0.429 | 0.612 | 0.579 | 0.515 | 0.538 | 0.589 | 0.612 | NO | 0.010 | -0.060 | 0.081 | no |
+| NSW->SL | 1009 | 26 | 0.609 | 0.595 | 0.624 | 0.575 | 0.717 | 0.662 | 0.717 | NO | 0.038 | -0.063 | 0.145 | no |
+| QLD->NRL | 1070 | 34 | 0.621 | 0.618 | 0.647 | 0.581 | 0.275 | 0.656 | 0.647 | yes | 0.008 | -0.097 | 0.121 | no |
+| QLD->NSW | 1179 | 48 | 0.523 | 0.623 | 0.672 | 0.607 | 0.373 | 0.694 | 0.672 | yes | 0.022 | -0.012 | 0.055 | no |
+| QLD->SL | 1186 | 22 | 0.687 | 0.691 | 0.657 | 0.516 | 0.515 | 0.665 | 0.691 | NO | 0.008 | -0.148 | 0.162 | no |
+| SL->NRL | 984 | 14 | 0.557 | 0.655 | 0.698 | 0.599 | 0.375 | 0.696 | 0.698 | NO | -0.003 | -0.141 | 0.141 | no |
+| SL->NSW | 983 | 12 | 0.483 | 0.434 | 0.462 | 0.522 | 0.464 | 0.489 | 0.522 | NO | 0.027 | -0.266 | 0.293 | no |
+| SL->QLD | 986 | 15 | 0.532 | 0.427 | 0.471 | 0.507 | 0.449 | 0.559 | 0.532 | yes | 0.088 | -0.126 | 0.281 | no |
 
 
 Arrival-weighted mean AUC inside a direction: **0.676**, against 0.748 pooled.
@@ -109,14 +109,32 @@ The practical form of the question. Rank every candidate by the model, take the 
 
 
 
-## Feeder to NRL, on its own
+## Into Super League — the client's direction
 
-The question Leeds asks, and the only direction where the answer is quoted to anyone.
+Leeds recruits into Super League. This is who arrives there.
+
+| n | arrivals | base_rate | auc | brier | brier_base |
+| --- | --- | --- | --- | --- | --- |
+| 3230 | 90 | 0.0279 | 0.7183 | 0.0275 | 0.0271 |
+
+Against `source_minutes` alone: +0.168 AUC [+0.093, +0.247], clear of zero.
+
+| shortlist | players | arrivals_caught | of_all_arrivals | hit_rate | lift |
+| --- | --- | --- | --- | --- | --- |
+| top 5% | 162 | 16 | 0.178 | 0.099 | 3.545 |
+| top 10% | 323 | 28 | 0.311 | 0.087 | 3.111 |
+| top 25% | 808 | 53 | 0.589 | 0.066 | 2.354 |
+
+
+## Feeder to NRL — not the client's direction
+
+Reported because an Australian club would ask it, and because this pathway carries the most arrivals.
 
 | n | arrivals | base_rate | auc | brier | brier_base |
 | --- | --- | --- | --- | --- | --- |
 | 1785 | 109 | 0.0611 | 0.7751 | 0.0643 | 0.0573 |
 
+Against `source_minutes` alone: +0.096 AUC [+0.036, +0.155], clear of zero.
 
 | shortlist | players | arrivals_caught | of_all_arrivals | hit_rate | lift |
 | --- | --- | --- | --- | --- | --- |
@@ -127,7 +145,7 @@ The question Leeds asks, and the only direction where the answer is quoted to an
 
 ## Verdict
 
-**There is usable signal, and the model now finds it.** It separates arrivals from the rest inside a direction as well as across them, and it beats the best single raw column in 7 of 12 directions — including both of the client's. That is the condition for showing it at all, and the previous version failed it without anyone noticing, because nothing compared the model with its own inputs.
+**There is usable signal, and the model finds it — in some directions.** It beats the best single raw column in 7 of 12 directions on point estimates. Measured properly, against `source_minutes` fixed in advance with a paired interval, the advantage is clear of zero in 4 of 12. The fifth external review was right that comparing a model against the maximum of five observed AUCs, with no interval on either, is the same fault this project had just corrected elsewhere — a selected maximum is biased upward and neither number said how sure it was.
 
 
 It is still not a probability to quote at a player. The directions where it loses to a single column are the thin ones, the calibration above over-predicts in the upper bins, and the population is everyone at a level rather than everyone a club wanted. Use it to order a shortlist, not to put a number beside a name.

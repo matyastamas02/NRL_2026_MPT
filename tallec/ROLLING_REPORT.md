@@ -38,6 +38,9 @@ This replaces section 6 of `VALIDATION_REPORT.md`, which applied the current mod
 
 A conditional model has to beat a straight line. `target ~ source` fitted on the same training window, once per direction, costs two parameters and shrinks by exactly the right amount for that pathway — so anything the model adds has to be conditioning rather than flexibility. This comparison did not exist in this project until 2026-09-24, and its absence let an arrival model score 0.44 on a feature worth 0.71 by itself for a month.
 
+
+The line is a least-squares fit while the comparison is on MAE. An earlier version of this section called that a mismatch in the line's favour; the fifth external review refitted an MAE-optimal line and found it changes almost nothing — 20.20 against the least-squares line's 20.60 overall, with the model at 20.12 and still not separable on the client's direction. The remark was wrong and is withdrawn.
+
 | direction | n | conditional model | straight line, this direction | straight line, pooled | ladder | no translation | flat 50 | best simple | model wins | vs line | ci low | ci high | clear |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | NRL->NSW | 67 | 20.76 | 20.03 | 21.00 | 23.83 | 29.81 | 21.07 | 20.03 | NO | -0.73 | -1.41 | -0.06 | yes |
@@ -57,7 +60,7 @@ A conditional model has to beat a straight line. `target ~ source` fitted on the
 On point estimates the model wins in **6 of 9** directions. On intervals the picture is harder: it is clearly ahead in 2 and clearly **behind** in 3 — NRL->NSW by 0.73, QLD->NSW by 1.55, QLD->SL by 2.15.
 
 
-**On the client's own pathways the model is not distinguishable from a straight line.** Taking the two feeder-to-NRL directions together, 90 moves, it is ahead by +0.18 points with an interval of [-0.62, +0.92], which contains zero.
+**On the client's own direction the model is not distinguishable from a straight line.** Everything entering Super League, 90 moves, -0.26 points with an interval of [-1.56, +1.06], which contains zero.
 
 
 That is the honest description of what the conditional model is worth where it is sold. It is not an argument for deleting it: a line cannot use position, cannot carry a missing-value flag, and cannot be quoted for a direction with too few moves to fit one. It is an argument against presenting the conditioning as the thing that makes the product work. What makes it work is the shrinkage — and `target ~ source` does that with two parameters.
@@ -87,26 +90,50 @@ The outcome above is the shrunk season rating the app would publish, and it is p
 
 ## The headline use case, on its own
 
-Leeds asks one question: a man is playing in the NSW Cup or the Queensland Cup and has never played in the NRL — what would he do there? Every figure above pools that with returners and with moves in other directions. This is that cohort alone, and it is the number to quote when anyone asks whether the system works.
+Leeds Rhinos is a Super League club, so the question the project exists to answer is: this man is playing in the NRL, the NSW Cup or the Queensland Cup — what would he do in Super League. Every figure above pools that with moves in other directions. This is that cohort alone.
+
+
+It is also a correction. From 23 September until the fifth external review on the 29th this section reported feeder-to-NRL as the client's cohort and called it the question Leeds asks. That is a pathway *into* the NRL, which Leeds does not recruit into, and the mistake survived three regenerations of this report. What it said was true of feeder-to-NRL and wrong about the client.
 
 | outcome | predictor | n | mae | rmse | bias |
 | --- | --- | --- | --- | --- | --- |
-| shrunk (published) | translation (ladder) | 72 | 22.90 | 28.76 | 5.91 |
-| shrunk (published) | conditional model | 72 | 19.16 | 22.79 | 2.06 |
-| shrunk (published) | no translation | 72 | 23.28 | 28.24 | -3.15 |
-| shrunk (published) | competition average (50) | 72 | 19.26 | 23.32 | 0.87 |
-| unshrunk season mean | translation (ladder) | 72 | 27.36 | 33.18 | 5.37 |
-| unshrunk season mean | conditional model | 72 | 24.96 | 28.89 | 1.52 |
-| unshrunk season mean | no translation | 72 | 27.41 | 32.86 | -3.69 |
-| unshrunk season mean | competition average (50) | 72 | 25.60 | 29.76 | 0.33 |
+| shrunk (published) | translation (ladder) | 90 | 23.84 | 29.08 | 3.34 |
+| shrunk (published) | conditional model | 90 | 17.98 | 21.18 | 3.79 |
+| shrunk (published) | no translation | 90 | 25.77 | 32.33 | 7.22 |
+| shrunk (published) | competition average (50) | 90 | 20.64 | 24.61 | 12.86 |
+| unshrunk season mean | translation (ladder) | 90 | 25.20 | 30.41 | 3.41 |
+| unshrunk season mean | conditional model | 90 | 20.97 | 24.24 | 3.85 |
+| unshrunk season mean | no translation | 90 | 26.20 | 33.71 | 7.28 |
+| unshrunk season mean | competition average (50) | 90 | 24.37 | 28.03 | 12.92 |
 
-72 players over 3 origins.
+90 moves over 3 origins, 90 players, 84 of them entering Super League for the first time.
 
-**Against a flat 50 the model is not distinguishable here.** It is ahead by 0.10 points with a player-clustered interval of [-1.56, +1.80] — which contains zero. On the cohort the product exists to serve, at this sample size, we cannot show the model beats assuming every arrival is average.
 
-**Against carrying his feeder rating across unchanged it clearly is.** 4.12 points [+0.98, +7.45], clear of zero.
+**Against carrying his Australian rating across unchanged:** +7.79 points [+4.21, +11.40], clear of zero.
 
-Read together: what the model reliably does is stop a feeder rating being taken at face value. What it has not yet been shown to do is rank one arrival above another. Those are different products, and only the first is evidenced.
+
+**Against assuming every arrival is average:** +2.66 points [+0.16, +5.12], clear of zero.
+
+
+**Against a two-parameter straight line for the same direction:** -0.26 points [-1.56, +1.06], which contains zero.
+
+
+Read together, and this is the sentence to hand the client. The correction is large and certain — carrying an Australian number into Super League unchanged is the worst thing that can be done with it. The model also beats assuming every arrival is average, which is more than could be shown on the feeder-to-NRL pathway this section used to report. What it still cannot show is that the conditional apparatus beats a straight line, so the honest claim is a calibrated correction rather than a recruit ranking.
+
+
+
+## The other pathway: feeder to NRL
+
+Not the client's direction. Kept because it is where the arrival model has its data, and because an NRL club would ask it.
+
+| predictor | n | mae | rmse | bias |
+| --- | --- | --- | --- | --- |
+| translation (ladder) | 72 | 22.90 | 28.76 | 5.91 |
+| conditional model | 72 | 19.16 | 22.79 | 2.06 |
+| no translation | 72 | 23.28 | 28.24 | -3.15 |
+| competition average (50) | 72 | 19.26 | 23.32 | 0.87 |
+
+72 players. Against a flat 50: +0.10 [-1.56, +1.80]. Against leaving the rating alone: +4.12 [+0.98, +7.45].
 
 
 
