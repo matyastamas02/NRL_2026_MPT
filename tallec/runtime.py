@@ -102,10 +102,37 @@ def _git(*args):
 
 
 def config_hash():
+    """Hash of what the config SAYS, not of the bytes it is stored in.
+
+    Hashing the raw file made the hash depend on line endings and key order. Rewriting
+    config.json from Python — which an A/B measurement did on 2026-08-28 — converted it
+    from CRLF to LF and changed the hash of a semantically identical file, so the
+    ratings and the translation model ended up recorded under different configs when
+    nothing about the configuration had changed. Canonical JSON removes that: sorted
+    keys, fixed separators, no incidental whitespace.
+
+    Descriptive keys are excluded deliberately. `description` and `_note` exist to be
+    edited; a reworded comment should not read as a configuration change.
+    """
     p = os.path.join(BASE, "config.json")
     if not os.path.exists(p):
         return ""
-    return hashlib.sha256(open(p, "rb").read()).hexdigest()[:12]
+    try:
+        cfg = json.loads(open(p, "r", encoding="utf-8").read())
+    except (ValueError, OSError):
+        return hashlib.sha256(open(p, "rb").read()).hexdigest()[:12]
+
+    def strip(o):
+        if isinstance(o, dict):
+            return {k: strip(v) for k, v in o.items()
+                    if not (k == "description" or k.startswith("_")
+                            or k.endswith("_note"))}
+        if isinstance(o, list):
+            return [strip(v) for v in o]
+        return o
+
+    canon = json.dumps(strip(cfg), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:12]
 
 
 def row_count(con=None):
@@ -121,10 +148,30 @@ def row_count(con=None):
 
 
 def provenance(con=None):
-    """Everything needed to say which run produced a number."""
+    """Everything needed to say which run produced a number.
+
+    `dirty` and `code_dirty` are different claims and only the second one is meaningful.
+    The databases are tracked and every run writes to them — opening the audit log is
+    enough — so a run can never observe a wholly clean tree, and reporting one flat flag
+    made "dirty" say nothing. `code_dirty` ignores the database files and is the
+    question a reviewer is actually asking: was the code at a committed state? The
+    integrity of the data is carried by the content hashes in MANIFEST.json, which a
+    row count or a git status could not establish anyway.
+    """
     sha = _git("rev-parse", "--short", "HEAD")
-    dirty = bool(_git("status", "--porcelain"))
-    return {"commit": sha or "unknown", "dirty": dirty,
+    status = _git("status", "--porcelain") or ""
+    # the porcelain format is two status characters then a space then the path, but a
+    # renamed entry carries "old -> new"; splitting on the first run of whitespace
+    # after the status is safer than a fixed slice, which had been eating a character
+    paths = []
+    for ln in status.splitlines():
+        if not ln.strip():
+            continue
+        rest = ln[2:].strip().strip('"')
+        paths.append(rest.split(" -> ")[-1])
+    code_paths = [p for p in paths if not p.endswith(".db")]
+    return {"commit": sha or "unknown", "dirty": bool(paths),
+            "code_dirty": bool(code_paths), "dirty_paths": paths[:20],
             "config_hash": config_hash(), "at": _now(),
             "db_rows": row_count(con),
             "db_mb": round(os.path.getsize(DB) / 1048576, 1) if os.path.exists(DB) else 0}
@@ -162,7 +209,7 @@ def guarded_write(label, note=None, dry_run=False):
         "tree_dirty, config_hash, rows_before, backup_path, status, note) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (prov["at"], os.path.basename(sys.argv[0]) or "python", label,
-         " ".join(sys.argv[1:]), prov["commit"], int(prov["dirty"]),
+         " ".join(sys.argv[1:]), prov["commit"], int(prov["code_dirty"]),
          prov["config_hash"], before, backup, "running", note))
     run_id = cur.lastrowid
     con.commit()
@@ -204,7 +251,7 @@ def record_model_run(target, stats, seconds, script=None):
         "INSERT INTO model_runs (run_at, script, target, commit_sha, tree_dirty, "
         "config_hash, db_rows, seconds, stats) VALUES (?,?,?,?,?,?,?,?,?)",
         (prov["at"], script or (os.path.basename(sys.argv[0]) or "python"), target,
-         prov["commit"], int(prov["dirty"]), prov["config_hash"], prov["db_rows"],
+         prov["commit"], int(prov["code_dirty"]), prov["config_hash"], prov["db_rows"],
          round(seconds, 1), json.dumps(stats, default=str)))
     con.commit()
     con.close()

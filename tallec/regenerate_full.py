@@ -18,13 +18,20 @@ season by season rather than in one pass over the whole history.
 
 **One standardization mode per competition, for the whole history.** The mode is
 chosen from the competition's overall position coverage, not per season. Otherwise a
-player's 2026 matches could be position-relative while his 2024 matches were
-competition-relative, and averaging them into one Class would be meaningless. Super
-League is therefore competition-relative throughout (17% coverage overall, despite
-2026 being complete), and the Australian competitions are position-relative.
+player's 2025 matches could be position-relative while his 2023 matches were
+competition-relative, and averaging them into one Class would be meaningless. All four
+competitions now clear the threshold and are rated within position group — Super League
+included, since its match-sheet positions were loaded for every season on 2026-08-25.
+Only the NRL's 2026 rows still carry estimated positions, and the freeze keeps those out
+of the fit entirely.
 
 Ratings are published for players active in each competition's most recent season —
 that is who a recruiter is looking at — but built from everything they have played.
+
+**Nothing is fitted past `evaluation.freeze_season`.** Seasons after it exist in the
+database and the app can show them; what they must not do is contribute to the ratings
+that are then tested against them. With the freeze at 2025, "most recent season" means
+2025 for all four competitions, which is also the last one the Australian feeds cover.
 """
 import os
 import sqlite3
@@ -46,12 +53,19 @@ COLS = ["player_id", "player", "season", "round", "team", "position", "minutes",
         "offloads", "try_assists", "tries", "errors"]
 
 
-def load(con, comp, season=None):
+def load(con, comp, season=None, through=True):
+    """Player-matches for a competition, stopping at the freeze season by default.
+
+    `through=False` reaches past it, which only the held-out evaluation should do.
+    """
     q = f"SELECT {', '.join(COLS)} FROM player_match_stats WHERE competition=?"
     p = [comp]
     if season is not None:
         q += " AND season=?"
         p.append(season)
+    elif through and pre.FREEZE_SEASON is not None:
+        q += " AND season<=?"
+        p.append(pre.FREEZE_SEASON)
     return pd.read_sql(q, con, params=p)
 
 
@@ -64,6 +78,9 @@ def competition_mode(df):
 
 _t0 = time.time()
 con = sqlite3.connect(DB)
+if pre.FREEZE_SEASON is not None:
+    print(f"fitting through {pre.FREEZE_SEASON} only; later seasons are held out "
+          f"(config.json -> evaluation.freeze_season)\n")
 rating_frames, contrib_frames, match_frames = [], [], []
 _stats = {}
 
@@ -92,6 +109,9 @@ for comp in COMPS:
     # publish the players active in the most recent season
     active = set(load(con, comp, current).player_id)
     snap = snap[snap.player_id.isin(active)].copy()
+    # re-centre on the players actually published: 50 has to be the median of the list
+    # the reader is looking at, not of everyone who ever played
+    snap = eng.calibrate(snap)
     snap["competition"] = comp
     snap["comp_code"] = comp
     snap["season"] = current
@@ -122,16 +142,26 @@ ratings = pd.concat(rating_frames, ignore_index=True)
 cols = ["player_id", "season", "comp_code", "competition", "form_score", "form_z",
         "class_score", "class_z", "divergence", "positional_benchmark",
         "competition_translation_factor", "updated_at", "shrinkage_B",
-        "n_games", "confidence", "rating_basis"]
-ratings[cols].to_sql("player_ratings", con, if_exists="replace", index=False)
-con.execute("CREATE INDEX IF NOT EXISTS ix_ratings_comp ON player_ratings(competition, season)")
-
+        "n_games", "confidence", "rating_basis",
+        # the peer pool the published score is centred on, whether that centre was the
+        # group's own or the competition's, and a plain percentile alongside the score —
+        # the 0-100 was being read as a percentile and is not one
+        "group", "scale_basis", "class_percentile"]
 per_match_all = pd.concat(match_frames, ignore_index=True)
-per_match_all.to_sql("player_contribution", con, if_exists="replace", index=False)
 contrib = pd.concat(contrib_frames, ignore_index=True).sort_values(
     "contribution_rating", ascending=False)
-contrib.to_sql("player_contribution_rating", con, if_exists="replace", index=False)
-con.commit()
+
+# Three tables are replaced wholesale, so a failure part-way through leaves the app
+# reading a rebuild that never finished. Everything above this point is computation;
+# only the writes are inside the guard, which keeps the snapshot close to them.
+with runtime.guarded_write("regenerate_full",
+                           note=f"freeze_season={pre.FREEZE_SEASON}"):
+    ratings[cols].to_sql("player_ratings", con, if_exists="replace", index=False)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_ratings_comp "
+                "ON player_ratings(competition, season)")
+    per_match_all.to_sql("player_contribution", con, if_exists="replace", index=False)
+    contrib.to_sql("player_contribution_rating", con, if_exists="replace", index=False)
+    con.commit()
 
 print(f"\nplayer_ratings: {len(ratings)} rows | "
       f"player_contribution: {len(per_match_all)} rows | "

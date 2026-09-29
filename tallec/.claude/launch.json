@@ -1,0 +1,39 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reszvenyfigyelo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "streamlit",
+        "run",
+        "C:/Users/matyas-peter.tamas/Downloads/reszvenyfigyelo/app.py",
+        "--server.port",
+        "8502",
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false"
+      ],
+      "port": 8502
+    },
+    {
+      "name": "bosc",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "streamlit",
+        "run",
+        "C:/Users/matyas-peter.tamas/Downloads/TALLEC/bosc_app.py",
+        "--server.port",
+        "8503",
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false"
+      ],
+      "port": 8503
+    }
+  ]
+}

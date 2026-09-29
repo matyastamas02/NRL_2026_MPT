@@ -19,7 +19,8 @@ from streamlit.testing.v1 import AppTest
 
 APP = os.path.join(APPDIR, "bosc_app.py")
 PAGES = [("🔍 Search", "Search"), ("⚖️ Compare", "Compare"),
-         ("📊 Benchmarks", "Benchmarks"), ("🔄 Comparison", "Translation"),
+         ("📊 Benchmarks", "Benchmarks"), ("🎯 Position", "Position"),
+         ("🔄 Comparison", "Translation"),
          ("🏉 Squad (GIGOT)", "Squad"), ("📈 Trends", "Trends")]
 LEAGUES = ["SL", "NRL", "NSW", "QLD"]
 

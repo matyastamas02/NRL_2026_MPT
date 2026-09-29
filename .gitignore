@@ -24,3 +24,17 @@ _backups/
 tallec/_backups/
 tallec_audit.db
 tallec/tallec_audit.db
+
+# TALLEC code lives in TALLEC/ and its data does not. The databases carry licensed
+# Stats Perform rows and dates of birth for about three thousand named players, and this
+# repository is public, so they stay local. See TALLEC/DATA_NOT_IN_GIT.md.
+*.db
+TALLEC/_backups/
+
+# `*.json` above is a blanket rule for credentials, and it would silently swallow two
+# files TALLEC cannot run without: its configuration and the sealed holdout record that
+# pins the project's only untouched out-of-sample result. Named back in explicitly.
+!TALLEC/config.json
+!TALLEC/MANIFEST.json
+!TALLEC/v1_holdout_record.json
+!TALLEC/.claude/launch.json

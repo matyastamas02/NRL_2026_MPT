@@ -27,10 +27,71 @@
     "points_weight": 0.2,
     "description": "GIGOT input #5. Player's share of his own team's match output per stat group, blended (weights sum = 1.0), then percentile-scaled within his own competition so the median contributor = 50. Read by gigot_contribution.py; written to the DB only by regenerate_full.py."
   },
+  "class_calculation": {
+    "season_weights": [
+      1.0,
+      0.7,
+      0.5,
+      0.35,
+      0.25
+    ],
+    "season_weight_floor": 0.15,
+    "description": "Class averages a player's matches, and this decides how much an older season counts. The list is indexed by how many seasons ago the match was: the current season at 1.0, last season at 0.7, and so on, with anything older than the list at season_weight_floor. The shrinkage uses the SUM of the weights as the effective number of matches, so a career of old seasons counts as weaker evidence. That is a choice and not the textbook quantity: the standard effective sample size of a weighted mean is Kish's (sum w)^2 / sum w^2, which is always larger here and would shrink long old careers less. The two answer different questions - Kish describes the sampling uncertainty of a fixed average, while the sum is a power-prior statement that an eight-year-old match is a fraction of a match of evidence about THIS season. Defensible, not proven: the third external review of 2026-09-23 was right that neither is automatically better, and the two should be compared on the same rolling next-season task, ideally together with the decay weights above. Not yet done."
+  },
+  "aging": {
+    "knots": [
+      [
+        19,
+        1.2
+      ],
+      [
+        22,
+        0.35
+      ],
+      [
+        25,
+        0.0
+      ],
+      [
+        28,
+        -0.7
+      ],
+      [
+        31,
+        -0.8
+      ],
+      [
+        34,
+        -1.0
+      ]
+    ],
+    "description": "Expected change in a player's 0-100 rating over the next season, by age, linearly interpolated between the knots and held flat outside them. MEASURED 2026-09-14 from 3,711 season-to-season pairs across the four competitions: improvement into the early twenties, a plateau from 23 to 26, and a decline of about three quarters of a point a year from 27. The declines after 27 and after 31 are both clearly separated from zero. The curve is a real feature of the data. What it has NOT yet done is improve any prediction: added to the translation model it changes the error by +0.01 points, i.e. nothing. The reason is scale — three quarters of a point a year against a residual error near six — not that the effect is imaginary. It is kept because it is measured, because age was previously only a straight line and could not represent a curve at all, and because a proper next-season projection will need it. Set to null to switch the adjustment off."
+  },
+  "evaluation": {
+    "freeze_season": 2025,
+    "description": "Ratings and the translation model are fitted through this season and no further; everything after it is held out. Mike's decision (2026-08-26): the 2026 season is left alone until it finishes in October and then serves as an out-of-sample test of what the ratings and the translation model projected, which only means anything if no part of 2026 helped produce those projections. Read by regenerate_full.py and fit_translation_v2.py through player_rating_engine.FREEZE_SEASON. Set to null to fit on everything.",
+    "held_out_note": "2026 player-matches stay in player_match_stats and the app can still show them; what the freeze governs is what is FITTED."
+  },
   "data_quality_thresholds": {
     "min_minutes_for_form": 20,
     "description": "min_minutes_for_form: a match counts toward Form/Class only above this. min_rate_coverage: a stat counts toward the composite only if more than this share of the pool's rows carry a non-zero value - post-contact metres are absent before 2025 and would otherwise consume a quarter of a prop's weight as a dead input. Weights are renormalised over the stats that remain.",
     "min_rate_coverage": 0.1
   },
-  "_note": "Only settings the code actually reads live here. Removed 2026-08-25: rating_weights and class_calculation (the latter described an ELO mechanism for player Class that the engine does not use - Class is a shrunk mean of position-standardized composites), competition_translation_model (the fitted model and its feature list live in translation_model_v2.pkl), and weekly_update_schedule (weekly_update.py takes its arguments on the command line). Unused keys that describe a mechanism the code does not implement are worse than no documentation."
+  "_note": "Only settings the code actually reads live here. Removed 2026-08-25: rating_weights and an older class_calculation block that described an ELO mechanism for player Class which the engine does not use. The class_calculation block present now is a different thing, added 2026-09-14: season recency weights. Also removed then: competition_translation_model (the fitted model and its feature list live in the model pickle) and weekly_update_schedule (weekly_update.py takes its arguments on the command line). Unused keys that describe a mechanism the code does not implement are worse than no documentation.",
+  "translation": {
+    "model_features": [
+      "class_source",
+      "pair",
+      "position"
+    ],
+    "description": "Which feature families the conditional translation model may use. Measured by ablate_translation.py on the 441-entry cohort from transition_events.py. No specification is separated from another at 95%: source+pair+position sits at -0.151 MAE against the full model with an interval of [-0.411, +0.111], and source alone costs +0.357 [-0.304, +1.031]. The selection below is a parsimony choice among specifications the data cannot tell apart, not a measured win. 'interaction' is position-by-direction, pooled toward the common direction effect by scaling those columns to 0.3 AFTER standardisation (translation_features.pooling_multipliers - before it, the scaler divides the pooling away, which is how it did nothing at all until 2026-09-23). It has the best point estimate of anything tried, -0.823 MAE, and stays off for a better reason than its interval: origin by origin it gains +1.60 and +1.90 in 2023 and 2024 and LOSES 0.81 in 2025, which is not the shape of a real effect. The fourth external review made that argument and it is the right one. Re-test with 2026 against a specification fixed in advance.",
+    "available_families": [
+      "class_source",
+      "pair",
+      "position",
+      "age",
+      "load",
+      "interaction"
+    ]
+  }
 }

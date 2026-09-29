@@ -3,6 +3,8 @@
 BOSC — Player Intelligence Dashboard for Rugby League Recruitment
 MVP: Search, Benchmarks, Comparison, Trends tabs.
 """
+import metric_spec as ms
+import sp_schema as sp
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -62,6 +64,48 @@ con = get_db()
 # query resolves its own. SEASON stays as the default for anything unscoped.
 SEASON = 2026
 
+# ─── What the 0-100 number is, said once ───────────────────────────────
+# Three external reviews in a row found the same misreading, and the third asked for the
+# scale to be renamed rather than explained. A Class of 60 is a standing among the men
+# doing that job in that competition — it is not a percentile, and it is not comparable
+# with a 60 somewhere else. Every competition has its own centre and its own tau, so an
+# NRL 60 and a Super League 60 are the same place in two different fields.
+#
+# The wording lives here because it appeared in four places and had already drifted in
+# two of them.
+PEER_SCALE = "peer score"
+PEER_SCALE_HELP = (
+    "A standing among the players doing the same job in the same competition and season. "
+    "50 is the median of that group. It is NOT a percentile, and NOT comparable with the "
+    "same number in another competition — use Translation to move a rating between "
+    "competitions.")
+
+
+def _grouping_note():
+    """How the raw positions are pooled, read from the schema rather than described.
+
+    This caption used to say "Second Row and Lock are both Back Row" — the grouping
+    Leeds asked us to retire on 19 September. It sat in the app for four days after the
+    change, in front of the client, because it was a sentence rather than a lookup.
+    """
+    by = {}
+    for raw, grp in sorted(sp.POSITION_GROUP.items()):
+        by.setdefault(grp, []).append(raw)
+    parts = [f"**{g}** ({', '.join(v)})" for g, v in sorted(by.items())
+             if len(v) > 1 or g != v[0]]
+    return "Position groups follow the rating engine: " + "; ".join(parts) + "."
+
+
+GROUPING_NOTE = _grouping_note()
+
+
+def peer_note(comp_code, group=None, extra=""):
+    """One sentence saying which pool a 0-100 figure is measured against."""
+    where = COMP_NAME.get(comp_code, comp_code)
+    who = f"{where} {group}" if group else f"{where} players in the same position"
+    return (f"Scored against {who} — 50 is the median of that group. Not comparable "
+            f"with the same number in another competition.{(' ' + extra) if extra else ''}")
+
 
 @st.cache_data
 def season_of(comp):
@@ -74,13 +118,34 @@ def season_of(comp):
     return int(r.s[0]) if len(r) and pd.notna(r.s[0]) else SEASON
 
 @st.cache_data
+def load_position_metrics(comp, season):
+    """Mike's twelve metrics for a position, each benchmarked 0-100 against that job."""
+    return pd.read_sql(
+        "SELECT m.*, p.name FROM player_position_metrics m "
+        "JOIN players p ON p.player_id = m.player_id "
+        "WHERE m.comp = ? AND m.season = ?", con, params=(comp, season))
+
+
+@st.cache_data
+def load_position_categories(comp, season):
+    return pd.read_sql(
+        "SELECT c.*, p.name FROM player_position_category c "
+        "JOIN players p ON p.player_id = c.player_id "
+        "WHERE c.comp = ? AND c.season = ?", con, params=(comp, season))
+
+
+@st.cache_data
 def load_all_players(comp):
     """Players active in `comp` this season, joined to their ratings."""
     query = """
     SELECT r.player_id, p.name, p.teams, p.total_minutes, p.positions,
            r.form_score, r.class_score,
            r.positional_benchmark as benchmark_score,
-           r.divergence, r.confidence, r.shrinkage_B, r.n_games, r.rating_basis
+           r.divergence, r.confidence, r.shrinkage_B, r.n_games, r.rating_basis,
+           r.class_percentile, r."group" AS peer_group,
+           (SELECT COUNT(*) FROM player_match_stats s
+             WHERE s.player_id = r.player_id AND s.competition = r.competition
+               AND s.season <= r.season) AS n_matches
     FROM player_ratings r
     JOIN players p ON p.player_id = r.player_id
     WHERE r.competition = ? AND r.season = ?
@@ -173,7 +238,7 @@ def load_player_meta(comp):
     top = d.sort_values("n_at_pos", ascending=False).drop_duplicates("player_id")
     out = tot.merge(top[["player_id", "position", "position_source"]], on="player_id")
     out["mins_pg"] = out.mins / out.games
-    dob = pd.to_datetime(out["dob"], errors="coerce")
+    dob = sp.parse_dob(out["dob"])
     out["age"] = ((pd.Timestamp(f"{season}-06-30") - dob).dt.days / 365.25).round(1)
     out["pos_group"] = out["position"].map(POSITION_GROUP).fillna("Unknown")
     return out[["player_id", "position", "pos_group", "position_source",
@@ -218,7 +283,7 @@ with nav1:
 with nav2:
     page = st.selectbox(
         "Select section:",
-        ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🔄 Comparison",
+        ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🎯 Position", "🔄 Comparison",
          "🏉 Squad (GIGOT)", "📈 Trends"],
         label_visibility="collapsed")
 _basis = pd.read_sql("SELECT rating_basis, count(*) n FROM player_ratings "
@@ -264,7 +329,7 @@ if page == "🔍 Search":
             st.metric("Team", player["teams"].split(";")[0].strip() if player["teams"] else "—")
         with col2:
             st.metric("Position", player.get("positions", "Unknown") or "Unknown")
-            st.metric("Games rated", int(player["n_games"]))
+            st.metric("Matches played", int(player["n_matches"]))
         with col3:
             st.metric("Minutes Played", int(player["total_minutes"]))
 
@@ -273,9 +338,25 @@ if page == "🔍 Search":
         # Ratings
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Form Score", f"{player['form_score']:.0f}/100")
+            st.metric(f"Form {PEER_SCALE}", f"{player['form_score']:.0f}/100",
+                      help=PEER_SCALE_HELP)
         with col2:
-            st.metric("Class Score", f"{player['class_score']:.0f}/100")
+            # The 0-100 is a calibrated scale, not a percentile, and it was being read
+            # as one — a published 69 used to be the 99.5th percentile of its pool. The
+            # percentile now sits underneath it so nobody has to guess which it is.
+            pct = player.get("class_percentile")
+            grp = player.get("peer_group", "peers")
+            st.metric(f"Class {PEER_SCALE}", f"{player['class_score']:.0f}/100",
+                      delta=(None if pd.isna(pct) else
+                             f"{pct:.0f}th percentile of {COMP_NAME.get(comp, comp)} "
+                             f"{grp}"),
+                      delta_color="off",
+                      help=f"Where he stands among {COMP_NAME.get(comp, comp)} {grp}. "
+                           f"50 is the median of that group. It is NOT comparable with "
+                           f"the same number in another competition — an NRL 60 and a "
+                           f"Super League 60 are the same standing in two different "
+                           f"fields, not the same player. Use the Translation page to "
+                           f"move a rating between competitions.")
         with col3:
             st.metric("Divergence", f"{player['divergence']:+.2f}",
                       help="Form minus Class (z-scores). Positive = recent form above structural level.")
@@ -288,10 +369,12 @@ if page == "🔍 Search":
 
         # Honesty note: shrinkage on small samples
         B = float(player["shrinkage_B"])
-        ng = int(player["n_games"])
+        nm = int(player["n_matches"])
+        ng = float(player["n_games"])
         if ng > 0:
             st.caption(
-                f"Rated on **{ng} game{'s' if ng != 1 else ''}**. "
+                f"Rated on **{nm} match{'es' if nm != 1 else ''}**, which count as "
+                f"**{ng:.0f}** once recent seasons are weighted above old ones. "
                 f"Bayesian shrinkage keeps **{B*100:.0f}%** of the raw signal and "
                 f"pulls the rest toward the "
                 f"{'positional' if _b == 'position_relative' else 'competition'} "
@@ -351,7 +434,7 @@ if page == "🔍 Search":
             with st.expander(f"📋 Shortlist ({len(st.session_state['shortlist'])})", expanded=False):
                 sl = all_players[all_players["name"].isin(st.session_state["shortlist"])].copy()
                 sl["team"] = sl["teams"].str.split(";").str[0].str.strip()
-                sl_view = sl[["name","team","n_games","form_score",
+                sl_view = sl[["name","team","n_matches","form_score",
                               "class_score","confidence"]].copy()
                 sl_view.columns = ["Player","Team","GP","Form","Class","Conf"]
                 st.dataframe(sl_view.round(0), width="stretch", hide_index=True)
@@ -391,8 +474,8 @@ elif page == "⚖️ Compare":
             k1, k2, k3 = st.columns(3)
             form = float(r["form_score"].iloc[0]) if len(r) else 50
             cls  = float(r["class_score"].iloc[0]) if len(r) else 50
-            k1.metric("Form", f"{form:.0f}")
-            k2.metric("Class", f"{cls:.0f}")
+            k1.metric("Form", f"{form:.0f}", help=PEER_SCALE_HELP)
+            k2.metric("Class", f"{cls:.0f}", help=PEER_SCALE_HELP)
             k3.metric("Minutes", int(m["mins"]))
 
     # radar
@@ -478,7 +561,7 @@ elif page == "📊 Benchmarks":
         f1, f2 = st.columns([1, 2])
         with f1:
             min_games = st.slider("Minimum matches", 1, 15, 5, key="bm_min_games")
-        pool = pool_all[pool_all["n_games"] >= min_games].copy()
+        pool = pool_all[pool_all["n_matches"] >= min_games].copy()
         dropped = len(pool_all) - len(pool)
         with f2:
             st.caption(f"Showing **{len(pool)}** of {len(pool_all)} rated players. "
@@ -491,7 +574,7 @@ elif page == "📊 Benchmarks":
             st.stop()
 
         SHOW = ["name", "team", "position", "form_score", "class_score",
-                "divergence", "n_games", "confidence"]
+                "divergence", "n_matches", "confidence"]
         HEAD = ["Player", "Team", "Position", "Form", "Class", "Diverg", "GP", "Conf"]
 
         def table(df, n=15, sort="form_score"):
@@ -520,9 +603,7 @@ elif page == "📊 Benchmarks":
                              f"so these are the best-rated players who happen to play "
                              f"{gsel}, not a within-position ranking.")
                 st.dataframe(table(grp), width="stretch", hide_index=True)
-                st.caption("Position groups follow the rating engine: Second Row and "
-                           "Lock are both Back Row, Half Back and Five-Eighth are both "
-                           "Halves, and bench players are grouped separately.")
+                st.caption(GROUPING_NOTE)
 
         with tab_lead:
             c1, c2 = st.columns([1, 1])
@@ -534,7 +615,8 @@ elif page == "📊 Benchmarks":
             st.dataframe(table(pool, 15, key), width="stretch", hide_index=True)
             st.caption("Form is the recent window, Class the full season, both shrunk "
                        "toward average by sample size. Divergence is Form minus Class: "
-                       "positive means playing above his own level right now.")
+                       "positive means playing above his own level right now. "
+                       + peer_note(comp))
 
         with tab_team:
             teams = sorted(pool["team"].dropna().unique())
@@ -550,10 +632,110 @@ elif page == "📊 Benchmarks":
             st.scatter_chart(sc, x="class_score", y="form_score", size="Minutes",
                              height=400)
             st.caption("Above the diagonal means current form is running ahead of "
-                       "season-long class; below it means the opposite. Both axes are "
-                       "0-100 with 50 as average.")
+                       "season-long class; below it means the opposite. "
+                       + peer_note(comp))
 
 # ─── PAGE 3: Competition Translation ───────────────────────────────────
+elif page == "🎯 Position":
+    st.subheader("Position Profile")
+    st.write("The twelve metrics that matter for each position, from Mike's "
+             "specification, every one given as a **volume** — how much he contributes "
+             "per match — and a **rate** — how efficiently he does it when he gets the "
+             "chance. Each is scored 0–100 against the players doing the same job, in "
+             "the same competition and the same season. 50 is the middle of that group.")
+
+    season = season_of(comp)
+    mets = load_position_metrics(comp, season)
+    cats = load_position_categories(comp, season)
+    if mets.empty:
+        st.info(f"No position metrics held for {COMP_NAME.get(comp, comp)} {season}. "
+                f"Run `python position_metrics.py --write`.")
+    else:
+        groups = sorted(mets.position.dropna().unique())
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            grp = st.selectbox("Position:", groups, key="pos_group")
+        pool = (mets[mets.position == grp][["player_id", "name", "matches"]]
+                .drop_duplicates().sort_values("name"))
+        with c2:
+            who = st.selectbox(f"{grp} ({len(pool)} players):", pool.name.values,
+                               key="pos_player")
+        pid = pool[pool.name == who].player_id.iloc[0]
+        mine = mets[(mets.player_id == pid) & (mets.position == grp)]
+        overall = mine.score.dropna()
+
+        k = st.columns(5)
+        k[0].metric("Matches", int(mine.matches.iloc[0]))
+        for i, cat in enumerate(["Yardage", "Attack", "Involvement",
+                                 "Defence & Discipline"]):
+            row = cats[(cats.player_id == pid) & (cats.category == cat)]
+            # how many metrics went into the average, because a category built from two
+            # of six and one built from six of six are not the same number
+            made_of = ""
+            if len(row) and {"metrics", "of"} <= set(row.columns):
+                got, tot = int(row.metrics.iloc[0]), int(row["of"].iloc[0])
+                if got < tot:
+                    made_of = f"{got} of {tot} metrics"
+            k[i + 1].metric(cat.replace(" & Discipline", " & Disc."),
+                            f"{row.score.iloc[0]:.0f}" if len(row) else "—",
+                            delta=made_of or None, delta_color="off")
+        st.caption(
+            f"Ranked against the {len(pool)} {grp}s in "
+            f"{COMP_NAME.get(comp, comp)} {season} with five matches or more."
+            + ("  ⚠ A pool this small makes each place in the order worth several "
+               "points — read these as broad bands, not as precise scores."
+               if len(pool) < 40 else ""))
+
+        for cat in ["Yardage", "Attack", "Involvement", "Defence & Discipline"]:
+            g = mine[mine.category == cat]
+            if g.empty:
+                continue
+            with st.expander(f"**{cat}**", expanded=(cat == "Yardage")):
+                view = g[["form", "metric", "value", "score", "degraded"]].copy()
+                view["value"] = view.value.round(2)
+                view["score"] = view.score.round(0)
+                view["note"] = np.where(
+                    view.score.isna(), "not recorded in this competition or season",
+                    np.where(view.degraded, "narrower definition here — see below", ""))
+                view = view.drop(columns=["degraded"])
+                view.columns = ["Form", "Metric", "Value", "0–100", "Note"]
+                st.dataframe(view, width="stretch", hide_index=True)
+                if cat == "Defence & Discipline":
+                    st.caption("Errors, infringements and breaks conceded are inverted: "
+                               "a high score means a clean player, so every figure on "
+                               "this page reads the same way round.")
+
+        if mine.degraded.any():
+            st.caption("⚠ Where a metric is marked with a narrower definition, one of "
+                       "its inputs is not in the data. Set restarts are absent from the "
+                       "Super League extract, so discipline there counts penalties "
+                       "alone; kick try assists are absent everywhere, so break "
+                       "conversion is a floor rather than the full figure. The ranking "
+                       "within this competition is still right; the number is not "
+                       "comparable with another competition's.")
+
+        # A metric the spec defines but the data cannot support has to be visible as an
+        # absence. Forced drop-outs would otherwise just be one fewer row in Yardage,
+        # indistinguishable from a metric nobody ever asked for.
+        block_key = {v['engine_group']: k for k, v in ms.POSITIONS.items()}.get(grp)
+        blocked = [m for cat in ms.SPEC.get(block_key, {}).values()
+                   for m in cat if m.get("blocked")]
+        if blocked:
+            st.caption("**Not shown, pending data.** "
+                       + " ".join(f"*{m['volume']}* — {m['blocked']}" for m in blocked))
+
+        st.divider()
+        st.write(f"**Strongest {grp}s in {COMP_NAME.get(comp, comp)} {season}**")
+        st.caption("Average of the four category scores. A blunt summary — the profile "
+                   "above is where the useful information is.")
+        board = (cats[cats.position == grp]
+                 .pivot_table(index="name", columns="category", values="score")
+                 .round(0))
+        if len(board):
+            board["Overall"] = board.mean(axis=1).round(0)
+            st.dataframe(board.sort_values("Overall", ascending=False).head(15),
+                         width="stretch")
+
 elif page == "🔄 Comparison":
     st.subheader("Competition Translation")
     st.write("How a player's rating carries across competitions. The shift for each "
@@ -588,24 +770,41 @@ elif page == "🔄 Comparison":
         name = st.selectbox(f"{COMP_NAME[src]} player:", pool["name"].values, key="tr_player")
         p = pool[pool["name"] == name].iloc[0]
 
+        # the app holds the raw Stats Perform label, which is what raw_position
+        # takes; handing a rating-engine group to the old `position=` argument is
+        # what silently dropped the position in the analysis scripts
         res = translate(p["class_score"], src, tgt,
-                        position=p.get("position"), age=p.get("age"),
+                        raw_position=p.get("position"), age=p.get("age"),
                         minutes_pg=p.get("mins_pg"), games=p.get("games"))
 
-        k1, k2, k3 = st.columns(3)
+        k1, k2, k3, k4 = st.columns(4)
         k1.metric(f"Rating in {COMP_NAME[src]}", f"{p['class_score']:.0f}")
-        k2.metric(f"Expected in {COMP_NAME[tgt]}", f"{res['score_target']:.0f}",
+        k2.metric(f"➜ Forecast in {COMP_NAME[tgt]}", f"{res['score_target']:.0f}",
                   delta=f"{res['shift_points']:+.1f}")
-        k3.metric("Player detail",
+        k3.metric("His level translated", f"{res['score_ladder']:.0f}",
+                  delta=f"{res['ladder_shift_points']:+.1f}", delta_color="off")
+        k4.metric("Player detail",
                   f"{p.get('position') or 'Unknown'}"
                   + (f", {p['age']:.0f}y" if pd.notna(p.get("age")) else ""))
 
+        st.caption(
+            "**The forecast is the number to use.** It answers *what will he do here "
+            "next season* and takes his position, age, minutes and matches played into "
+            "account. **His level translated** answers a different question — *what has "
+            "a player of his standard historically scored over there* — and is a true "
+            "statement about the two competitions, but a poor forecast of one man. "
+            "Until September 2026 this page led with the translation; a rolling test "
+            "over 1,140 moves showed the forecast beats it in every season and for every "
+            "kind of player, so they have swapped places.")
+        if res.get("forecast_note"):
+            st.caption(res["forecast_note"])
         st.caption(f"{res['interpretation']} Based on **{res['n_obs']} observed player "
                    f"moves** between these two competitions.")
 
         st.markdown("**Two different uncertainties — worth keeping apart**")
         u1, u2 = st.columns(2)
-        u1.metric("Average shift for this pair", f"{res['shift_points']:+.1f} pts",
+        u1.metric("Average level gap for this pair",
+                  f"{res['ladder_shift_points']:+.1f} pts",
                   delta=f"±{res['avg_band_points']:.1f} at 95%", delta_color="off")
         u2.metric("This individual player", f"{res['score_target']:.0f} pts",
                   delta=f"±{res['band_points']:.1f} at 95%", delta_color="off")
@@ -613,7 +812,8 @@ elif page == "🔄 Comparison":
                    "tightly. **One player's** outcome is not: the individual band is "
                    "about as wide as the whole spread of player ratings, because how a "
                    "specific player adapts is mostly not predictable from his numbers. "
-                   "Use the shift to set expectations, not to rank recruits.")
+                   "Use the forecast to set expectations, and the band to remember how "
+                   "little anyone can promise about one signing.")
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")
@@ -623,7 +823,7 @@ elif page == "🔄 Comparison":
         else:
             tgt_players["gap"] = (tgt_players["class_score"] - res["score_target"]).abs()
             sim = tgt_players.nsmallest(6, "gap")[
-                ["name", "teams", "class_score", "form_score", "n_games"]].copy()
+                ["name", "teams", "class_score", "form_score", "n_matches"]].copy()
             sim["teams"] = sim["teams"].str.split(";").str[0].str.strip()
             sim.columns = ["Player", "Team", "Class", "Form", "GP"]
             st.dataframe(sim.round(0), width="stretch", hide_index=True)

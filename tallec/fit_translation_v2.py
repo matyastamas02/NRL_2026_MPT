@@ -30,6 +30,10 @@ average player. Every reported error is out-of-sample, grouped by player so no
 player appears in both train and test, and compared against the naive baseline
 "the player rates exactly the same in the new competition".
 
+Nothing past `evaluation.freeze_season` is fitted. A move INTO 2026 would put the
+season that is meant to test the model inside the model, which is the one thing the
+freeze exists to prevent.
+
 Writes: translation_model_v2.pkl, and tables translation_pairs (every observation
 used) + translation_model_meta (fit statistics) into tallec.db.
 """
@@ -50,6 +54,23 @@ import time
 import player_rating_engine as pre
 import runtime
 
+if __name__ != "__main__":
+    # This file is a script, not a module: its work happens at module level, so an
+    # `import fit_translation_v2` refits the model and OVERWRITES
+    # `translation_model_v2.pkl` — the sealed artefact behind the project's only
+    # untouched out-of-sample result. A test added on 2026-09-22 imported it to read
+    # one constant and silently broke the seal four times before the manifest caught
+    # the changed hash.
+    #
+    # Refusing the import turns a silent landmine into a loud one. Anything that needs
+    # a constant from here should read the source rather than execute it. Restructuring
+    # the body into functions would be the better fix; it is not done because this file
+    # produced a sealed artefact and is meant to stay as it was when it did.
+    raise RuntimeError(
+        "fit_translation_v2 is a script and refits the sealed v2 artefact when "
+        "imported. Run it with `python fit_translation_v2.py` if that is really what "
+        "you want.")
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
 MIN_GAMES = 3          # per side of a pair
@@ -58,7 +79,23 @@ MIN_GAMES = 3          # per side of a pair
 CLASS_Z_SD = 0.250      # spread of the shrunk player rating (class_z)
 BENCH_PTS_PER_SD = 9.6  # points of the 0-100 benchmark per class_z SD
 FEEDERS = ["NSW", "QLD"]
-POS_GROUP = pre.POSITION_GROUP
+
+# v2 is sealed: its result is the project's only untouched out-of-sample record, and
+# `v1_holdout_record.json` pins the artefact it was produced by. It therefore keeps the
+# position map that was live when it was fitted — Prop separate, second row and lock
+# together as Back Row — written out here rather than read from the engine, which has
+# since moved to Leeds's Middles and Edge. Importing the engine's map would silently
+# refit v2 into a different model while still calling it the sealed one.
+#
+# Do not "tidy" this into sp_schema.POSITION_GROUP. It is meant to be frozen.
+POS_GROUP = {
+    "Full Back": "Fullback", "Winger": "Winger", "Centre": "Centre",
+    "Five-Eighth": "Halves", "Half Back": "Halves", "Hooker": "Hooker",
+    "Prop": "Prop", "Second Row": "Back Row", "Lock": "Back Row",
+    "Interchange": "Bench", "Unknown": "Bench",
+    "Fullback": "Fullback", "Halfback": "Halves", "2nd Row": "Back Row",
+    "Reserve": "Bench",
+}
 
 
 def norm_name(s):
@@ -93,9 +130,14 @@ def composites(comp, season, force_mode):
 def build(force_mode, comps):
     frames = []
     for comp in comps:
-        seasons = pd.read_sql("SELECT DISTINCT season FROM player_match_stats "
-                              "WHERE competition=? ORDER BY season", con,
-                              params=(comp,)).season.tolist()
+        q = "SELECT DISTINCT season FROM player_match_stats WHERE competition=?"
+        p = [comp]
+        # the freeze applies here for the same reason it applies to the ratings: a
+        # translation fitted with 2026 moves in it cannot then be tested on 2026
+        if pre.FREEZE_SEASON is not None:
+            q += " AND season<=?"
+            p.append(pre.FREEZE_SEASON)
+        seasons = pd.read_sql(q + " ORDER BY season", con, params=p).season.tolist()
         for s in seasons:
             c = composites(comp, s, force_mode)
             if c is not None:
@@ -256,23 +298,30 @@ try:
 except Exception as e:
     print("  transitivity check unavailable:", e)
 
-lad.to_sql("translation_ladder", con, if_exists="replace", index=False)
-
 allp = pd.concat(pairs, ignore_index=True)
 keep = ["player_id", "player", "layer", "source", "target", "season", "z_source",
         "z_target", "g_feed", "g_nrl", "age", "grp", "mins_pg"]
-allp[keep].to_sql("translation_pairs", con, if_exists="replace", index=False)
-pd.DataFrame([{k: v for k, v in m.items() if k not in ("model", "scaler", "features")}
-              for m in out.values()]).to_sql("translation_model_meta", con,
-                                             if_exists="replace", index=False)
-runtime.record_model_run(
-    "translation_model_v2",
-    {k: {kk: vv for kk, vv in m.items() if kk not in ("model", "scaler", "features")}
-     for k, m in out.items()},
-    time.time() - _t0, script="fit_translation_v2.py")
-with open(os.path.join(BASE, "translation_model_v2.pkl"), "wb") as f:
-    pickle.dump({"layers": out, "position_group": POS_GROUP,
-                 "built": "2026-08-19", "min_games": MIN_GAMES}, f)
-con.commit()
+
+# The pickle and the three tables have to agree with each other — a model file that
+# describes a ladder the database no longer holds is worse than either being stale.
+# They are written together, under the guard, so a failure rolls back all of it.
+with runtime.guarded_write("fit_translation_v2",
+                           note=f"freeze_season={pre.FREEZE_SEASON}"):
+    lad.to_sql("translation_ladder", con, if_exists="replace", index=False)
+    allp[keep].to_sql("translation_pairs", con, if_exists="replace", index=False)
+    pd.DataFrame([{k: v for k, v in m.items()
+                   if k not in ("model", "scaler", "features")}
+                  for m in out.values()]).to_sql("translation_model_meta", con,
+                                                 if_exists="replace", index=False)
+    runtime.record_model_run(
+        "translation_model_v2",
+        {k: {kk: vv for kk, vv in m.items() if kk not in ("model", "scaler", "features")}
+         for k, m in out.items()},
+        time.time() - _t0, script="fit_translation_v2.py")
+    with open(os.path.join(BASE, "translation_model_v2.pkl"), "wb") as f:
+        pickle.dump({"layers": out, "position_group": POS_GROUP,
+                     "freeze_season": pre.FREEZE_SEASON,
+                     "min_games": MIN_GAMES}, f)
+    con.commit()
 print(f"\nwrote translation_model_v2.pkl | translation_pairs: {len(allp)} rows")
 con.close()

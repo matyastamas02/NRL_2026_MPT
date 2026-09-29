@@ -1,40 +1,54 @@
 # -*- coding: utf-8 -*-
-"""Competition translation prediction — v2.
+"""Translate a player rating from one competition to another.
 
-Answers "this player rates X in competition A; what would he rate in competition B?"
-for any ordered pair among NRL, NSW Cup, Queensland Cup and Super League.
+Two numbers come back and they answer different questions. The distinction is not
+pedantic — it is the one the sabermetric literature draws between a *translation*
+("what would his current production look like in that league") and a *projection*
+("what will he actually do there next season"), and this project spent months
+conflating them.
 
-Two estimates are produced for every request, and both are returned:
+  score_target  **the headline**: what he is expected to rate in the new competition
+                next season. A Ridge fit on his source rating, position group and
+                competition pair, which deliberately pulls extreme ratings toward the
+                middle because part of any extreme rating is luck. Age, minutes per game
+                and matches played were features until 2026-09-22 and were removed after
+                an ablation found they did not earn their place; the live set is in
+                `config.json -> translation.model_features` rather than here, so this
+                paragraph cannot drift from it again.
+  score_ladder  the translation: the measured average change for this pair applied to
+                his rating, kept separately for the same-season and next-season
+                horizons. It says what a player of his standard has historically scored
+                over there. A true statement about levels, and a poor forecast of
+                one man.
 
-  the LADDER estimate — the measured average shift for that competition pair, which
-  applies to any player and is the number to quote about a move in general;
-  the MODEL estimate — the Ridge fit conditioned on this player's position, age,
-  minutes per game and matches played, which is the number to quote about him.
+**The headline used to be the ladder and the evidence says it should not be.** A
+rolling-origin backtest — each season forecast using only what was known before it —
+finds the ladder beaten by predicting 50 for everyone. `ROLLING_REPORT.md` carries the
+current figures and the cohort they rest on; they are not repeated here, because the
+version that was repeated here described a 1,140-row inferred move set that
+`transition_events.py` replaced with 441 genuine entries, and a scale that has since
+been recalibrated.
 
-Until 2026-08-25 the model was loaded here but never actually used, so a 20-year-old
-prop with four games and a 31-year-old fullback with 150 received the identical
-answer. It is wired in now, and `basis` reports which estimate the headline came from.
+Two things that report says which matter at the point of use. The claim holds against
+the rating this system publishes and NOT against an unshrunk measure of the same season,
+so it is a statement about the product rather than about the player. And on the cohort
+the client actually asks about — a feeder player entering the NRL for the first time —
+the model is not distinguishable from predicting 50 for everyone.
 
-Two sources of truth, both built by fit_translation_v2.py:
+The ladder is kept and shown, because "what is his level worth over there" is a real
+question a recruiter asks. It is simply not the answer to "what will he do".
 
-  translation_ladder  the measured within-player level shift for each competition
-                      pair, with its standard error and sample size. Used directly
-                      when there is no player detail to condition on, and always
-                      shown to the user, because it is a measurement rather than a
-                      model output.
-  translation_model_v2.pkl
-                      Ridge fits that additionally condition on position, age and
-                      minutes per game. Layer A covers feeder -> NRL, layer B covers
-                      Australia <-> Super League.
+The v3 model works directly in points of the 0-100 rating, because that is what it was
+fitted on — the same cumulative Class score the app displays. v2 worked in composite
+z-scores and needed a round trip through the normal distribution to be read; that path
+is kept below, unchanged, because `v1_holdout_record.json` seals a result produced by
+it and a sealed result that cannot be reproduced is not much of a seal.
 
-Scale. The app shows a 0-100 benchmark where score = 100 * Phi(class_z), so the exact
-inverse is z = Phi^-1(score/100). v1 approximated this with (score - 62) / 12, which
-is wrong at both tails; use score_to_z / z_to_score below.
-
-Caveat worth repeating to a client: the model is fitted on players who actually moved
-(or played both competitions in one season). Those players are not a random sample —
-someone called up to the NRL was picked for a reason — so a level shift measured on
-them need not apply unchanged to a player nobody has promoted.
+**Position is two separate arguments.** `raw_position` takes a Stats Perform label
+("Half Back", "Second Row"); `position_group` takes an engine group ("Halves", "Back
+Row"). Passing a group where a raw label was expected used to resolve to nothing and
+silently drop the position — the single argument that allowed it is gone, and giving
+one raises rather than guessing.
 """
 import os
 import pickle
@@ -44,12 +58,22 @@ from statistics import NormalDist
 import numpy as np
 import pandas as pd
 
+import translation_features as tf
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
-MODEL_PATH = os.path.join(BASE, "translation_model_v2.pkl")
+MODEL_V3 = os.path.join(BASE, "translation_model_v3.pkl")
+MODEL_V2 = os.path.join(BASE, "translation_model_v2.pkl")
 
-COMP_NAME = {"NRL": "NRL", "SL": "Super League", "NSW": "NSW Cup", "QLD": "Queensland Cup"}
+COMP_NAME = {"NRL": "NRL", "SL": "Super League", "NSW": "NSW Cup",
+             "QLD": "Queensland Cup"}
 _ND = NormalDist()
+# which fitted layer answers which question
+LAYER_SAME_SEASON = "A_same_season"
+LAYER_NEXT_SEASON = "B_next_season"
+# below this many moves a horizon's own estimate is too thin to prefer over the pooled
+# one; the caller is told which was used either way
+MIN_LADDER_OBS = 10
 
 
 def score_to_z(score):
@@ -64,14 +88,15 @@ def z_to_score(z):
 
 
 def _load():
-    with open(MODEL_PATH, "rb") as f:
+    if os.path.exists(MODEL_V3):
+        with open(MODEL_V3, "rb") as f:
+            pkl = pickle.load(f)
+        return pkl, 3, pd.DataFrame(pkl["ladder"])
+    with open(MODEL_V2, "rb") as f:
         pkl = pickle.load(f)
     con = sqlite3.connect(DB)
     ladder = pd.read_sql("SELECT * FROM translation_ladder", con)
     meta = pd.read_sql("SELECT * FROM translation_model_meta", con)
-    # the range each conditioning feature was actually fitted over, so the model can
-    # refuse to extrapolate. These are PER-SEASON quantities: games_src tops out near
-    # a full season, not a career.
     try:
         pairs = pd.read_sql("SELECT age, mins_pg, g_feed FROM translation_pairs", con)
         rng = {}
@@ -82,16 +107,13 @@ def _load():
     except Exception:
         rng = {}
     con.close()
-    return pkl, ladder, meta, rng
+    pkl["_meta"], pkl["_range"] = meta, rng
+    return pkl, 2, ladder
 
 
-_PKL, LADDER, META, FEATURE_RANGE = _load()
+_PKL, VERSION, LADDER = _load()
 
-
-# Which fitted layer covers which ordered pair. A was fitted on feeder->NRL only;
-# B on every pair involving Super League. NRL->feeder is in neither training set, so
-# it falls back to the ladder and borrows layer A's error, being the same
-# relationship reversed.
+# v2 only — see _translate_v2
 LAYER_PAIRS = {
     "A": {("NSW", "NRL"), ("QLD", "NRL")},
     "B": {("NRL", "SL"), ("NSW", "SL"), ("QLD", "SL"),
@@ -100,7 +122,165 @@ LAYER_PAIRS = {
 POS_GROUP = _PKL.get("position_group", {})
 
 
-def _layer_for(source, target):
+def available_pairs():
+    """Competition pairs with a measured shift, most-sampled first."""
+    col = "shift_pts" if VERSION == 3 else "shift"
+    return LADDER.sort_values("n", ascending=False)[["source", "target", "n", col]]
+
+
+def _ladder_row(source, target, layer=None):
+    """The measured shift for a direction, on the horizon being asked about.
+
+    The ladder used to hold one figure per direction, averaged over both horizons, and
+    it was quoted whichever horizon the caller wanted. "What is he worth there this
+    year" and "what will he do there next year" are different questions, so since
+    2026-09-22 the table carries a row per horizon and this picks the matching one.
+
+    A thin direction can have too few moves on one horizon to say anything; those fall
+    back to the `overall` row, and the basis string says so rather than hiding it.
+    """
+    def pick(frame, lay):
+        r = frame[frame.layer == lay] if "layer" in frame.columns else frame
+        return r if len(r) else None
+
+    want = [layer, "overall"] if layer else ["overall"]
+    fwd = LADDER[(LADDER.source == source) & (LADDER.target == target)]
+    rev = LADDER[(LADDER.source == target) & (LADDER.target == source)]
+    if not len(fwd) and not len(rev):
+        raise ValueError(f"no measured moves between {source} and {target}")
+
+    for lay in want:
+        hit = pick(fwd, lay)
+        if hit is not None and int(hit.iloc[0]["n"]) >= MIN_LADDER_OBS:
+            note = "measured ladder" if lay == layer else \
+                "measured ladder, both horizons pooled"
+            return hit.iloc[0], note, 1.0
+    for lay in want:
+        hit = pick(rev, lay)
+        if hit is not None and int(hit.iloc[0]["n"]) >= MIN_LADDER_OBS:
+            note = (f"measured ladder, {COMP_NAME[target]} -> {COMP_NAME[source]} "
+                    f"reversed")
+            if lay != layer:
+                note += ", both horizons pooled"
+            return hit.iloc[0], note, -1.0
+    # nothing clears the floor: take whatever exists rather than refusing, and say so
+    any_fwd = pick(fwd, "overall")
+    if any_fwd is not None:
+        return any_fwd.iloc[0], "measured ladder, very few moves", 1.0
+    return (pick(rev, "overall").iloc[0],
+            f"measured ladder, {COMP_NAME[target]} -> {COMP_NAME[source]} reversed, "
+            f"very few moves", -1.0)
+
+
+def _forecast_note(source_score, ladder, forecast):
+    """Why the forecast sits inside the translation, in one sentence.
+
+    Without it the two numbers read as the model contradicting the measured shift. It
+    does not: part of any rating well away from 50 is luck and a kind draw, and the
+    share that is skill is what carries over. The stronger the rating, the more of it
+    gets given back.
+    """
+    gap = ladder - forecast
+    if abs(gap) < 2.0:
+        return ("The forecast and the translation land in the same place here, which is "
+                "what happens for a player rated near the middle — there is little luck "
+                "in an average season to give back.")
+    n = round(abs(gap))
+    return (f"The forecast sits {n} point{'' if n == 1 else 's'} "
+            f"{'below' if gap > 0 else 'above'} the translation. That is regression "
+            f"toward the mean, not a disagreement: a rating of {source_score:.0f} is "
+            f"part skill and part a good run, and only the skill travels. The further a "
+            f"rating sits from average, the more of it is handed back — which is why a "
+            f"75 does not become a 75 anywhere.")
+
+
+def _interpretation(shift_points, source, target):
+    if shift_points <= -5:
+        return f"Expect a clear drop moving to {COMP_NAME[target]} - a stronger pool."
+    if shift_points < -1.5:
+        return f"Expect a modest drop in {COMP_NAME[target]}."
+    if shift_points <= 1.5:
+        return (f"Broadly like-for-like between {COMP_NAME[source]} and "
+                f"{COMP_NAME[target]}.")
+    return (f"Expect a modest lift in {COMP_NAME[target]} - a slightly weaker pool.")
+
+
+def translate(score, source, target, raw_position=None, position_group=None,
+              age=None, minutes_pg=None, games=None, horizon="next_season",
+              position=None):
+    """Translate a 0-100 rating from `source` to `target`.
+
+    `horizon` selects which fitted layer answers: "next_season" forecasts the season
+    after the rating was earned, which is the recruitment question; "same_season" asks
+    what he would have scored in the other competition at the same time.
+    """
+    if position is not None:
+        raise TypeError(
+            "translate() no longer takes `position=`, because it could not tell a raw "
+            "Stats Perform label from a rating-engine group and silently dropped the "
+            "latter. Pass raw_position='Half Back' or position_group='Halves'.")
+    if source == target:
+        return {"source": source, "target": target, "score_source": float(score),
+                "score_target": float(score), "score_forecast": float(score),
+                "score_ladder": float(score), "score_model": None,
+                "shift_points": 0.0, "ladder_shift_points": 0.0,
+                "regression_points": 0.0, "band_points": 0.0,
+                "avg_band_points": 0.0, "n_obs": None, "basis": "same competition",
+                "headline": "unchanged", "inputs_used": {}, "model_version": VERSION,
+                "interpretation": "Same competition - nothing to translate.",
+                "forecast_note": ""}
+    if VERSION == 2:
+        return _translate_v2(score, source, target, raw_position, position_group,
+                             age, minutes_pg, games)
+
+    layer = LAYER_NEXT_SEASON if horizon == "next_season" else LAYER_SAME_SEASON
+    row, basis, sign = _ladder_row(source, target, layer)
+    shift_pts = sign * float(row["shift_pts"])
+    se = float(row["se_pts"])
+    n_obs = int(row["n"])
+    score_ladder = float(np.clip(score + shift_pts, 0.0, 100.0))
+
+    lay = _PKL["layers"].get(layer) or next(iter(_PKL["layers"].values()))
+    spec = tf.FeatureSpec.from_dict(lay["spec"])
+    X, used = spec.transform(tf.frame(score, source, target,
+                                      raw_position=raw_position,
+                                      position_group=position_group,
+                                      age=age, minutes_pg=minutes_pg, games=games))
+    # the model was fitted on the families config selects, so predict on the same ones
+    X = X[lay["features"]]
+    _mult = np.asarray(lay.get("mult", np.ones(len(lay["features"]))), dtype=float)
+    score_model = float(np.clip(
+        lay["model"].predict(lay["scaler"].transform(X) * _mult)[0], 0.0, 100.0))
+    rmse = float(lay["rmse"])
+    used = used[0]
+
+    # The forecast is the headline. The ladder stays beside it and the gap between them
+    # is regression toward the mean — not a disagreement, which is how it reads unless
+    # somebody says so, hence `regression_points` and the sentence that explains it.
+    return {"source": source, "target": target, "score_source": float(score),
+            "score_target": score_model,
+            "score_forecast": score_model, "score_ladder": score_ladder,
+            "score_model": score_model,
+            "shift_points": float(score_model - score),
+            "ladder_shift_points": float(shift_pts),
+            "regression_points": float(score_ladder - score_model),
+            # two uncertainties, kept apart on purpose: how well the AVERAGE shift for
+            # this pair is known, and how well ONE player's outcome can be predicted
+            "avg_band_points": float(1.96 * se),
+            "band_points": float(1.96 * rmse),
+            "se_points": se, "rmse_points": rmse, "n_obs": n_obs, "layer": layer,
+            "basis": basis + "; forecast from the conditional model",
+            "headline": "forecast", "inputs_used": used, "model_version": 3,
+            "interpretation": _interpretation(shift_pts, source, target),
+            "forecast_note": _forecast_note(score, score_ladder, score_model)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2, frozen. Reached only when translation_model_v3.pkl is absent. Kept so the
+# sealed v1 holdout result can be reproduced; not maintained, not extended.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _layer_for_v2(source, target):
     if (source, target) in LAYER_PAIRS["A"]:
         return "A", True
     if (source, target) in LAYER_PAIRS["B"]:
@@ -110,16 +290,10 @@ def _layer_for(source, target):
     return "B", False
 
 
-def _feature_row(layer, z_source, source, target, position, age, minutes_pg, games):
-    """One row in the exact column order the layer was fitted on.
-
-    Anything the caller cannot supply is filled with that column position's training
-    mean, so a missing age pulls the estimate toward the average player rather than
-    toward zero. The dropped dummy is the reference group, so leaving every group
-    dummy at zero IS that reference.
-    """
+def _feature_row_v2(layer, z_source, source, target, group, age, minutes_pg, games):
     lay = _PKL["layers"][layer]
     feats, sc = lay["features"], lay["scaler"]
+    rng = _PKL.get("_range", {})
     row = dict(zip(feats, sc.mean_))
     row["z_source"] = z_source
     clamped = []
@@ -128,159 +302,67 @@ def _feature_row(layer, z_source, source, target, position, age, minutes_pg, gam
         if value is None or not pd.notna(value):
             return
         v = float(value)
-        lo, hi = FEATURE_RANGE.get(key, (None, None))
+        lo, hi = rng.get(key, (None, None))
         if lo is not None and not (lo <= v <= hi):
-            clamped.append(f"{key}={v:g} outside the fitted range "
-                           f"[{lo:g}, {hi:g}], clamped")
+            clamped.append(f"{key}={v:g} outside [{lo:g}, {hi:g}], clamped")
             v = min(max(v, lo), hi)
         row[key] = v
 
     _put("age", age)
     _put("mins_pg", minutes_pg)
     _put("games_src", games)
-    grp = POS_GROUP.get(position) if position else None
-    if grp:
+    if group:
         for f in feats:
             if f.startswith("grp_"):
-                row[f] = 1.0 if f == "grp_" + grp else 0.0
+                row[f] = 1.0 if f == "grp_" + group else 0.0
     if any(f.startswith("pair_") for f in feats):
         want = "pair_" + source + "->" + target
         for f in feats:
             if f.startswith("pair_"):
                 row[f] = 1.0 if f == want else 0.0
-    used = {"position": grp,
-            "age": age is not None and pd.notna(age),
+    used = {"position": group, "age": age is not None and pd.notna(age),
             "minutes": minutes_pg is not None and pd.notna(minutes_pg),
-            "games": games is not None and pd.notna(games),
-            "clamped": clamped}
+            "games": games is not None and pd.notna(games), "clamped": clamped}
     return pd.DataFrame([row])[feats], used
 
 
-def available_pairs():
-    """Competition pairs with a measured shift, most-sampled first."""
-    return LADDER.sort_values("n", ascending=False)[["source", "target", "n", "shift"]]
-
-
-def translate(score, source, target, position=None, age=None, minutes_pg=None,
-              games=None):
-    """Translate a 0-100 rating from `source` competition to `target`.
-
-    Returns two numbers, deliberately:
-
-      score_target / score_ladder — the measured average shift for this pair applied
-        to his rating. This is the headline and the one to quote.
-      score_model — the Ridge fit conditioned on position, age, minutes per game and
-        matches played in the source season. It regresses toward the middle on
-        purpose, so it reads lower than the ladder for a strongly rated player; it is
-        a forecast of his next season, not a restatement of his current level.
-
-    inputs_used says which details were actually used and flags any that fell outside
-    the fitted range and were clamped.
-    """
-    if source == target:
-        return {"source": source, "target": target, "score_source": score,
-                "score_target": score, "score_ladder": score, "score_model": None,
-                "shift_z": 0.0, "shift_points": 0.0, "band_points": 0.0,
-                "avg_band_points": 0.0, "n_obs": None, "basis": "same competition",
-                "inputs_used": {}, "interpretation":
-                    "Same competition - nothing to translate."}
-
-    row = LADDER[(LADDER.source == source) & (LADDER.target == target)]
-    if row.empty:
-        rev = LADDER[(LADDER.source == target) & (LADDER.target == source)]
-        if rev.empty:
-            raise ValueError("no measured moves between " + source + " and " + target)
-        shift_z = -float(rev["shift"].iloc[0])
-        n_obs, se = int(rev.n.iloc[0]), float(rev.se.iloc[0])
-        ladder_basis = ("measured ladder, " + COMP_NAME[target] + " -> "
-                        + COMP_NAME[source] + " reversed")
-    else:
-        shift_z = float(row["shift"].iloc[0])
-        n_obs, se = int(row.n.iloc[0]), float(row.se.iloc[0])
-        ladder_basis = "measured ladder"
-
-    # score_to_z inverts the engine's own mapping, so z is already on the composite
-    # scale the ladder shift was measured on - it is added directly.
+def _translate_v2(score, source, target, raw_position, position_group, age,
+                  minutes_pg, games):
+    group, _ = tf.resolve_position(raw_position, position_group)
+    row, basis, sign = _ladder_row(source, target)
+    shift_z = sign * float(row["shift"])
+    se, n_obs = float(row["se"]), int(row["n"])
     z_src = score_to_z(score)
     z_ladder = z_src + shift_z
     score_ladder = z_to_score(z_ladder)
-
-    layer, fitted = _layer_for(source, target)
-    rmse = (float(META[META.label.str.startswith("Layer " + layer)].rmse.iloc[0])
-            if len(META) else se)
-
+    layer, fitted = _layer_for_v2(source, target)
+    meta = _PKL.get("_meta", pd.DataFrame())
+    rmse = (float(meta[meta.label.str.startswith("Layer " + layer)].rmse.iloc[0])
+            if len(meta) else se)
     score_model, used = None, {}
     if fitted:
-        X, used = _feature_row(layer, z_src, source, target, position, age,
-                               minutes_pg, games)
+        X, used = _feature_row_v2(layer, z_src, source, target, group, age,
+                                  minutes_pg, games)
         lay = _PKL["layers"][layer]
-        score_model = z_to_score(float(lay["model"].predict(lay["scaler"].transform(X))[0]))
-
-    # The headline stays the LADDER, and the model is reported beside it, because the
-    # two answer different questions and the model is the more easily misread of the
-    # two. Its slope on the source rating is attenuated by measurement error, so it
-    # deliberately regresses a 70 toward the middle: as a forecast of the player's
-    # NEXT season that is the lower-error answer (0.219 vs 0.277 z out of sample), but
-    # quoted next to his current 70 it looks like the model disagrees with the ladder.
-    # It does not - it is pricing in the part of that 70 which was luck.
-    personalised = score_model is not None and any(
-        [used.get("position"), used.get("age"), used.get("minutes"), used.get("games")])
-    score_tgt = score_ladder
-    basis = ladder_basis
-    if personalised:
-        basis += "; conditional model also available (layer " + layer + ")"
-    shift_points = score_tgt - score
-
-    # TWO different uncertainties, and conflating them would oversell the model:
-    #   how well we know the AVERAGE shift for this pair -> standard error (tight)
-    #   how well we can predict ONE player's new rating  -> out-of-sample RMSE (wide)
-    z_tgt = score_to_z(score_tgt)
-    band_points = abs(z_to_score(z_tgt + 1.96 * rmse)
-                      - z_to_score(z_tgt - 1.96 * rmse)) / 2
-    avg_band_points = abs(z_to_score(z_ladder + 1.96 * se)
-                          - z_to_score(z_ladder - 1.96 * se)) / 2
-
-    if shift_points <= -5:
-        interp = "Expect a clear drop moving to " + COMP_NAME[target] + " - a stronger pool."
-    elif shift_points < -1.5:
-        interp = "Expect a modest drop in " + COMP_NAME[target] + "."
-    elif shift_points <= 1.5:
-        interp = ("Broadly like-for-like between " + COMP_NAME[source] + " and "
-                  + COMP_NAME[target] + ".")
-    else:
-        interp = ("Expect a modest lift in " + COMP_NAME[target]
-                  + " - a slightly weaker pool.")
-
+        score_model = z_to_score(
+            float(lay["model"].predict(lay["scaler"].transform(X))[0]))
+    z_tgt = score_to_z(score_ladder)
     return {"source": source, "target": target, "score_source": float(score),
-            "score_target": float(score_tgt), "score_ladder": float(score_ladder),
+            "score_target": float(score_ladder), "score_ladder": float(score_ladder),
             "score_model": None if score_model is None else float(score_model),
-            "shift_z": shift_z, "shift_points": float(shift_points),
-            "band_points": float(band_points),
-            "avg_band_points": float(avg_band_points),
-            "se_z": se, "rmse_z": float(rmse), "n_obs": n_obs, "layer": layer,
-            "basis": basis, "inputs_used": used,
-            "position": position, "age": age, "interpretation": interp}
-
-
-if __name__ == "__main__":
-    print("measured competition pairs (within-player moves):")
-    print(available_pairs().to_string(index=False))
-    print()
-    for src, tgt, sc in [("NRL", "SL", 70), ("NRL", "SL", 50), ("NSW", "NRL", 70),
-                         ("QLD", "SL", 65), ("SL", "NRL", 60)]:
-        r = translate(sc, src, tgt)
-        print(f"{COMP_NAME[src]} {sc} -> {COMP_NAME[tgt]}: ladder {r['score_ladder']:.1f}"
-              f" | n={r['n_obs']} | +/-{r['avg_band_points']:.1f} on the average, "
-              f"+/-{r['band_points']:.1f} on the individual")
-    print("\nsame rating, different players (this used to return one number):")
-    for kw in [dict(position="Prop", age=20, minutes_pg=25, games=4),
-               dict(position="Full Back", age=31, minutes_pg=78, games=24)]:
-        r = translate(70, "NRL", "SL", **kw)
-        print(f"  NRL 70 -> SL, {kw['age']}yo {kw['position']}, {kw['games']} games: "
-              f"ladder {r['score_ladder']:.1f}, model {r['score_model']:.1f}"
-              f"  [{r['basis']}]"
-              + (f"  !! {'; '.join(r['inputs_used']['clamped'])}"
-                 if r["inputs_used"].get("clamped") else ""))
-    print()
-    print("fitted range of each conditioning feature:",
-          {k: (round(v[0], 1), round(v[1], 1)) for k, v in FEATURE_RANGE.items()})
+            "shift_points": float(score_ladder - score),
+            "band_points": abs(z_to_score(z_tgt + 1.96 * rmse)
+                               - z_to_score(z_tgt - 1.96 * rmse)) / 2,
+            "avg_band_points": abs(z_to_score(z_ladder + 1.96 * se)
+                                   - z_to_score(z_ladder - 1.96 * se)) / 2,
+            "score_forecast": None if score_model is None else float(score_model),
+            "ladder_shift_points": float(score_ladder - score),
+            "regression_points": (0.0 if score_model is None
+                                  else float(score_ladder - score_model)),
+            "se_z": se, "rmse_z": rmse, "n_obs": n_obs, "layer": layer,
+            # v2 is frozen and its headline stays the ladder: the evidence that the
+            # forecast is the better headline was gathered on v3, and reopening a sealed
+            # artefact to apply it would defeat the seal
+            "basis": basis, "headline": "translation",
+            "inputs_used": used, "model_version": 2, "forecast_note": "",
+            "interpretation": _interpretation(score_ladder - score, source, target)}

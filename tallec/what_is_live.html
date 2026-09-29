@@ -1,0 +1,359 @@
+<title>What Is Live</title>
+<style>
+  :root {
+    --ground:      #EEF1F5;
+    --surface:     #FFFFFF;
+    --surface-alt: #F5F7FA;
+    --line:        #D5DBE3;
+    --line-soft:   #E5EAF0;
+    --ink:         #1A2029;
+    --ink-mid:     #48545F;
+    --ink-dim:     #6D7986;
+    --accent:      #2C5F8F;
+    --accent-soft: #DEE9F3;
+    --good:        #2F6B52;
+    --good-soft:   #DFEDE5;
+    --warn:        #9C5B22;
+    --warn-soft:   #F6E8D9;
+    --wait:        #5B5470;
+    --wait-soft:   #E8E5EE;
+    --shadow:      0 1px 2px rgba(26,32,41,.05), 0 10px 28px -14px rgba(26,32,41,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0F131A; --surface: #171C24; --surface-alt: #1E242D;
+      --line: #2B323D; --line-soft: #222933; --ink: #E7EBF1;
+      --ink-mid: #B3BDCA; --ink-dim: #8695A5; --accent: #77ABDE;
+      --accent-soft: #1C2C3C; --good: #85C9A7; --good-soft: #172A21;
+      --warn: #DC9D5D; --warn-soft: #2B2318; --wait: #B0A7C6; --wait-soft: #23202B;
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0F131A; --surface: #171C24; --surface-alt: #1E242D;
+    --line: #2B323D; --line-soft: #222933; --ink: #E7EBF1;
+    --ink-mid: #B3BDCA; --ink-dim: #8695A5; --accent: #77ABDE;
+    --accent-soft: #1C2C3C; --good: #85C9A7; --good-soft: #172A21;
+    --warn: #DC9D5D; --warn-soft: #2B2318; --wait: #B0A7C6; --wait-soft: #23202B;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16.5px; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 24px 90px; }
+  p, ul, ol { max-width: 62ch; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+    font-size: .88em; background: var(--surface-alt);
+    border: 1px solid var(--line-soft); border-radius: 3px; padding: .08em .34em;
+  }
+
+  header { padding: 68px 0 34px; }
+  .kicker {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-dim); margin: 0 0 18px;
+  }
+  h1 {
+    font-size: clamp(34px, 5.5vw, 50px); line-height: 1.05; letter-spacing: -.024em;
+    font-weight: 660; margin: 0 0 20px; text-wrap: balance; max-width: 18ch;
+  }
+  .lede { font-size: 19px; line-height: 1.55; color: var(--ink-mid); margin: 0; max-width: 56ch; }
+  .rule { height: 1px; background: var(--line); margin: 38px 0 48px; }
+
+  section { margin: 0 0 56px; }
+  h2 {
+    font-size: 26px; line-height: 1.2; letter-spacing: -.017em; font-weight: 650;
+    margin: 0 0 8px; text-wrap: balance; max-width: 26ch;
+  }
+  h2 + .sub { color: var(--ink-dim); font-size: 15px; margin: 0 0 26px; max-width: 58ch; }
+  h3 { font-size: 17.5px; font-weight: 620; margin: 30px 0 8px; }
+  strong { font-weight: 650; }
+
+  .cta {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 5px;
+    box-shadow: var(--shadow); padding: 24px 26px; margin: 26px 0;
+  }
+  .cta .url {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 17px; font-weight: 600; word-break: break-all;
+  }
+  .cta p { margin: 12px 0 0; }
+  .cta p:first-child { margin-top: 0; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 2px; white-space: nowrap;
+  }
+  .chip.live { background: var(--good-soft); color: var(--good); }
+  .chip.you  { background: var(--warn-soft); color: var(--warn); }
+  .chip.later{ background: var(--wait-soft); color: var(--wait); }
+
+  .rows { display: grid; gap: 1px; background: var(--line);
+          border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 26px 0; }
+  .row { background: var(--surface); padding: 18px 20px;
+         display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: start; }
+  .row .t { font-weight: 620; font-size: 15.5px; }
+  .row p { margin: 5px 0 0; font-size: 15px; max-width: 58ch; }
+
+  .strip {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: 4px; overflow: hidden; margin: 26px 0;
+  }
+  .cell { background: var(--surface); padding: 18px; }
+  .cell b {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 25px; font-weight: 600; display: block; line-height: 1.1;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  }
+  .cell span { font-size: 12px; color: var(--ink-dim); display: block; margin-top: 6px; line-height: 1.35; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--surface);
+    border-radius: 0 4px 4px 0; padding: 17px 21px; margin: 26px 0; max-width: 68ch;
+  }
+  .note.warn { border-left-color: var(--warn); }
+  .note p { margin: 0; max-width: none; }
+  .note p + p { margin-top: 10px; }
+  .note .lbl {
+    display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--ink-dim); margin-bottom: 7px;
+  }
+
+  ol.ask { counter-reset: a; list-style: none; padding: 0; max-width: 64ch; }
+  ol.ask li { counter-increment: a; position: relative; padding-left: 44px; margin-bottom: 26px; }
+  ol.ask li::before {
+    content: counter(a); position: absolute; left: 0; top: 0;
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--warn-soft); color: var(--warn);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 13px; font-weight: 600; display: grid; place-items: center;
+  }
+  ol.ask b { display: block; margin-bottom: 3px; }
+
+  footer { border-top: 1px solid var(--line); padding-top: 26px; color: var(--ink-dim); font-size: 14px; }
+  footer p { max-width: 64ch; }
+
+  @media (max-width: 600px) {
+    body { font-size: 16px; } header { padding-top: 44px; }
+    .row { grid-template-columns: 1fr; gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="kicker">TALLEC · Status · 25 August 2026</p>
+  <h1>What is live</h1>
+  <p class="lede">The four-competition version is deployed and running. This is what is
+  in it, what changed this week, and the three things I need from you to close the last
+  gaps.</p>
+</header>
+
+<div class="rule"></div>
+
+<section>
+  <h2>The app</h2>
+  <div class="cta">
+    <p class="url"><a href="https://bosc-tallec.streamlit.app">bosc-tallec.streamlit.app</a></p>
+    <p>If it shows a "this app has gone to sleep" page, click through — it takes a minute
+    or two to wake, and longer on the first load after an update because the database
+    now travels with it.</p>
+    <p><strong>Start here:</strong> pick a league in the top-left selector, then open
+    <em>Benchmarks</em>. The banner at the top of that page tells you, in plain words,
+    whether the ratings you are looking at are measured against a player's own position or
+    against the whole competition — it reads that off the data rather than assuming it.</p>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><b>4</b><span>competitions</span></div>
+    <div class="cell"><b>122,359</b><span>player-match records</span></div>
+    <div class="cell"><b>1,873</b><span>players rated</span></div>
+    <div class="cell"><b>953</b><span>observed moves behind the ladder</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>What changed this week</h2>
+  <p class="sub">Three deliveries from you, and what each unlocked.</p>
+
+  <div class="rows">
+    <div class="row">
+      <span class="chip live">now live</span>
+      <div>
+        <div class="t">The Australian history file</div>
+        <p>NRL 2020–2025 plus five seasons each of NSW Cup and Queensland Cup. The database
+        went from one competition and part of a season to four competitions and 23
+        league-seasons. Both feeder competitions are now rated in their own right — 496 and
+        494 players — so they are a searchable scouting pool, not just evidence.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip live">now live</span>
+      <div>
+        <div class="t">Super League positions, all six seasons</div>
+        <p>The last structural gap. Every Super League season now has the position off the
+        match sheet, so <strong>all four competitions are rated against a player's own
+        position</strong> rather than against the league as a whole. Leeds' squad went from
+        10 players with a known position to all 27.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip live">now live</span>
+      <div>
+        <div class="t">Your answer on the sixteen duplicate rows</div>
+        <p>Two of the three identifiers were each covering two different players, exactly as
+        you said. All sixteen rows are loaded, the two Blake Moores and two James Walshes now
+        have separate identities, and the database has a hard uniqueness rule so this class of
+        problem cannot come back unnoticed.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>The position data did something I did not expect: it made the competition ladder
+  measurably tighter. The two directions of each move now agree with each other, and the
+  three steps from Queensland Cup to Super League add up to within a quarter of a
+  rating point. The full workings are in the build note linked below.</p>
+</section>
+
+<section>
+  <h2>The two documents</h2>
+  <p class="sub">Different jobs. Send the first to anyone who has to use the numbers; the
+  second to anyone who wants to check them.</p>
+
+  <div class="rows">
+    <div class="row">
+      <span class="chip live">for users</span>
+      <div>
+        <div class="t"><a href="https://claude.ai/code/artifact/769e147b-3aaa-475a-8e1b-418f5c5f9e8b">Reading the Numbers</a></div>
+        <p>What a rating means, how far to trust it, and the one distinction that matters:
+        the average shift between competitions is known to about a point and a half, an
+        individual player's outcome only to about fourteen. That page is written so a club
+        can use the numbers without over-claiming them.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip live">for checking</span>
+      <div>
+        <div class="t"><a href="https://claude.ai/code/artifact/346b0b8e-27b1-460e-984c-8c446ed0bc63">Four Leagues, One Scale</a></div>
+        <p>The workings. Every calculation shown, including the checks that failed —
+        the first Super League position file was misaligned and had to be rejected, and how
+        that was caught. If Leeds have an analyst who wants to audit the method, this is
+        the document for them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The code was reviewed, and nine things were wrong</h2>
+  <p class="sub">Worth telling you rather than quietly fixing.</p>
+
+  <p>I had the whole thing reviewed independently this week. Nine real problems came back.
+  Every one was reproduced before being touched, and every one is fixed. The two worth
+  knowing about:</p>
+
+  <div class="note warn">
+    <span class="lbl">The one that would have embarrassed us</span>
+    <p>The translation tool was advertised as taking a player's position, age and workload
+    into account. It was not. A 20-year-old prop with four games and a 31-year-old fullback
+    with 150 got the identical answer. The model that does that conditioning had been built
+    and validated but never actually connected. It is connected now.</p>
+    <p>The second: three old scripts could still overwrite live data, and one of them
+    computed ratings by pooling all four competitions into a single pot. They now refuse to
+    run without an explicit override.</p>
+  </div>
+
+  <p>The rest were smaller — a file path that only worked on my machine, an unpinned
+  dependency that could have broken the app on startup, and a squad simulator that was
+  comparing a seventeen-man line-up against a thirty-man season squad, so its headline
+  number partly measured squad size. All corrected and deployed.</p>
+
+  <p>I mention it because a system nobody has audited is not the same as a system that
+  passed an audit, and you should know which one you have.</p>
+</section>
+
+<section>
+  <h2>Three things I need from you</h2>
+  <p class="sub">In order of how much each would change.</p>
+
+  <ol class="ask">
+    <li><b>NRL 2026 positions, the way the Super League master came</b>
+    This is the last position gap. The current NRL season's positions are estimated from
+    players' other seasons rather than read off a team sheet, so a player who has changed
+    role this year is measured against the wrong peers. One export with the position joined
+    row by row closes it.
+    <p><strong>How I will check it on arrival</strong> — the same four tests the first
+    Super League file failed: average minutes per position (props around 46, wingers
+    around 78), the spread of passes per minute (about thirty-fold, hookers highest),
+    positions per player (around 1.5), and that the position column has no more values
+    than the file has rows.</p></li>
+
+    <li><b>Sign-off on the metric dictionary</b>
+    All 341 rows are still marked for review. Ten are flagged low confidence, and one —
+    Charge Down — divides by something that is not in the data at all. Nothing in the
+    Volume and Rate layer can be finalised until those denominators are agreed, and that is
+    a rugby judgement rather than a statistical one.</li>
+
+    <li><b>Team lists, even manually typed</b>
+    Everything about player availability is currently measured on the seventeen who
+    actually played, which is only known afterwards. Friday-morning team sheets would turn
+    it from a retrospective measure into something usable during the week. Nothing fancy
+    needed — a list of names per club per round is enough.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>What is deliberately not built</h2>
+  <p class="sub">So nobody expects it in a demo.</p>
+
+  <div class="rows">
+    <div class="row">
+      <span class="chip later">not yet</span>
+      <div>
+        <div class="t">A live match-prediction pipeline</div>
+        <p>The player layer has been measured against the match model and it does help — by
+        about a quarter of a point of margin error, which is real and small. Wiring it into
+        the weekly prediction run is a decision to make once team lists exist, because
+        without them it can only be measured after the fact.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip later">not yet</span>
+      <div>
+        <div class="t">One player, several positions</div>
+        <p>A player who covers hooker and bench gets one rating against his most common
+        position. Rating him separately in each is on the list, and needs the NRL position
+        data first.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip later">not yet</span>
+      <div>
+        <div class="t">2026 for the feeder competitions</div>
+        <p>NSW Cup and Queensland Cup data stops at 2025, so those ratings describe last
+        season. Worth knowing before anyone reads them as current form.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Every number on this page comes from the database the app is running, checked on
+  25 August 2026. The app passes an automated check across all six of its pages for all four
+  competitions before each deployment, and the code and data are versioned together, so any
+  figure here can be traced back to the run that produced it.</p>
+</footer>
+
+</div>

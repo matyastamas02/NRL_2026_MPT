@@ -1,0 +1,31 @@
+      Match ID Round A Team B Team Date A_Points Scored B_Points Scored
+ 2026-20-WI-SH    20     WI     SH                   38              16
+ 2026-20-YK-HF    20     YK     HF                   22              24
+  2026-21-C-WA    21      C     WA                   18              48
+2026-21-CF-WFT    21     CF    WFT                   12              28
+2026-21-HF-HFC    21     HF    HFC                   18              16
+2026-21-HKR-BD    21    HKR     BD                   40              12
+ 2026-21-LH-WI    21     LH     WI                    8              20
+ 2026-21-LS-TL    21     LS     TL                   46               0
+ 2026-21-YK-SH    21     YK     SH                   34              32
+ 2026-22-BD-WA    22     BD     WA                    4              42
+ 2026-22-C-HKR    22      C    HKR                    0              44
+ 2026-22-HF-CF    22     HF     CF                   42              20
+ 2026-22-LH-YK    22     LH     YK                   22              14
+2026-22-SH-HFC    22     SH    HFC                   18              32
+2026-22-WFT-LS    22    WFT     LS                   22              24
+ 2026-22-WI-TL    22     WI     TL                   48              18
+ 2026-23-BD-WI    23     BD     WI                    6              34
+ 2026-23-HFC-C    23    HFC      C                   14              18
+2026-23-HKR-CF    23    HKR     CF                   28              10
+ 2026-23-LS-LH    23     LS     LH                   16              20
+ 2026-23-TL-HF    23     TL     HF                   10              26
+ 2026-23-WA-YK    23     WA     YK                   26              10
+2026-23-WFT-SH    23    WFT     SH                   16              46
+2026-24-CF-HFC    24     CF    HFC                   26              27
+2026-24-HKR-TL    24    HKR     TL                   12              32
+ 2026-24-LH-BD    24     LH     BD                   62              10
+  2026-24-SH-C    24     SH      C                   36              12
+ 2026-24-WA-HF    24     WA     HF                   34              24
+2026-24-WI-WFT    24     WI    WFT                   26              12
+ 2026-24-YK-LS    24     YK     LS                   16              58

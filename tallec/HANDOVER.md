@@ -48,15 +48,23 @@ League model.
 | NSW Cup | 2021–2025 | 21,427 | 496 (2025) | match sheet |
 | Queensland Cup | 2021–2025 | 24,208 | 494 (2025) | match sheet (91%) |
 
-The measured competition ladder, relative to the NRL: **Super League −4.3 points, NSW Cup
-−5.8, Queensland Cup −7.6**, fitted from 953 within-player moves, χ²/dof 0.15.
+The measured competition ladder lives in `translation_ladder_v3` and is printed by
+`fit_translation_v3.py`; it is deliberately not restated here. It now carries a row per
+horizon, and every figure moved when the published scale was recalibrated on 22 September
+— the numbers this paragraph used to quote were from the old compressed scale and were
+wrong for three days before anyone noticed. Derived figures belong in the artefact that
+computes them.
 
 Match-model result: the player layer is worth **+0.27 MAE [+0.08, +0.46]** on the NRL over
 752 out-of-sample fixtures (significant), +0.21 [−0.27, +0.67] on Super League (not).
-The useful signal is squad inexperience, not form.
+The useful signal is squad inexperience, not form. Measured before the scale
+recalibration and on the actual line-up rather than a Friday team sheet, so treat it as
+an upper bound pending item 6.
 
-Verification: `python -m pytest tests -q` → 31 pass. `python smoke_bosc.py` → all six
-pages for all four competitions.
+Verification, in order: `python -m pytest tests -q`, `python smoke_bosc.py`,
+`python build_manifest.py --check`, `python datastate.py --check`, and
+`python export_review_package.py --check` before sending the package anywhere. No count is
+quoted — one written down here is one that goes stale, which has happened four times.
 
 Commits this session: `f14fe29` (four competitions), `4aea993` (external-review fixes),
 `e811a80` (guarded writes, audit, provenance, tests), `9f203ef` (the post-contact-metres
@@ -94,12 +102,15 @@ availability bug).
    rating against his most common position. Needs item 1 first.
 8. **Analyst workflow and shortlist export** (P3) — the flow Leeds would actually use:
    filter, shortlist, export.
-9. **Generated data-state block in the READMEs** (P3), so they cannot go stale again. Both
-   went stale twice this session.
+9. ~~Generated data-state block in the READMEs.~~ **Done** 20 September — `datastate.py`
+   writes both between markers and `--check` exits 1 when either is behind. The same
+   problem then recurred in three reports and in the review package, so `report_*.py` now
+   derive their claims and `export_review_package.py --check` compares the package with
+   this checkout.
 10. **Regenerate the Super League master's stored margin predictions out-of-sample.** An
     xLadder issue rather than a TALLEC one, but the Super League app reports its accuracy
     from that column and it is in-sample for 2025 (training MAE 15.69, held-out 7.63).
-11. **The database is 89 MB in a public repo.** Under GitHub's hard limit, over its
+11. **The database is 111 MB in a public repo.** Under GitHub's hard limit, over its
     recommendation, and it is licensed Stats Perform data including dates of birth. The
     user has decided to leave it public for now. Options if that changes: drop
     `player_match_raw` from the deployed copy (the app does not read it), or make the repo

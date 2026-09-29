@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+_backups/
+*.pyc
+
+# The databases are not in git: too large for GitHub, licensed Stats Perform data,
+# and they carry dates of birth. See DATA_NOT_IN_GIT.md.
+*.db

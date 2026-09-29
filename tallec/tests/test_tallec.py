@@ -59,8 +59,14 @@ def test_interchange_wins_only_when_he_never_starts():
 
 
 def test_position_groups_merge_the_way_the_engine_rates():
-    assert sp.POSITION_GROUP["Second Row"] == sp.POSITION_GROUP["Lock"] == "Back Row"
+    # The halves merge because a half back and a five-eighth are interchangeable enough
+    # to share a peer pool. Props and locks merge into Middles, and the second row
+    # stands alone as Edge, because Leeds asked for it on 19 September — their
+    # competition, their categories. Mike passed it on saying he did not agree but that
+    # it makes the edge forwards more distinct, which it does.
     assert sp.POSITION_GROUP["Half Back"] == sp.POSITION_GROUP["Five-Eighth"] == "Halves"
+    assert sp.POSITION_GROUP["Prop"] == sp.POSITION_GROUP["Lock"] == "Middles"
+    assert sp.POSITION_GROUP["Second Row"] == "Edge"
 
 
 # ── synthetic match data ────────────────────────────────────────────────────
@@ -257,18 +263,73 @@ def test_translation_conditions_on_the_player():
     """This is the bug the review found: the model was loaded but never used, so two
     very different players got the identical answer."""
     import predict_translation as pt
-    a = pt.translate(70, "NRL", "SL", position="Prop", age=20, minutes_pg=25, games=4)
-    b = pt.translate(70, "NRL", "SL", position="Full Back", age=31, minutes_pg=78, games=24)
+    a = pt.translate(70, "NRL", "SL", raw_position="Prop", age=20, minutes_pg=25, games=4)
+    b = pt.translate(70, "NRL", "SL", raw_position="Full Back", age=31, minutes_pg=78,
+                     games=24)
     assert a["score_model"] is not None
     assert a["score_model"] != b["score_model"]
     # the ladder half is a property of the pair, so it must NOT move with the player
     assert a["score_ladder"] == b["score_ladder"]
 
 
+def test_translation_rejects_the_ambiguous_position_argument():
+    """The second review found `position=` could not tell a raw label from a group, and
+    silently dropped the group. It is gone, and asking for it says why."""
+    import predict_translation as pt
+    with pytest.raises(TypeError, match="raw_position"):
+        pt.translate(70, "NRL", "SL", position="Halves")
+
+
+def test_every_position_group_reaches_the_model():
+    """Halves, Back Row and Bench used to resolve to nothing and change no feature."""
+    import predict_translation as pt
+    import translation_features as tf
+    seen = {}
+    for grp in tf.POSITION_GROUPS:
+        r = pt.translate(66.0, "NSW", "NRL", position_group=grp, age=25,
+                         minutes_pg=60, games=15)
+        assert r["inputs_used"]["position"] == grp
+        seen[grp] = r["score_model"]
+    # the reference group is encoded as all-zero dummies, which is a real encoding and
+    # must still differ from an unknown position
+    unknown = pt.translate(66.0, "NSW", "NRL", age=25, minutes_pg=60, games=15)
+    assert unknown["inputs_used"]["position"] is None
+    assert seen[tf.REFERENCE_GROUP] != unknown["score_model"]
+
+
 def test_translation_refuses_to_extrapolate_silently():
     import predict_translation as pt
-    r = pt.translate(70, "NRL", "SL", position="Prop", age=26, minutes_pg=60, games=150)
+    r = pt.translate(70, "NRL", "SL", raw_position="Prop", age=26, minutes_pg=60,
+                     games=150)
     assert r["inputs_used"]["clamped"], "an out-of-range season game count must be flagged"
+
+
+def test_the_headline_is_the_forecast_not_the_translation():
+    """Swapped 2026-09-14 on the evidence of the rolling backtest, and worth a test:
+    the ladder reads like the natural headline and was the headline for months, while a
+    rolling test over 1,140 moves found it beaten by predicting 50 for everyone."""
+    import predict_translation as pt
+    r = pt.translate(72, "NSW", "NRL", raw_position="Prop", age=24, minutes_pg=55,
+                     games=18)
+    if r["model_version"] < 3:
+        pytest.skip("v2 is frozen and keeps the ladder as its headline")
+    assert r["headline"] == "forecast"
+    assert r["score_target"] == r["score_forecast"]
+    assert r["score_target"] != r["score_ladder"]
+    # a strong rating must be pulled toward the middle, not carried across whole
+    assert r["score_target"] < r["score_ladder"]
+    assert r["regression_points"] > 0
+    assert r["forecast_note"], "the gap between the two has to be explained"
+
+
+def test_a_weak_rating_is_pulled_up_not_only_down():
+    """Regression works both ways; a model that only ever lowers is doing something else."""
+    import predict_translation as pt
+    r = pt.translate(30, "NSW", "NRL", raw_position="Prop", age=24, minutes_pg=55,
+                     games=18)
+    if r["model_version"] < 3:
+        pytest.skip("v2 frozen")
+    assert r["score_target"] > r["score_ladder"]
 
 
 def test_translating_to_the_same_competition_is_a_no_op():

@@ -35,13 +35,45 @@ LOWER_ALIASES = set(ENGINE_MAP.values()) | {
     "player", "team", "opposition", "minutes", "position", "position_source",
     "fantasy", "round"}
 
-# Stats Perform position string -> rating-engine position group
+# Stats Perform position string -> rating-engine position group.
+#
+# Props and locks share one group, "Middles", and second-rowers stand alone as "Edge".
+# Leeds asked for this on 2026-09-19 and it is their competition to describe; Mike
+# passed it on saying he does not agree with it himself but that it does make the edge
+# forwards a more distinct category.
+#
+# Worth recording that it also repairs something. Lock had been its own group since
+# 31 August, which left Super League Lock at 45 players — the thinnest peer pool in the
+# system, where a single place in the order was worth more than two points. Folded into
+# Middles that pool becomes 179, and the NRL's 225.
+#
+# The two profiles differed in exactly one metric: props were measured on hit-up metres
+# and locks on line-break assists. Middles takes hit-up metres, because hit-ups are what
+# every middle forward does, while line-break assists describe the ball-playing lock —
+# which is the distinction Leeds is asking us to stop drawing.
 POSITION_GROUP = {
     "Full Back": "Fullback", "Winger": "Winger", "Centre": "Centre",
     "Five-Eighth": "Halves", "Half Back": "Halves", "Hooker": "Hooker",
-    "Prop": "Prop", "Second Row": "Back Row", "Lock": "Back Row",
+    "Prop": "Middles", "Lock": "Middles", "Second Row": "Edge",
     "Interchange": "Bench",
 }
+
+# Older position strings from the Gerard-seeded data, kept so historical rows still
+# resolve. They are deliberately NOT in POSITION_GROUP: that map is the canonical set of
+# Stats Perform labels, and the translation feature builder treats anything outside it as
+# an unknown position rather than guessing. The rating engine, which has to read every
+# row ever loaded, uses POSITION_GROUP | LEGACY_POSITIONS instead.
+#
+# "Unknown" resolves to Bench here for the engine's benefit only. That is a fallback for
+# pooling, not a claim that the player is a bench forward, and it must never leak into
+# the translation features, where an unknown position has its own flag.
+LEGACY_POSITIONS = {
+    "Fullback": "Fullback", "Halfback": "Halves", "2nd Row": "Edge",
+    "Reserve": "Bench", "Unknown": "Bench",
+}
+
+# every string the engine can see, canonical labels winning over legacy ones
+ALL_POSITIONS = {**LEGACY_POSITIONS, **POSITION_GROUP}
 
 COMPETITIONS = [
     ("NRL", "National Rugby League", "Australia"),
@@ -77,6 +109,57 @@ def normalize_player_id(series):
     out[ok] = num[ok].astype("int64").astype(str)
     lit = series.notna() & ~ok
     out[lit] = series[lit].astype(str)
+    return out
+
+
+def parse_dob(series):
+    """Dates of birth, which arrive in two formats in the same column.
+
+    2,699 of them are ISO (`1988-03-10`) and 287 are day-first with slashes
+    (`08/07/1991`). A plain `pd.to_datetime` infers ONE format from the first non-null
+    value and then fails every row in the other one — and because the inference depends
+    on which row happens to come first, the same data parsed in a different order gives
+    a different answer. That is how the age feature came to be present on 6% of players
+    in one script and 87% in another, with nobody noticing either number was wrong.
+
+    Each format is therefore matched and parsed explicitly. The slash form is
+    unambiguously day-first: its first field reaches 31 and its second never exceeds 12.
+    """
+    import pandas as _pd
+    v = series.astype(str)
+    out = _pd.Series(_pd.NaT, index=series.index, dtype="datetime64[ns]")
+    iso = v.str.match(r"^\d{4}-\d{2}-\d{2}")
+    out[iso] = _pd.to_datetime(v[iso], format="%Y-%m-%d", errors="coerce")
+    slash = v.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")
+    out[slash] = _pd.to_datetime(v[slash], format="%d/%m/%Y", errors="coerce")
+    return out
+
+
+def age_at(dob, season):
+    """Age in years at the midpoint of a season, or NaN where the date is unknown.
+
+    The NaN matters and was missing. Subtracting a NaT gives a NaT, and casting that
+    through `timedelta64[D]` to float yields the int64 sentinel rather than a NaN — so a
+    player with no recorded date of birth came out at about -2.5e16 years old. Roughly
+    5% of the arrival cohort carried that value.
+
+    Downstream it did not look like an error, which is why it survived. The translation
+    feature builder clamps age to [16, 42], so -2.5e16 became a confident 16 with its
+    `age_missing` flag at zero: the model was told the man was definitely sixteen rather
+    than that his age was unknown. In the arrival model the raw value went into a
+    standard scaler and took the column over.
+
+    Found on 2026-09-24 while checking a claim in the fourth external review — not by
+    the review itself, and not by any test.
+    """
+    import numpy as _np
+    import pandas as _pd
+    mid = _pd.to_datetime(_pd.Series(season).astype(int).astype(str) + "-06-30")
+    mid.index = dob.index if hasattr(dob, "index") else None
+    days = (_pd.Series(mid.values) - _pd.Series(_pd.to_datetime(dob).values))
+    out = days.dt.days.astype(float) / 365.25
+    out[_pd.isna(dob).values] = _np.nan
+    out.index = dob.index if hasattr(dob, "index") else out.index
     return out
 
 

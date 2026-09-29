@@ -1,0 +1,1297 @@
+<title>Four Leagues, One Scale</title>
+<style>
+  /* ── tokens: light is the base, both dark states redefine only tokens ───── */
+  :root {
+    --ground:      #E9ECF1;
+    --surface:     #FFFFFF;
+    --surface-alt: #F3F5F8;
+    --line:        #D2D8E1;
+    --line-soft:   #E2E7ED;
+    --ink:         #1A2029;
+    --ink-mid:     #4A5665;
+    --ink-dim:     #6B7887;
+    --accent:      #2C5F8F;
+    --accent-soft: #DCE7F1;
+    --pass:        #2F6B52;
+    --pass-soft:   #DDEBE3;
+    --flag:        #9C5B22;
+    --flag-soft:   #F3E4D5;
+    --nrl:         #2C5F8F;
+    --sl:          #7A4B78;
+    --nsw:         #3F7256;
+    --qld:         #9C5B22;
+    --shadow:      0 1px 2px rgba(26,32,41,.06), 0 8px 24px -12px rgba(26,32,41,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #10141B;
+      --surface:     #181D26;
+      --surface-alt: #1F252F;
+      --line:        #2C333F;
+      --line-soft:   #232A34;
+      --ink:         #E6EAF0;
+      --ink-mid:     #AFBAC8;
+      --ink-dim:     #8492A2;
+      --accent:      #6FA6DC;
+      --accent-soft: #1D2C3C;
+      --pass:        #7FC4A2;
+      --pass-soft:   #1A2A22;
+      --flag:        #D99A5B;
+      --flag-soft:   #2C2318;
+      --nrl:         #6FA6DC;
+      --sl:          #C193BF;
+      --nsw:         #7FC4A2;
+      --qld:         #D99A5B;
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #10141B;
+    --surface:     #181D26;
+    --surface-alt: #1F252F;
+    --line:        #2C333F;
+    --line-soft:   #232A34;
+    --ink:         #E6EAF0;
+    --ink-mid:     #AFBAC8;
+    --ink-dim:     #8492A2;
+    --accent:      #6FA6DC;
+    --accent-soft: #1D2C3C;
+    --pass:        #7FC4A2;
+    --pass-soft:   #1A2A22;
+    --flag:        #D99A5B;
+    --flag-soft:   #2C2318;
+    --nrl:         #6FA6DC;
+    --sl:          #C193BF;
+    --nsw:         #7FC4A2;
+    --qld:         #D99A5B;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* prose measure */
+  p, ul, ol, .note { max-width: 66ch; }
+
+  /* ── header ─────────────────────────────────────────────────────────────── */
+  header {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 48px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-size: clamp(34px, 5.4vw, 54px);
+    line-height: 1.06;
+    letter-spacing: -.022em;
+    font-weight: 660;
+    margin: 0 0 20px;
+    text-wrap: balance;
+    max-width: 22ch;
+  }
+  .standfirst {
+    font-size: 19.5px;
+    line-height: 1.55;
+    color: var(--ink-mid);
+    margin: 0 0 40px;
+    max-width: 62ch;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .tile { background: var(--surface); padding: 18px 20px; }
+  .tile .n {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    line-height: 1.15;
+  }
+  .tile .l {
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    display: block;
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  /* ── sections ───────────────────────────────────────────────────────────── */
+  section { margin: 0 0 64px; }
+  h2 {
+    font-size: 27px;
+    line-height: 1.2;
+    letter-spacing: -.016em;
+    font-weight: 640;
+    margin: 0 0 8px;
+    text-wrap: balance;
+    max-width: 30ch;
+  }
+  h2 + .sub {
+    color: var(--ink-dim);
+    font-size: 15px;
+    margin: 0 0 26px;
+    max-width: 62ch;
+  }
+  h3 {
+    font-size: 17.5px;
+    font-weight: 620;
+    letter-spacing: -.008em;
+    margin: 34px 0 10px;
+    text-wrap: balance;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  strong { font-weight: 640; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: .89em;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    background: var(--surface-alt);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: .08em .34em;
+  }
+
+  /* ── panels & tables ────────────────────────────────────────────────────── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    margin: 26px 0;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface-alt);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+  }
+  .panel-note { font-size: 13px; color: var(--ink-dim); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td {
+    text-align: left;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    white-space: nowrap;
+  }
+  th {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 500;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.total td { border-top: 2px solid var(--line); font-weight: 640; }
+  .dim { color: var(--ink-dim); }
+
+  /* chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.pass { background: var(--pass-soft); color: var(--pass); }
+  .chip.flag { background: var(--flag-soft); color: var(--flag); }
+  .chip.info { background: var(--accent-soft); color: var(--accent); }
+
+  /* check list */
+  .checks { display: grid; gap: 1px; background: var(--line);
+            border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 26px 0; }
+  .check { background: var(--surface); padding: 18px 20px; display: grid;
+           grid-template-columns: 88px 1fr; gap: 18px; align-items: start; }
+  .check p { margin: 6px 0 0; max-width: 62ch; font-size: 15px; }
+  .check .ct { font-weight: 620; font-size: 15.5px; }
+
+  /* numbered pipeline steps — the only numbered device on the page, because
+     this section really is an ordered pipeline */
+  .steps { counter-reset: step; margin: 26px 0 0; }
+  .step {
+    counter-increment: step;
+    position: relative;
+    padding: 0 0 30px 54px;
+    border-left: 1px solid var(--line);
+    margin-left: 13px;
+  }
+  .step:last-child { border-left-color: transparent; padding-bottom: 4px; }
+  .step::before {
+    content: counter(step);
+    position: absolute;
+    left: -13px;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--surface);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+  .step h3 { margin: 1px 0 6px; }
+  .step p { margin: 0 0 10px; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 4px 4px 0;
+    padding: 16px 20px;
+    margin: 26px 0;
+    max-width: 72ch;
+  }
+  .callout.warn { border-left-color: var(--flag); }
+  .callout p { margin: 0; max-width: none; }
+  .callout p + p { margin-top: 10px; }
+  .callout .lbl {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 7px;
+  }
+
+  .arith {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 14px;
+    background: var(--surface-alt);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    overflow-x: auto;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.9;
+  }
+
+  figure { margin: 26px 0; }
+  figcaption { font-size: 13.5px; color: var(--ink-dim); margin-top: 12px; max-width: 62ch; }
+  svg { display: block; max-width: 100%; height: auto; }
+
+  ul, ol { padding-left: 22px; }
+  li { margin-bottom: 8px; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 28px;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  footer p { max-width: 68ch; }
+
+  @media (max-width: 620px) {
+    .check { grid-template-columns: 1fr; gap: 8px; }
+    body { font-size: 16px; }
+    header { padding-top: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">TALLEC · Build note · 19 August 2026</p>
+  <h1>Four leagues, one scale</h1>
+  <p class="standfirst">A season of Australian player data arrived this morning. By the end of
+  the day it had answered a question the project had been carrying since July: how much of a
+  player's standing survives a move between competitions. This is what came in, what we did
+  with it, and how the numbers are actually built.</p>
+  <div class="tiles">
+    <div class="tile"><span class="n">85,675</span><span class="l">player-match rows received</span></div>
+    <div class="tile"><span class="n">122,343</span><span class="l">rows in the database now</span></div>
+    <div class="tile"><span class="n">4</span><span class="l">competitions on one measured scale</span></div>
+    <div class="tile"><span class="n">953</span><span class="l">observed player moves behind it</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>What arrived</h2>
+  <p class="sub">One file, 100 MB, sixteen sheets of Stats Perform player-match exports.</p>
+
+  <p>Every row is one player in one match, with 340 columns of detail — run metres, tackles,
+  offloads, penalties, time in possession, and a few hundred more. Sixteen sheets cover three
+  Australian competitions across six seasons.</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">TALLEC all Aus Data.xlsx</span>
+      <span class="panel-note">87,425 player-hours · 2,374 distinct players · 5,049 team-matches</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Competition</th><th>Seasons</th><th class="num">Rows</th>
+          <th class="num">Players</th><th>Position column</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>NRL</td><td>2020–2025</td><td class="num">40,040</td><td class="num">854</td><td><span class="chip flag">1 of 6 sheets</span></td></tr>
+          <tr><td>NSW Cup</td><td>2021–2025</td><td class="num">21,427</td><td class="num">1,234</td><td><span class="chip pass">all 5 sheets</span></td></tr>
+          <tr><td>Queensland Cup</td><td>2021–2025</td><td class="num">24,208</td><td class="num">1,188</td><td><span class="chip flag">3 of 5 sheets</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>Two things about the shape of it mattered more than the size. <strong>339 of the 340
+  columns are identical across all sixteen sheets</strong> — for a multi-season, multi-competition
+  export, that is unusually clean. And the one column that varies is the one we needed most:
+  sheets that carry <code>Position</code> do not carry <code>Opta Live</code>, and vice versa.
+  Same underlying data, two different export templates.</p>
+
+  <p>The file is history, not an update: it stops at 2025. The database already held NRL 2026
+  and Super League 2021–2026, so the two are complementary — together they make the NRL a
+  continuous 2020–2026 record.</p>
+</section>
+
+<section>
+  <h2>Do we trust it?</h2>
+  <p class="sub">Four checks before anything was loaded. Three passed outright; one found sixteen
+  rows that cannot be true.</p>
+
+  <div class="checks">
+    <div class="check">
+      <span class="chip pass">passed</span>
+      <div>
+        <div class="ct">The scoring adds up on every single row</div>
+        <p>For all 85,675 rows, <code>Points Scored</code> equals exactly
+        4·tries + 2·conversions + 2·penalty goals + 1·one-point field goals + 2·two-point field
+        goals. This is the arithmetic a Super League feed failed earlier in the project, where a
+        missing penalty goal flipped which team won a match.</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="chip pass">passed</span>
+      <div>
+        <div class="ct">Squads and minutes look like rugby league</div>
+        <p>Mean 17.0 players per team-match, which is exactly the number a rugby league team
+        names. Mean 1,039 team-minutes against a theoretical 1,040 — thirteen players on the
+        field for eighty minutes. Numbers that arbitrary landing that close is a good sign the
+        export is complete.</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="chip pass">passed</span>
+      <div>
+        <div class="ct">Every row is a player who actually played</div>
+        <p>No zero-minute rows anywhere. 840 rows exceed eighty minutes, up to 94 — extra time
+        and golden point, so per-minute rates stay correct, but any logic that assumes a player's
+        share of eighty minutes would be wrong.</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="chip flag">16 rows</span>
+      <div>
+        <div class="ct">Three players are in two places at once</div>
+        <p>Every row should be unique on player, competition, season and round. Sixteen are not.
+        Blake Moore is recorded playing <strong>80 minutes for Central Queensland and 80 minutes
+        for Sunshine Coast in the same round</strong>, six times over, and one of his rounds is an
+        exact duplicate row. Either the export duplicated him, or one Player ID covers two
+        different people.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>Those sixteen rows are 0.02% of the file. We did not guess at a fix — the right correction
+  depends on which of the two causes applies, and that is a question for whoever produced the
+  export. They were excluded from the load, kept in an <code>excluded_rows</code> table, and
+  written up with full detail in a separate workbook to send back.</p>
+
+  <p>One check we have <em>not</em> done, and should say so plainly: nobody has compared these
+  final scores against official results. The file is internally consistent, which is not the same
+  as correct.</p>
+</section>
+
+<section>
+  <h2>Two things the file gave us for free</h2>
+  <p class="sub">Neither was in the brief. Both removed a blocker we had been working around
+  for a month.</p>
+
+  <h3>The player IDs are global</h3>
+  <p>Each row carries a permanent <code>Player ID</code>, populated on 100% of rows in every
+  sheet. That alone was welcome — names are not safe keys, and several sheets contain more
+  distinct IDs than distinct names, meaning two different players share a name.</p>
+
+  <p>The useful surprise was that the IDs are not Australia-only. Of the 137 Super League 2026
+  players who also appear in this Australian file, <strong>133 carry an identical
+  ID</strong>. The numbering is global across Stats Perform, so a player can be followed from
+  Queensland Cup to the NRL to Super League without ever matching on a name.</p>
+
+  <p>Earlier loads had keyed some rows by a name-slug, because their source files had no ID
+  column at all. Those were re-keyed to the permanent ID — 513 keys, 67 of them confirmed by a
+  matching date of birth, and <strong>13 candidate matches rejected because the dates of birth
+  disagreed</strong>. Which is the point of checking: the same name really does turn up on two
+  different people. NRL 2025 and NRL 2026 now share 364 players under one ID, where before the
+  re-key they shared none — and without that, a "player rating built over years" is impossible.</p>
+
+  <h3>Position is a per-match fact, and it back-fills</h3>
+  <p>Position had been the standing gap: the earlier feed had no position column, so a prop was
+  being compared against a fullback. The nine sheets that carry <code>Position</code> turned out
+  to record something better than we expected — not a player's general role, but his jersey for
+  <em>that match</em>. The column totals prove it:</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Position totals across the labelled sheets</span>
+      <span class="panel-note">a rugby league team fields two of some positions and one of others</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Position</th><th class="num">Rows</th><th>Per team, per match</th></tr></thead>
+        <tbody>
+          <tr><td>Winger</td><td class="num">5,040</td><td class="dim">two</td></tr>
+          <tr><td>Centre</td><td class="num">5,040</td><td class="dim">two</td></tr>
+          <tr><td>Prop</td><td class="num">5,039</td><td class="dim">two</td></tr>
+          <tr><td>Second Row</td><td class="num">5,035</td><td class="dim">two</td></tr>
+          <tr><td>Half Back</td><td class="num">2,521</td><td class="dim">one</td></tr>
+          <tr><td>Full Back</td><td class="num">2,520</td><td class="dim">one</td></tr>
+          <tr><td>Lock</td><td class="num">2,520</td><td class="dim">one</td></tr>
+          <tr><td>Hooker</td><td class="num">2,519</td><td class="dim">one</td></tr>
+          <tr><td>Five-Eighth</td><td class="num">2,519</td><td class="dim">one</td></tr>
+          <tr><td>Interchange</td><td class="num">9,984</td><td class="dim">four on the bench</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>The doubles are exactly twice the singles. That is the shape of a team sheet, so the column
+  is the real per-match assignment — which is more useful than a fixed label, because a player who
+  covers hooker one week and comes off the bench the next is recorded correctly in each match.</p>
+
+  <p>And because the ID is global, position back-fills to the sheets that lack it. Take each
+  player's most common starting position, and coverage across the whole file goes from
+  <strong>50% to 97%</strong>. NRL 2021–2025 carries no position column whatsoever, yet ends up
+  98–99% covered, because the same players appear with a position in NRL 2020, the NSW Cup or the
+  Queensland Cup.</p>
+</section>
+
+<section>
+  <h2>From a stat line to a rating</h2>
+  <p class="sub">The part that is easy to hand-wave. Here it is on one real player, one real
+  match, with every number shown.</p>
+
+  <p>Joseph Tapine played 54 minutes at lock in round 1 of the 2026 NRL season. Here is how those
+  raw counts become a single performance number, and then a rating.</p>
+
+  <div class="steps">
+    <div class="step">
+      <h3>Convert to a rate, so minutes stop mattering</h3>
+      <p>A player who makes 27 tackles in 54 minutes and one who makes 27 in 80 are not the same.
+      Everything is divided by minutes played. Stats where less is better — errors — get their
+      sign flipped, so a higher number is always better.</p>
+    </div>
+    <div class="step">
+      <h3>Compare him against his own position, not the league</h3>
+      <p>A prop's 90 run metres and a fullback's 150 are not comparable. Each rate is measured
+      against the average and spread <em>for that position group</em>, giving a z-score: how many
+      standard deviations above or below a typical back-rower he was. Tapine ran 0.98 metres per
+      minute against a back-row average of 1.40, so that is 0.60 below par. He threw 2 offloads,
+      where a back-rower averages 0.0096 per minute — 1.68 above par.</p>
+    </div>
+    <div class="step">
+      <h3>Blend the nine z-scores using position-specific weights</h3>
+      <p>Tackling matters more for a back-rower than try assists do. Each position group has its
+      own weight vector, summing to one. For the back row, tackles carry 24%, run metres 19%,
+      post-contact metres and offloads 14% each, and try assists nothing at all.</p>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Joseph Tapine · round 1 · 54 minutes · lock → back row</span>
+          <span class="panel-note">z × weight, summed, is his score for this match</span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th>Stat</th><th class="num">Raw</th><th class="num">Per minute</th>
+              <th class="num">Back-row avg</th><th class="num">z</th>
+              <th class="num">Weight</th><th class="num">Contribution</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Run metres</td><td class="num">53</td><td class="num">0.982</td><td class="num">1.400</td><td class="num">−0.60</td><td class="num">0.19</td><td class="num">−0.114</td></tr>
+              <tr><td>Post-contact metres</td><td class="num">20</td><td class="num">0.370</td><td class="num">0.673</td><td class="num">−0.83</td><td class="num">0.14</td><td class="num">−0.116</td></tr>
+              <tr><td>Tackle breaks</td><td class="num">1</td><td class="num">0.019</td><td class="num">0.028</td><td class="num">−0.30</td><td class="num">0.10</td><td class="num">−0.030</td></tr>
+              <tr><td>Line breaks</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.002</td><td class="num">−0.34</td><td class="num">0.09</td><td class="num">−0.031</td></tr>
+              <tr><td>Tackles</td><td class="num">27</td><td class="num">0.500</td><td class="num">0.533</td><td class="num">−0.19</td><td class="num">0.24</td><td class="num">−0.046</td></tr>
+              <tr><td>Offloads</td><td class="num">2</td><td class="num">0.037</td><td class="num">0.010</td><td class="num">+1.68</td><td class="num">0.14</td><td class="num">+0.235</td></tr>
+              <tr><td>Try assists</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.001</td><td class="num">−0.25</td><td class="num">0.00</td><td class="num">0.000</td></tr>
+              <tr><td>Tries</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.002</td><td class="num">−0.33</td><td class="num">0.05</td><td class="num">−0.017</td></tr>
+              <tr><td>Errors <span class="dim">(sign flipped)</span></td><td class="num">2</td><td class="num">−0.037</td><td class="num">−0.009</td><td class="num">−1.82</td><td class="num">0.05</td><td class="num">−0.091</td></tr>
+              <tr class="total"><td>Match score</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">1.00</td><td class="num">−0.209</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p>A slightly below-par game: quiet with the ball, two errors, saved somewhat by the
+      offloads.</p>
+    </div>
+    <div class="step">
+      <h3>Average his season — then distrust it in proportion to how little we have</h3>
+      <p>Across his 18 ratable matches Tapine averages <strong>+0.565</strong>. But a season
+      average is still a noisy estimate, and the fewer matches, the noisier. The engine measures
+      two things from the whole league: how much a player bounces around game to game
+      (σ² = 0.159) and how much players genuinely differ from each other (τ² = 0.066). Those two
+      give the fraction of a player's own average we should believe:</p>
+      <div class="arith">B = τ² / (τ² + σ²/n) = 0.066 / (0.066 + 0.159/18) = <strong>0.881</strong></div>
+      <p>So we keep 88% of Tapine's own number and pull the remaining 12% toward the league
+      average. For a player with one match, B drops to 0.29 — he is dragged 71% of the way back to
+      average, because one match is mostly luck. This is the honest answer to "you cannot rate a
+      player on two games": the engine agrees, and says so numerically.</p>
+    </div>
+    <div class="step">
+      <h3>Put it on a 0–100 scale where 50 is average</h3>
+      <p>Tapine's shrunk rating is +0.497, which maps to <strong>69 out of 100</strong>. The
+      scale is a normal curve, so 50 is exactly the middle of his competition and the spread of
+      real ratings runs from about 23 to 80.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The position column, and how to tell whether it is real</h2>
+  <p class="sub">Super League had no position data at all. Then it had some. Then it had
+  the wrong kind. The order those arrived in is the most instructive thing in this
+  project so far.</p>
+
+  <h3>First, a rule for when partial data is worse than none</h3>
+  <p>Because the identifiers are global, position back-filled onto Super League — but only
+  for players who had also played in Australia, which was 37% of the pool. The instinct is
+  that partial data beats none. It does not.</p>
+
+  <p>The rating compares a player against the average and spread of his position group. If
+  37% of positions are known, the other 63% land in one bucket whose "average" is a blend of
+  every position on the field. Two players with identical performances then get different
+  ratings depending on whether we happen to know their position, and "50 = the average of
+  your peer group" stops being true. Precision for a few costs comparability for everyone.</p>
+
+  <div class="callout">
+    <span class="lbl">The rule</span>
+    <p>A competition is rated within position groups only when at least 90% of its pool has a
+    known position; below that it is rated against the whole competition. Which mode applied
+    is written onto every rating row, and the app states it in plain words rather than
+    leaving the reader to assume.</p>
+  </div>
+
+  <h3>Then the data arrived, and the first version of it was broken</h3>
+  <p>A Super League export with a position column landed the next morning. Loading it took
+  the competition to 100% coverage and flipped it to position-relative — and then a check
+  came back at 12% agreement with what we had independently estimated for those same players
+  from their Australian careers. The same estimate rule, applied within the Australian data,
+  agrees with itself 68% of the time. A gap that size means either the estimate is worthless
+  or the new file is wrong.</p>
+
+  <p>It was the file. Four tests, and it failed all four:</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Is a position column real?</span>
+      <span class="panel-note">the control is NSW Cup 2025, where position comes off the match sheet</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Test</th><th class="num">Broken file</th><th class="num">Corrected file</th>
+          <th class="num">Match-sheet control</th></tr></thead>
+        <tbody>
+          <tr><td>Position values vs data rows</td><td class="num">983 spare</td><td class="num">4 missing</td><td class="num">equal</td></tr>
+          <tr><td>Minutes by position</td><td class="num">all 62–66</td><td class="num">38–79</td><td class="num">37–79</td></tr>
+          <tr><td>Tackles per minute, spread</td><td class="num">1.3×</td><td class="num">10.1×</td><td class="num">9.2×</td></tr>
+          <tr><td>Passes per minute, spread</td><td class="num">1.8×</td><td class="num">30.7×</td><td class="num">31×</td></tr>
+          <tr><td>Distinct positions per player</td><td class="num">1.92</td><td class="num">1.44</td><td class="num">1.51</td></tr>
+          <tr><td>Agreement with the Australian estimate</td><td class="num">12.5%</td><td class="num">74.2%</td><td class="num">68.1%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p><strong>Minutes is the test a rugby person can read at a glance.</strong> Props play
+  about 46 minutes and wingers about 78 — forwards are rotated, outside backs are not. In
+  the broken file every position averaged 62 to 66 minutes, which is what you get when
+  labels are not attached to the players they describe. The mechanical cause was visible in
+  the file itself: it carried <strong>5,459 position values for 4,476 player rows</strong>,
+  983 of them with no row at all. A per-match column cannot be longer than the data. The
+  column had been placed alongside the rows rather than joined to them.</p>
+
+  <p>One player made it concrete. Cooper Jenkins is recorded as a prop through three NSW Cup
+  seasons, a Queensland Cup season and Super League 2025 — 34 minutes a game, 20 tackles.
+  The broken file called him a fullback in 2026, with his stat line unchanged. Same
+  identifier, same date of birth, same job; only the label moved.</p>
+
+  <p>That load was rolled back, verified row for row against a backup, and the specific
+  defect reported rather than worked around.</p>
+
+  <h3>The corrected file passes, and it passes convincingly</h3>
+  <p>The re-export clears every test, and the last row of that table is the one worth
+  dwelling on: the English match sheet and the independent Australian career record agree on
+  <strong>74% of the same players' positions — a higher rate than the Australian data agrees
+  with itself across seasons (68%)</strong>. Two sources with nothing in common but the
+  player converge.</p>
+
+  <p>So Super League is now rated within position groups on <strong>4,472 match-sheet
+  positions</strong>, the first 2026 data in the project with a genuine per-match source.
+  Every position group averages between 46.5 and 51.9 on the 0–100 scale, so no position is
+  advantaged. And the demo club now has a full squad: all 321 of Leeds' player-match rows
+  carry a position, where 134 did before.</p>
+
+  <div class="callout">
+    <span class="lbl">What this did to the reliability number</span>
+    <p>Super League's single-game reliability fell from 0.44 to 0.20 when it went
+    position-relative. That is the expected signature, not a regression: standardizing within
+    position removes the between-position differences from what the rating treats as signal,
+    so the engine stops being "reliable" about the fact that props are props. The shrinkage
+    absorbs it — at ten matches a player still keeps about 72% of his own number.</p>
+  </div>
+
+  <h3>And the fallback turned out to be stronger than advertised</h3>
+  <p>Before real labels existed, a classifier trained on 24,514 Australian match-sheet rows
+  was the fallback for imputing position from the stat profile. Measured against the
+  Australian data it scored 85% on a held-out season; measured across leagues against
+  career-derived labels it scored 76%, which was reported as a lower bound because those
+  reference labels could be stale.</p>
+
+  <p>The corrected file makes the real measurement possible, and the lower bound was very
+  conservative. Against genuine Super League match-sheet labels the same classifier scores
+  <strong>86.1% per match and 91.2% per player</strong> — 93.5% for players with five or more
+  matches, and 96.0% on the coarse forwards / spine / outside-backs split. A model that has
+  only ever seen Australian rugby league identifies positions in the English game with
+  86% accuracy per match: the statistical signature of a position travels between
+  hemispheres nearly intact.</p>
+</section>
+
+<section>
+  <h2>Measuring the gap between competitions</h2>
+  <p class="sub">The question the project exists to answer, and the reason today's file mattered.</p>
+
+  <p>A club looking at a Queensland Cup forward wants to know what he would be worth in Super
+  League. Until today the model answering that was fitted on <strong>sixteen</strong>
+  hand-collected transfers with a hand-assigned target. The obvious problem: comparing the
+  average NRL player to the average Super League player tells you about the two populations, not
+  about the step between them.</p>
+
+  <h3>The trick: hold the player fixed</h3>
+  <p>Some players play in two competitions in the <em>same season</em> — a fringe NRL squad
+  member turning out in the NSW Cup between call-ups. That gives two ratings for one player, at
+  one point in his career, each measured against a different pool. Whatever differs between the
+  two numbers is the competitions, not the player.</p>
+
+  <div class="callout">
+    <span class="lbl">One observation, in full</span>
+    <p>Ben Talty, 2025. Thirteen NSW Cup matches rated <strong>61 out of 100</strong> against NSW
+    Cup. Nine NRL matches the same year rated <strong>54 out of 100</strong> against the NRL.
+    Same player, same season, same form — <strong>6.7 rating points lower</strong> once he is
+    measured against NRL company.</p>
+    <p>He is not a special case. Across all 654 same-season pairs <strong>72% of players rated
+    lower in the NRL</strong>, and the average across every pair is a drop of 6.3 points.</p>
+  </div>
+
+  <p>The file yields 654 of these same-season pairs across 404 players, plus 301 adjacent-season
+  moves between Australia and Super League for another 185 players — matched on name
+  <em>and</em> date of birth, so namesakes cannot slip in. Nine hundred and fifty-five observed
+  moves, against sixteen before.</p>
+
+  <h3>The ladder</h3>
+
+  <figure>
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="ladderTitle ladderDesc">
+      <title id="ladderTitle">Competition strength ladder</title>
+      <desc id="ladderDesc">The NRL is the reference at zero. Super League sits 3.6 rating points
+      below it, the NSW Cup 5.6 points below, and the Queensland Cup 6.9 points below.</desc>
+      <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace">
+        <g stroke="var(--line-soft)" stroke-width="1">
+          <line x1="567" y1="18" x2="567" y2="196"/>
+          <line x1="433" y1="18" x2="433" y2="196"/>
+          <line x1="300" y1="18" x2="300" y2="196"/>
+        </g>
+        <line x1="700" y1="18" x2="700" y2="205" stroke="var(--nrl)" stroke-width="1"/>
+        <line x1="230" y1="196" x2="700" y2="196" stroke="var(--line)" stroke-width="1"/>
+        <g fill="var(--ink-dim)" font-size="11" text-anchor="middle">
+          <text x="700" y="215">0</text>
+          <text x="567" y="215">-2</text>
+          <text x="433" y="215">-4</text>
+          <text x="300" y="215">-6</text>
+        </g>
+        <text x="465" y="238" fill="var(--ink-dim)" text-anchor="middle" font-size="10.5"
+              letter-spacing="1.2">RATING POINTS RELATIVE TO THE NRL</text>
+
+        <g font-size="13" font-weight="600" fill="var(--ink)">
+          <text x="8" y="36">NRL</text>
+          <text x="8" y="82">Super League</text>
+          <text x="8" y="128">NSW Cup</text>
+          <text x="8" y="174">Queensland Cup</text>
+        </g>
+        <g font-size="10.5" fill="var(--ink-dim)">
+          <text x="8" y="51">reference &#183; 44,961 rows</text>
+          <text x="8" y="97">-3.6 pts &#177;0.5 &#183; 31,763 rows</text>
+          <text x="8" y="143">-5.6 pts &#177;0.5 &#183; 21,425 rows</text>
+          <text x="8" y="189">-6.9 pts &#177;0.7 &#183; 24,194 rows</text>
+        </g>
+
+        <rect x="694" y="26" width="6" height="18" rx="1" fill="var(--nrl)"/>
+        <rect x="460" y="72" width="240" height="18" rx="1" fill="var(--sl)" opacity=".85"/>
+        <rect x="327" y="118" width="373" height="18" rx="1" fill="var(--nsw)" opacity=".85"/>
+        <rect x="240" y="164" width="460" height="18" rx="1" fill="var(--qld)" opacity=".85"/>
+      </g>
+    </svg>
+    <figcaption>Each competition's level, fitted from all eight measured pair-shifts at once by
+    weighted least squares. A player moving to a competition further left rates higher there,
+    because it is the weaker pool.</figcaption>
+  </figure>
+
+  <p>The single number a Super League club asks for falls out of this: an NRL player moving to
+  Super League rates <strong>about 3.5 points higher</strong>, because Super League is the
+  slightly weaker pool. A NSW or Queensland Cup player moving up to the NRL drops
+  <strong>about 6 points</strong>.</p>
+
+  <h3>Why we believe the ladder</h3>
+  <p>Two checks, neither of which is built into the method — both could have failed.</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Both directions of every pair</span>
+      <span class="panel-note">measured on separate players; nothing forces them to agree</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Move</th><th class="num">Moves observed</th><th class="num">Shift (pts)</th>
+          <th class="num">± 95%</th><th>Reverse direction</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>NRL → Super League</td><td class="num">126</td><td class="num">+3.5</td><td class="num">1.3</td><td class="dim">SL → NRL is −1.7 ✓ opposite</td></tr>
+          <tr><td>NSW Cup → NRL</td><td class="num">464</td><td class="num">−5.8</td><td class="num">1.0</td><td class="dim">same-season pairs</td></tr>
+          <tr><td>Queensland Cup → NRL</td><td class="num">190</td><td class="num">−7.3</td><td class="num">1.7</td><td class="dim">same-season pairs</td></tr>
+          <tr><td>NSW Cup → Super League</td><td class="num">62</td><td class="num">−0.9</td><td class="num">1.7</td><td class="dim">SL → NSW is +2.3 ✓ opposite</td></tr>
+          <tr><td>Queensland Cup → Super League</td><td class="num">49</td><td class="num">−2.8</td><td class="num">2.8</td><td class="dim">SL → QLD is +2.3 ✓ opposite</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p><strong>Every pair reverses correctly.</strong> If Super League is the weaker pool, players
+  moving into it should gain and players leaving it should lose — and they do, measured on
+  entirely different sets of players in each direction.</p>
+
+  <p><strong>The three steps add up.</strong> Going feeder → NRL costs 0.171 in the underlying
+  units and NRL → Super League gains 0.090, so feeder → Super League should cost about 0.081. It
+  measures 0.048 — a gap of 0.033, roughly one rating point, on standard errors of 0.02 to 0.03.
+  Fit all eight measurements to a single one-dimensional ladder and the goodness of fit comes out
+  at <strong>χ²/dof = 1.02</strong>: the disagreements between the eight numbers are exactly the
+  size their own error bars predict. Four competitions really do sit on one scale.</p>
+
+  <h3>What the model adds, and where it stops</h3>
+  <p>Conditioning on position, age and minutes per game, and scoring it out-of-sample with
+  players held entirely out of training:</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Out-of-sample error, grouped by player</span></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Layer</th><th class="num">Observations</th><th class="num">Model error</th>
+          <th class="num">Assume no change</th><th class="num">Improvement</th></tr></thead>
+        <tbody>
+          <tr><td>Feeder → NRL, same season</td><td class="num">654</td><td class="num">0.226</td><td class="num">0.336</td><td class="num">+33%</td></tr>
+          <tr><td>Australia ↔ Super League</td><td class="num">301</td><td class="num">0.196</td><td class="num">0.209</td><td class="num">+7%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>The second row is the honest one. Because the NRL and Super League sit so close together,
+  "he will rate about the same" is already a decent prediction, and the model only improves on it
+  by 7%. Saying so is more useful than dressing it up.</p>
+
+  <div class="callout warn">
+    <span class="lbl">The distinction that keeps this defensible</span>
+    <p>Take Erin Clark, rated 73 in the NRL across 17 matches. The model puts him at
+    <strong>76 in Super League</strong>. Two very different uncertainties sit behind that:</p>
+    <p><strong>The average shift for this move is known tightly: ±1.0 points.</strong> Across 126
+    observed moves, the typical NRL player really does gain about three points.</p>
+    <p><strong>This individual player's outcome is not: ±11.7 points.</strong> That band is about
+    as wide as the entire spread of player ratings, because how one specific player adapts is
+    mostly not predictable from his numbers.</p>
+    <p>So the ladder is for setting expectations, not for ranking recruits. Presenting the two
+    bands as one number would be the easiest way to oversell this model, and the fastest way to
+    lose a club's trust the first time a signing doesn't work out.</p>
+  </div>
+
+  <p>Two more limits worth stating. The players in this sample <em>moved</em> — somebody chose to
+  promote them — so a shift measured on them need not apply to a player nobody has promoted. And
+  the Super League pairs sit a season apart, so a year of ageing and form drift is baked into
+  each one.</p>
+</section>
+
+<section>
+  <h2>Putting it in front of a scout</h2>
+  <p class="sub">A rating nobody can read is not a deliverable. Three things the app was
+  saying were no longer true once the data widened underneath it.</p>
+
+  <h3>It claimed a position ranking it was not doing</h3>
+  <p>The benchmarks screen offered "top second rows, rated against other second rows".
+  Neither half of that held. The engine rates by position <em>group</em> — second row and
+  lock are both back row, half back and five-eighth are both halves — so a list headed
+  "second rows" was drawn from a pool that also contained locks. And at the time Super League
+  was not rated by position at all, so for that competition the claim was simply wrong.</p>
+
+  <p>Both are now honest. Grouping follows the engine, and the page reads
+  <code>rating_basis</code> off each rating row and says which applies, rather than leaving
+  the reader to assume: a green banner where the ratings really are within position group,
+  an amber one where fifty means average for the whole competition and the position tabs are
+  descriptive only. Super League has since earned the green one; the wording did not have to
+  change when it did, because it was reading the data rather than asserting a state. The same
+  logic drives the player profile, where the shrinkage note used to promise a "positional
+  average" regardless.</p>
+
+  <div class="callout">
+    <span class="lbl">Also worth saying out loud</span>
+    <p>At this point not one position in the 2026 pool came from a match sheet — the
+    current-season feeds had no position column, so every position was inferred from the
+    player's other seasons
+    via his permanent ID. The page states that. An earlier version of the check hid it,
+    because the condition only fired when coverage was <em>between</em> zero and one, and
+    zero is exactly the case that needs saying.</p>
+  </div>
+
+  <h3>One match was enough to top the table</h3>
+  <p>Every table sorted by score with no floor on matches played. The top-rated NRL player
+  was Apa Twidle, on a single game. The shrinkage was doing its job — he keeps only 29% of
+  his own number and is flagged medium confidence — but an extreme single game still clears
+  seventeen honest ones when you sort by score.</p>
+
+  <p>There is now a minimum-matches control, defaulting to five, applied to every table on
+  the page, and it says how many players it is holding back and why. At five matches the NRL
+  pool goes from 457 rated players to 367, and the leaderboard becomes Max King (12 matches),
+  Keano Kini (16) and Naufahu Whyte (17) — names with enough evidence behind them to defend
+  in a recruitment meeting.</p>
+
+  <h3>And it would have hung in front of the client</h3>
+  <p>This one was self-inflicted, earlier in the same day. A helper added to fetch each
+  player's age read date of birth with a correlated subquery over the raw table — 122,343
+  rows across 342 columns, with no index on the key it was matching. Two of the twelve
+  page-and-league combinations never finished inside ninety seconds.</p>
+
+  <p>Date of birth now lives on the players registry instead: 3,323 rows, populated for
+  every player, plus indexes on the keys every page filters by. The full run went from two
+  timeouts to <strong>eight seconds for all twelve combinations</strong>.</p>
+
+  <div class="callout">
+    <span class="lbl">How that was caught</span>
+    <p>Not by clicking through the app. Streamlit ships a headless test harness, so all six
+    pages are now driven for both leagues in one command — twelve combinations, each asserted
+    to raise no exception and to render its tables. That is what surfaced the timeout, and it
+    is what will surface the next one.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Does the player layer improve the match model?</h2>
+  <p class="sub">The question the whole player project has to answer eventually, with a
+  baseline that was set in advance: beat the existing match model on the same fixtures,
+  or the complexity is not worth carrying.</p>
+
+  <p>The match model predicts a margin from team-level signals — rolling team form and an
+  ELO rating. The player layer adds what those cannot see: who is actually on the field.
+  Both masters store the model's own margin prediction for every fixture, so the benchmark
+  is the shipped model rather than something reconstructed for the occasion.</p>
+
+  <h3>How the features are built, and why they cannot cheat</h3>
+  <p>Each player-match gets its composite score, and then each player's <em>pre-match</em>
+  rating is built from his earlier matches only: Class is the running mean of every prior
+  performance, Form the mean of his last five. Those are averaged over the players who took
+  the field, weighted by minutes, and differenced between the two sides.</p>
+
+  <p>That the features contain no knowledge of the match they describe is tested rather
+  than asserted. Permuting the performance column across all rows and rebuilding drops the
+  correlation between the real and permuted line-up difference to <strong>+0.04</strong>.
+  The features carry information about players; destroying the performance data destroys
+  them, without touching a single row key.</p>
+
+  <p>The standardization is walk-forward as well: each season is scored against the
+  seasons before it, so not even the population a match is compared against comes from
+  its own season. Making that switch is what uncovered a data problem underneath —
+  <strong>post-contact metres are only recorded from 2025 onwards</strong>, and they were
+  carrying a quarter of a prop's weight in seasons that never measured them. The engine
+  now drops stats a season did not record and redistributes their weight. The published
+  ratings moved by 0.36 points on average when that was fixed, which is less than
+  expected, and the match-model result did not move at all.</p>
+
+  <h3>The result: real, and small</h3>
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">NRL · 953 fixtures 2022–2026 · held out on 140 matches in 2026</span>
+      <span class="panel-note">paired bootstrap, 4,000 resamples of the held-out season</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Margin prediction</th><th class="num">MAE</th><th class="num">RMSE</th></tr></thead>
+        <tbody>
+          <tr><td>Match model as shipped</td><td class="num">16.41</td><td class="num">20.77</td></tr>
+          <tr><td>Same, recalibrated on the training seasons</td><td class="num">16.41</td><td class="num">20.76</td></tr>
+          <tr class="total"><td>Recalibrated + player layer</td><td class="num">15.96</td><td class="num">20.61</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>The improvement is <strong>0.45 points of margin error, with a 95% interval of +0.04
+  to +0.89</strong>. Using only the player Class difference it is +0.22 [+0.01, +0.42]. Both
+  intervals exclude zero, so the player layer genuinely helps — by about 3%. That is enough
+  to justify wiring it in. It is not enough to build a pitch around, and saying so now is
+  cheaper than discovering it in front of a club.</p>
+
+  <h3>What is actually carrying the signal</h3>
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Worth per standard deviation of the feature</span></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Player feature</th><th class="num">Margin points per 1 SD</th></tr></thead>
+        <tbody>
+          <tr><td>Share of the seventeen with fewer than three prior matches</td><td class="num">−2.10</td></tr>
+          <tr><td>Line-up Class — how good these players have been</td><td class="num">+1.43</td></tr>
+          <tr><td>Line-up Form — how good they have been lately</td><td class="num">+0.23</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p><strong>The useful signal is inexperience, not form.</strong> The ELO rating already
+  knows how good a team is; what it cannot know is that three of the seventeen have barely
+  played. Form adds essentially nothing on top of team-level form — which stops being
+  surprising once you notice that team form is itself an aggregate of these same players.
+  So the recommendation is to wire the player layer in as a rotation-and-debutant signal,
+  not as a "who is hot" signal.</p>
+
+  <p>No model needed for the sanity check: fixtures where one side held the top-5% line-up
+  advantage finished at an average margin of +11.2, and the bottom 5% at −8.2. The signal is
+  plainly there. But the line-up difference correlates +0.275 with the margin and only
+  +0.074 with what the existing model gets <em>wrong</em> — the team-level model has already
+  absorbed most of it, which is exactly why the incremental gain is a third of a point
+  rather than three.</p>
+
+  <h3>Super League could not be judged — and that found something else</h3>
+  <p>Running the same test on Super League produced no effect in either direction, because
+  the baseline is not a baseline. The stored prediction has a training-set error of 15.69
+  and a held-out 2025 error of 7.63. Per season:</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Super League · stored margin prediction, error by season</span></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Season</th><th class="num">Matches</th><th class="num">MAE</th></tr></thead>
+        <tbody>
+          <tr><td>2022</td><td class="num">167</td><td class="num">14.93</td></tr>
+          <tr><td>2023</td><td class="num">166</td><td class="num">16.11</td></tr>
+          <tr><td>2024</td><td class="num">167</td><td class="num">16.04</td></tr>
+          <tr><td>2025</td><td class="num">164</td><td class="num">7.65</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>A model does not predict an unseen season twice as accurately as the data it was
+  fitted on. Those 2025 predictions are in-sample, so they cannot serve as a benchmark —
+  and, separately from this project, that column is where the Super League app's reported
+  accuracy comes from. Regenerating it out-of-sample is the prerequisite for putting Super
+  League into this comparison at all.</p>
+
+  <h3>The same test, on a baseline we control</h3>
+  <p>With the shipped Super League prediction unusable, the test was repeated against a
+  baseline built here and evaluated walk-forward — each season predicted by a model fitted
+  only on the seasons before it, from the pre-match ELO difference and home advantage:</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Walk-forward, out-of-sample</span>
+      <span class="panel-note">every prediction made by a model that had not seen that season</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Competition</th><th class="num">Fixtures</th><th class="num">Baseline MAE</th>
+          <th class="num">+ player layer</th><th class="num">Gain [95% CI]</th></tr></thead>
+        <tbody>
+          <tr><td>NRL 2023–2026</td><td class="num">752</td><td class="num">14.66</td><td class="num">14.39</td><td class="num">+0.27 [+0.08, +0.46]</td></tr>
+          <tr><td>Super League 2023–2025</td><td class="num">494</td><td class="num">13.53</td><td class="num">13.32</td><td class="num">+0.21 [−0.27, +0.67]</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>Both point estimates land in the same place — about a quarter of a point of margin
+  error. The NRL figure clears significance on 752 fixtures; Super League, on 494, points
+  the same way without getting there. Two independent baselines and two competitions now
+  agree on the size of the effect, which is worth more than any single number among them.</p>
+
+  <div class="callout warn">
+    <span class="lbl">The limit that bounds all of the above</span>
+    <p>Every number here uses the line-up that actually played, which is known only
+    afterwards. On a Friday you know the named seventeen, not who finished the match. So
+    this measures whether line-up knowledge <em>could</em> help — the necessary first
+    question — and not yet what a team-sheet feed would deliver in practice. There is no
+    team-list feed today; that is the next dependency, not a modelling problem.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Giving every competition a rating, and every player his history</h2>
+  <p class="sub">Two gaps that were ours to close rather than anyone else's to send.</p>
+
+  <h3>The feeder competitions were loaded but unrated</h3>
+  <p>NSW Cup and Queensland Cup had been sitting in the database as translation evidence
+  and nothing else — 45,619 player-match rows nobody could search. They are now rated in
+  their own pools, both position-relative: <strong>496 NSW Cup and 492 Queensland Cup
+  players</strong>, alongside 466 NRL and 416 Super League. All four are selectable in the
+  app, which meant teaching it that competitions do not share a current season — the
+  Australian feeder data stops at 2025 while the NRL and Super League run into 2026.</p>
+
+  <h3>A player did not meet his own past</h3>
+  <p>Class is supposed to be a player's long-run level, but it was being computed from one
+  season. Fixing that exposed something worse in Super League: its 2021–2025 rows were
+  keyed by name-slug, because those source files had no ID column, while its 2026 rows carry
+  the permanent identifier. A Super League player's history therefore sat under two
+  different identities and never joined — his Class came from a median of
+  <strong>11</strong> matches while an NRL player's came from 58.</p>
+
+  <p>Both sides carry a name and a date of birth within the same competition, so the link
+  is a name-and-date match, taken only where it is unambiguous on both sides.
+  <strong>271 players linked, 16,661 rows re-keyed</strong>, and 271 duplicate identities
+  collapsed out of the registry. Super League now has 22,207 rows under permanent
+  identifiers across six seasons, and the median Class sample went from 11 matches to
+  <strong>36</strong>.</p>
+
+  <div class="callout">
+    <span class="lbl">One decision worth recording</span>
+    <p>A multi-season Class needs every season measured the same way. Super League's 2026
+    is position-relative and its earlier seasons are not, so averaging across them would be
+    meaningless. The standardization mode is therefore chosen once per competition from its
+    <em>overall</em> coverage and applied to the whole history — Super League
+    competition-relative throughout at 17%, the three Australian competitions
+    position-relative. Each match is still standardized against its own season's pool, so a
+    strong 2023 is measured against 2023.</p>
+  </div>
+
+  <p>The translation ladder was refitted afterwards and came back identical to the last
+  decimal, which is the right outcome: the merge changed who a player is across seasons,
+  and the ladder is measured within seasons.</p>
+</section>
+
+<section>
+  <h2>The last piece: Super League's own history</h2>
+  <p class="sub">A six-season master arrived with a position on every row. It changed
+  more than the coverage number.</p>
+
+  <p>Every season passed the four tests — tackles per minute spreading 10x, passes per
+  minute 29x with hookers at the top, minutes running 38 to 79, about 1.5 positions per
+  player. Including 2021, which the file's own README said had no position export; the
+  README was written before that season was matched, and the data is real. Checked one
+  step further: the 2021 positions agree with the independent Australian career record on
+  <strong>77.8% of players exactly and 88.9% by position group</strong> — better than the
+  Australian data agrees with itself across seasons.</p>
+
+  <p>Super League now carries <strong>31,752 match-sheet positions</strong> across six
+  seasons, and <strong>all four competitions are rated within position group</strong>.</p>
+
+  <h3>It made the ladder measurably better</h3>
+  <p>The translation model had been forced to standardize both sides against the whole
+  competition, because Super League had no positions to standardize within. That
+  constraint is gone, and removing it sharpened the measurement in two independent ways
+  that were not targets of the change:</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Internal consistency, before and after</span>
+      <span class="panel-note">nothing in the method forces either of these to improve</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Check</th><th class="num">Competition-relative</th><th class="num">Position-relative</th></tr></thead>
+        <tbody>
+          <tr><td>NRL→SL against SL→NRL <span class="dim">(should be equal and opposite)</span></td><td class="num">+0.090 vs −0.043</td><td class="num">+0.115 vs −0.102</td></tr>
+          <tr><td>Transitivity gap <span class="dim">(feeder→NRL→SL vs feeder→SL)</span></td><td class="num">0.033</td><td class="num">0.006</td></tr>
+          <tr><td>Fit of all eight measurements to one scale</td><td class="num">χ²/dof 1.02</td><td class="num">χ²/dof 0.15</td></tr>
+          <tr><td>Model gain over "no change" on the SL layer</td><td class="num">+6.5%</td><td class="num">+20.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>The two directions of the NRL–Super League pair were previously asymmetric by a
+  factor of two; they now agree to within their standard errors. The three-step
+  transitivity gap fell fivefold. And the eight pairwise shifts now fit a single
+  one-dimensional ladder better than their own error bars require.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="ladder2Title ladder2Desc">
+      <title id="ladder2Title">Competition strength ladder, final</title>
+      <desc id="ladder2Desc">NRL is the reference at zero. Super League is 4.3 rating points
+      below it, the NSW Cup 5.8 below, the Queensland Cup 7.6 below.</desc>
+      <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace">
+        <g stroke="var(--line-soft)" stroke-width="1">
+          <line x1="567" y1="18" x2="567" y2="196"/>
+          <line x1="433" y1="18" x2="433" y2="196"/>
+          <line x1="300" y1="18" x2="300" y2="196"/>
+        </g>
+        <line x1="700" y1="18" x2="700" y2="205" stroke="var(--nrl)" stroke-width="1"/>
+        <line x1="230" y1="196" x2="700" y2="196" stroke="var(--line)" stroke-width="1"/>
+        <g fill="var(--ink-dim)" font-size="11" text-anchor="middle">
+          <text x="700" y="215">0</text><text x="567" y="215">-2</text>
+          <text x="433" y="215">-4</text><text x="300" y="215">-6</text>
+        </g>
+        <text x="465" y="238" fill="var(--ink-dim)" text-anchor="middle" font-size="10.5"
+              letter-spacing="1.2">RATING POINTS RELATIVE TO THE NRL</text>
+        <g font-size="13" font-weight="600" fill="var(--ink)">
+          <text x="8" y="36">NRL</text><text x="8" y="82">Super League</text>
+          <text x="8" y="128">NSW Cup</text><text x="8" y="174">Queensland Cup</text>
+        </g>
+        <g font-size="10.5" fill="var(--ink-dim)">
+          <text x="8" y="51">reference</text>
+          <text x="8" y="97">-4.3 pts &#177;0.6</text>
+          <text x="8" y="143">-5.8 pts &#177;0.5</text>
+          <text x="8" y="189">-7.6 pts &#177;0.7</text>
+        </g>
+        <rect x="694" y="26" width="6" height="18" rx="1" fill="var(--nrl)"/>
+        <rect x="413" y="72" width="287" height="18" rx="1" fill="var(--sl)" opacity=".85"/>
+        <rect x="313" y="118" width="387" height="18" rx="1" fill="var(--nsw)" opacity=".85"/>
+        <rect x="193" y="164" width="507" height="18" rx="1" fill="var(--qld)" opacity=".85"/>
+      </g>
+    </svg>
+    <figcaption>The final ladder, measured position-relative on both sides of every pair.
+    An NRL player moving to Super League rates about 4.3 points higher, because it is the
+    slightly weaker pool; a feeder-competition player moving up to the NRL drops 6 to 8.</figcaption>
+  </figure>
+
+  <h3>And the sixteen rows are closed</h3>
+  <p>The rows held out at the start had a simple answer once the provider looked: two of
+  the three identifiers were each covering <em>two different players</em>. There are two
+  Blake Moores and two James Walshes, and the identifier had been following the more
+  prominent one. The remaining pair — two identical rows for the same club in the same
+  round — was a mis-typed name on a team sheet; one of them is a different player
+  entirely.</p>
+
+  <p>So the split covers every row of those identifiers, not only the sixteen: 4 Falcons
+  rows and 21 Redcliffe rows moved to new identities, and all 16 held-out rows are now
+  loaded. The new identifiers are deliberately not numeric — a made-up number could one
+  day collide with a real Stats Perform ID, whereas <code>syn-blake-moore-2</code> cannot
+  and says what it is. <strong>Zero same-player-same-club-same-round duplicates
+  remain.</strong></p>
+
+  <div class="callout">
+    <span class="lbl">A judgement call that got graded</span>
+    <p>Two days earlier, Super League's pre-2026 history had been linked to its 2026
+    identities by matching name and date of birth, because those files carried no ID
+    column — 271 players, on a method chosen under uncertainty. The new master supplies
+    the real identifiers for every season, so all 271 could be checked against ground
+    truth. <strong>271 of 271 were correct.</strong></p>
+  </div>
+</section>
+
+<section>
+  <h2>Where it stands tonight</h2>
+  <p class="sub">One database, four competitions, twenty-three league-seasons.</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">tallec.db</span>
+      <span class="panel-note">85 MB · 122,359 player-match rows · indexed</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Competition</th><th>Seasons</th><th class="num">Rows</th>
+          <th class="num">Players</th><th>Position known</th><th>Rated against</th></tr></thead>
+        <tbody>
+          <tr><td>NRL</td><td>2020–2026</td><td class="num">44,961</td><td class="num">927</td><td class="num">98%</td><td>its own position groups</td></tr>
+          <tr><td>Super League</td><td>2021–2026</td><td class="num">31,763</td><td class="num">834</td><td class="num">100%</td><td>its own position groups</td></tr>
+          <tr><td>NSW Cup</td><td>2021–2025</td><td class="num">21,425</td><td class="num">1,234</td><td class="num">100%</td><td>its own position groups</td></tr>
+          <tr><td>Queensland Cup</td><td>2021–2025</td><td class="num">24,194</td><td class="num">1,188</td><td class="num">91%</td><td>its own position groups</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>The rating engine, the contribution metric that feeds the match model, and the competition
+  translation all run on this. The recruitment app reads it directly and now offers any
+  competition pair with measured moves behind it, showing the observation count and both
+  uncertainty bands rather than a single confident number.</p>
+
+  <h3>What is still open</h3>
+  <ul>
+    <li><strong>NRL 2026 positions.</strong> The roles have reversed. Super League now has
+    match-sheet positions for the current season; the NRL does not — its 2026 positions are
+    estimated, 3,033 rows from a metadata file and 1,754 from players' Australian careers. The
+    same corrected export for the NRL file would close it, and the four tests above are now the
+    checklist for the day it arrives.</li>
+    <li><strong>A team-list feed.</strong> The player layer is measured on line-ups known after
+    the fact. Whether the gain survives on Friday-morning team sheets is untested, and that is the
+    only version a club can act on.</li>
+    <li><strong>Regenerate the Super League margin predictions out-of-sample</strong> — both to
+    make the player-layer comparison possible there, and because the app reports its accuracy
+    from that column.</li>
+    <li><strong>The metric dictionary.</strong> All 341 rows still sit at
+    <code>Decision=Review</code>: ten are flagged low confidence, and one points at a denominator
+    that is not in the data. The whole Volume + Rate layer rests on that sign-off.</li>
+    <li><strong>2026 for the feeder competitions.</strong> The Australian history file stops at
+    2025, so the NSW and Queensland Cups are blind to the current season.</li>
+  </ul>
+</section>
+
+<footer>
+  <p>Every figure on this page was computed from the source file or the database during the
+  session it describes, and each is reproducible from the scripts in the repository. Nothing here
+  is estimated or carried over from an earlier draft. Where a number rests on a name match rather
+  than a permanent identifier, or on a prediction rather than a measurement, the text says so.</p>
+</footer>
+
+</div>

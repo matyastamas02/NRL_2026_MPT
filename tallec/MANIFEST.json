@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-09-24T10:01:03+00:00",
+  "code_commit": "8b89807",
+  "code_clean": false,
+  "uncommitted_paths": [
+    "ABLATION_REPORT.md",
+    "ARRIVAL_REPORT.md",
+    "POINT0_REPORT.md",
+    "VARIANCE_BIAS_REPORT.md",
+    "ablate_translation.py",
+    "arrival_model.py",
+    "config.json",
+    "predict_translation.py",
+    "sp_schema.py",
+    "tallec_audit.db",
+    "tests/test_arrival_model.py",
+    "tests/test_recency_and_aging.py",
+    "variance_bias.py"
+  ],
+  "config_hash_canonical": "ab97bd7b51fb",
+  "freeze_season": 2025,
+  "input": {
+    "table": "player_match_stats",
+    "rows": 122359,
+    "sha256": "6a3cf3a71b2870d1"
+  },
+  "artefacts": {
+    "translation_model_v3.pkl": {
+      "sha256": "31eb60e92a298bf2",
+      "produced_by_run_id": 31,
+      "run_at": "2026-09-22T17:49:06+00:00",
+      "run_commit": "cc94a46",
+      "run_tree_dirty": true,
+      "run_config_hash": "ab97bd7b51fb"
+    },
+    "translation_model_v2.pkl": {
+      "sha256": "ef528cf680e7b102",
+      "status": "sealed — the v1 out-of-sample result in v1_holdout_record.json was produced with this file and it must not be rebuilt"
+    },
+    "config.json": {
+      "sha256": "e6b46f71d173ae0a"
+    },
+    "v1_holdout_record.json": {
+      "sha256": "82998d427aa99a7e"
+    }
+  },
+  "tables": {
+    "player_ratings": {
+      "rows": 1835,
+      "sha256": "e9f7b4e0490544c0"
+    },
+    "player_contribution": {
+      "rows": 22879,
+      "sha256": "fdafe3f0d651d3af"
+    },
+    "player_contribution_rating": {
+      "rows": 1869,
+      "sha256": "b80b9e013a666987"
+    },
+    "translation_ladder_v3": {
+      "rows": 36,
+      "sha256": "d758308f6209476b"
+    },
+    "translation_pairs_v3": {
+      "rows": 2948,
+      "sha256": "2eca3ced3d018de5"
+    },
+    "translation_model_v3_meta": {
+      "rows": 2,
+      "sha256": "0ad7601a46b5cfd0"
+    }
+  },
+  "note": "The commit named here is the one the code was at when the artefacts were built. The manifest itself is committed afterwards, so the commit containing this file is one later."
+}

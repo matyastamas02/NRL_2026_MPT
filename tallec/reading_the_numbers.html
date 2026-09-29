@@ -1,0 +1,522 @@
+<title>Reading the Numbers</title>
+<style>
+  :root {
+    --ground:      #EDF0F4;
+    --surface:     #FFFFFF;
+    --surface-alt: #F4F6F9;
+    --line:        #D4DAE3;
+    --line-soft:   #E4E9EF;
+    --ink:         #1A2029;
+    --ink-mid:     #47535F;
+    --ink-dim:     #6C7885;
+    --accent:      #2C5F8F;
+    --accent-soft: #DDE8F2;
+    --warn:        #9C5B22;
+    --warn-soft:   #F5E7D8;
+    --good:        #2F6B52;
+    --good-soft:   #DEECE4;
+    --nrl:         #2C5F8F;
+    --sl:          #7A4B78;
+    --nsw:         #3F7256;
+    --qld:         #9C5B22;
+    --shadow:      0 1px 2px rgba(26,32,41,.05), 0 10px 30px -14px rgba(26,32,41,.20);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0F131A;
+      --surface:     #171C24;
+      --surface-alt: #1E242D;
+      --line:        #2B323D;
+      --line-soft:   #222933;
+      --ink:         #E7EBF1;
+      --ink-mid:     #B2BCC9;
+      --ink-dim:     #8593A3;
+      --accent:      #74A9DD;
+      --accent-soft: #1C2C3C;
+      --warn:        #DB9C5C;
+      --warn-soft:   #2B2318;
+      --good:        #83C7A5;
+      --good-soft:   #182A21;
+      --nrl:         #74A9DD;
+      --sl:          #C494C2;
+      --nsw:         #83C7A5;
+      --qld:         #DB9C5C;
+      --shadow:      0 1px 2px rgba(0,0,0,.45), 0 10px 30px -14px rgba(0,0,0,.65);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0F131A;
+    --surface:     #171C24;
+    --surface-alt: #1E242D;
+    --line:        #2B323D;
+    --line-soft:   #222933;
+    --ink:         #E7EBF1;
+    --ink-mid:     #B2BCC9;
+    --ink-dim:     #8593A3;
+    --accent:      #74A9DD;
+    --accent-soft: #1C2C3C;
+    --warn:        #DB9C5C;
+    --warn-soft:   #2B2318;
+    --good:        #83C7A5;
+    --good-soft:   #182A21;
+    --nrl:         #74A9DD;
+    --sl:          #C494C2;
+    --nsw:         #83C7A5;
+    --qld:         #DB9C5C;
+    --shadow:      0 1px 2px rgba(0,0,0,.45), 0 10px 30px -14px rgba(0,0,0,.65);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.68; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 24px 100px; }
+  p, ul, ol { max-width: 64ch; }
+  .mono, code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    font-size: .88em; background: var(--surface-alt);
+    border: 1px solid var(--line-soft); border-radius: 3px; padding: .08em .34em;
+  }
+
+  header { padding: 76px 0 44px; }
+  .kicker {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-dim); margin: 0 0 20px;
+  }
+  h1 {
+    font-size: clamp(36px, 6vw, 58px); line-height: 1.03; letter-spacing: -.025em;
+    font-weight: 660; margin: 0 0 22px; text-wrap: balance; max-width: 20ch;
+  }
+  .lede {
+    font-size: 20px; line-height: 1.55; color: var(--ink-mid); margin: 0;
+    max-width: 58ch;
+  }
+  .rule { height: 1px; background: var(--line); margin: 44px 0 56px; }
+
+  section { margin: 0 0 68px; }
+  h2 {
+    font-size: 29px; line-height: 1.18; letter-spacing: -.018em; font-weight: 650;
+    margin: 0 0 10px; text-wrap: balance; max-width: 28ch;
+  }
+  h2 + .sub { color: var(--ink-dim); font-size: 15.5px; margin: 0 0 30px; max-width: 60ch; }
+  h3 { font-size: 18.5px; font-weight: 620; letter-spacing: -.008em; margin: 36px 0 10px; }
+  strong { font-weight: 650; }
+
+  /* number strip */
+  .strip {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: 4px; overflow: hidden;
+  }
+  .cell { background: var(--surface); padding: 20px; }
+  .cell b {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 27px; font-weight: 600; letter-spacing: -.02em; display: block;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .cell span { font-size: 12.5px; color: var(--ink-dim); display: block; margin-top: 7px; line-height: 1.35; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 5px;
+    box-shadow: var(--shadow); padding: 24px 26px; margin: 28px 0;
+  }
+  .card h3 { margin-top: 0; }
+  .card p:last-child { margin-bottom: 0; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--surface);
+    border-radius: 0 4px 4px 0; padding: 18px 22px; margin: 28px 0; max-width: 70ch;
+  }
+  .note.warn { border-left-color: var(--warn); }
+  .note.good { border-left-color: var(--good); }
+  .note p { margin: 0; max-width: none; }
+  .note p + p { margin-top: 11px; }
+  .note .lbl {
+    display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--ink-dim); margin-bottom: 8px;
+  }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  th {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); font-weight: 500;
+  }
+  td.num, th.num {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .dim { color: var(--ink-dim); }
+  .up { color: var(--good); font-weight: 600; }
+  .down { color: var(--warn); font-weight: 600; }
+
+  figure { margin: 30px 0; }
+  figcaption { font-size: 13.5px; color: var(--ink-dim); margin-top: 12px; max-width: 60ch; }
+  svg { display: block; max-width: 100%; height: auto; }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; max-width: 66ch; }
+  ol.steps li {
+    counter-increment: s; position: relative; padding-left: 46px; margin-bottom: 22px;
+  }
+  ol.steps li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 13px; font-weight: 600; display: grid; place-items: center;
+  }
+  ol.steps b { display: block; margin-bottom: 2px; }
+
+  ul.plain { list-style: none; padding: 0; }
+  ul.plain li {
+    padding: 14px 0 14px 26px; border-bottom: 1px solid var(--line-soft);
+    position: relative; max-width: 68ch;
+  }
+  ul.plain li:last-child { border-bottom: none; }
+  ul.plain li::before {
+    content: ""; position: absolute; left: 4px; top: 24px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+
+  footer { border-top: 1px solid var(--line); padding-top: 30px; color: var(--ink-dim); font-size: 14.5px; }
+  footer p { max-width: 66ch; }
+
+  @media (max-width: 620px) { body { font-size: 16px; } header { padding-top: 48px; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="kicker">TALLEC · How to read it · August 2026</p>
+  <h1>Reading the numbers</h1>
+  <p class="lede">Every player in four competitions gets a rating out of 100, and any
+  rating can be translated into what it would be worth in another competition. This is
+  what those numbers mean, how far to trust them, and where they stop.</p>
+</header>
+
+<div class="rule"></div>
+
+<section>
+  <h2>What is in the system</h2>
+  <p class="sub">Four competitions, every player, every match, six or seven seasons deep.</p>
+
+  <div class="strip">
+    <div class="cell"><b>122,359</b><span>player-match records</span></div>
+    <div class="cell"><b>4</b><span>competitions on one scale</span></div>
+    <div class="cell"><b>23</b><span>league-seasons</span></div>
+    <div class="cell"><b>1,873</b><span>players currently rated</span></div>
+  </div>
+
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Competition</th><th>Seasons held</th><th class="num">Players rated</th><th>Position data</th></tr></thead>
+        <tbody>
+          <tr><td>NRL</td><td>2020–2026</td><td class="num">466</td><td class="dim">estimated for 2026</td></tr>
+          <tr><td>Super League</td><td>2021–2026</td><td class="num">417</td><td>from the team sheet, every season</td></tr>
+          <tr><td>NSW Cup</td><td>2021–2025</td><td class="num">496</td><td>from the team sheet</td></tr>
+          <tr><td>Queensland Cup</td><td>2021–2025</td><td class="num">494</td><td>from the team sheet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>A player is followed by his permanent Stats Perform ID, so the same man is one player
+  whether he turns out in the Queensland Cup, the NRL or Super League. That is what makes
+  the translation possible at all.</p>
+</section>
+
+<section>
+  <h2>How to read a player's rating</h2>
+  <p class="sub">One number, three flavours, and a deliberate reluctance to believe small
+  samples.</p>
+
+  <h3>50 is average — for his position, in his competition</h3>
+  <p>Not average for rugby league. Average for <em>props in Super League</em>, or
+  <em>halves in the Queensland Cup</em>. A prop is measured against props, so his 90 run
+  metres are never held against a fullback's 150. That is the whole point of the scale: it
+  answers "how good is he at his job", not "who ran furthest".</p>
+
+  <figure>
+    <svg viewBox="0 0 700 132" role="img" aria-labelledby="scaleT scaleD">
+      <title id="scaleT">The 0 to 100 rating scale</title>
+      <desc id="scaleD">50 is the average for a player's position in his competition. Real
+      ratings run from about 25 to 85. Most players sit between 40 and 60.</desc>
+      <defs>
+        <linearGradient id="sc" x1="0" x2="1">
+          <stop offset="0" stop-color="var(--warn)" stop-opacity=".55"/>
+          <stop offset="0.5" stop-color="var(--ink-dim)" stop-opacity=".30"/>
+          <stop offset="1" stop-color="var(--good)" stop-opacity=".55"/>
+        </linearGradient>
+      </defs>
+      <rect x="60" y="46" width="580" height="16" rx="8" fill="url(#sc)"/>
+      <line x1="350" y1="34" x2="350" y2="74" stroke="var(--ink)" stroke-width="2"/>
+      <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11.5"
+         fill="var(--ink-dim)" text-anchor="middle">
+        <text x="60" y="88">0</text>
+        <text x="205" y="88">25</text>
+        <text x="350" y="88">50</text>
+        <text x="495" y="88">75</text>
+        <text x="640" y="88">100</text>
+      </g>
+      <text x="350" y="26" font-size="12.5" font-weight="600" fill="var(--ink)"
+            text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace">AVERAGE</text>
+      <rect x="234" y="46" width="232" height="16" rx="8" fill="none"
+            stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <text x="350" y="112" font-size="12" fill="var(--accent)" text-anchor="middle">most players live in here (40–60)</text>
+      <text x="205" y="112" font-size="11.5" fill="var(--ink-dim)" text-anchor="middle">≈25 is the floor</text>
+      <text x="495" y="112" font-size="11.5" fill="var(--ink-dim)" text-anchor="middle">≈78 is the ceiling</text>
+    </svg>
+    <figcaption>Real ratings do not use the full 0–100 range. Across all four competitions
+    they run from 26 to 77, and <strong>nearly nine players in ten sit between 40 and
+    60</strong>. The scale is compressed on purpose: it takes a lot of evidence to be
+    pushed far from average, so a player in the high 60s is genuinely unusual.</figcaption>
+  </figure>
+
+  <h3>Class, Form and Divergence</h3>
+  <ul class="plain">
+    <li><strong>Class</strong> is his level over everything he has played — six or seven
+    seasons where we have them. This is the recruitment number.</li>
+    <li><strong>Form</strong> is the same calculation over his last five matches. This is
+    the selection number.</li>
+    <li><strong>Divergence</strong> is Form minus Class: is he playing above or below his
+    own standard right now?</li>
+  </ul>
+
+  <div class="card">
+    <h3>What divergence looks like in practice</h3>
+    <p>Jensen Taumoepeau (NSW Cup, 57 matches) has a Class of <strong>42.6</strong> and a
+    Form of <strong>60.6</strong>. Over five seasons he has been a below-average NSW Cup
+    player; over the last five matches he has been a clearly above-average one.</p>
+    <p>Whether that is a 24-year-old improving or a good month is exactly the judgement the
+    system cannot make for you — but it can tell you where to look.</p>
+  </div>
+
+  <h3>Why a two-game player never tops the table</h3>
+  <p>A player with one enormous game is not a great player; he is a player we know almost
+  nothing about. So every rating is pulled toward the average of his peer group, by an
+  amount that depends on how much evidence there is:</p>
+
+  <ol class="steps">
+    <li><b>Two matches</b>We keep 29% of his own numbers and fill the rest with "average
+    for his position". His rating barely moves off 50.</li>
+    <li><b>Ten matches</b>We keep about two thirds. The rating starts to be his.</li>
+    <li><b>Thirty matches</b>We keep about 85% of it. This is a number you can take to a
+    board meeting.</li>
+  </ol>
+
+  <p>Every rating carries the match count and a confidence flag next to it, and the
+  benchmark tables have a minimum-matches filter set to five by default. If a name you
+  expect to see is missing, raise or lower that filter first.</p>
+</section>
+
+<section>
+  <h2>The competition ladder</h2>
+  <p class="sub">The part that took the longest and is the most useful: four competitions
+  measured against each other on one scale.</p>
+
+  <p>The question a club actually asks is not "how good is he in the Queensland Cup" but
+  "what is he worth to us". Answering that needs to know how much harder one competition is
+  than another — and that is measured, not assumed.</p>
+
+  <p><strong>How it was measured:</strong> some players turn out in two competitions in the
+  same season — a fringe NRL squad member playing NSW Cup between call-ups — and others move
+  between them from one year to the next. That gives the same player, at the same point in
+  his career, rated in two places. Whatever differs is the competition, not the player.
+  <strong>953 such moves</strong> stand behind the ladder below.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 240" role="img" aria-labelledby="ladT ladD">
+      <title id="ladT">Competition strength ladder</title>
+      <desc id="ladD">Relative to the NRL: Super League is 4.3 rating points weaker, the
+      NSW Cup 5.8 weaker, the Queensland Cup 7.6 weaker.</desc>
+      <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace">
+        <g stroke="var(--line-soft)" stroke-width="1">
+          <line x1="556" y1="16" x2="556" y2="190"/>
+          <line x1="412" y1="16" x2="412" y2="190"/>
+          <line x1="268" y1="16" x2="268" y2="190"/>
+        </g>
+        <line x1="700" y1="16" x2="700" y2="198" stroke="var(--nrl)" stroke-width="1.5"/>
+        <line x1="215" y1="190" x2="700" y2="190" stroke="var(--line)" stroke-width="1"/>
+        <g fill="var(--ink-dim)" font-size="11" text-anchor="middle">
+          <text x="700" y="209">0</text><text x="556" y="209">-2</text>
+          <text x="412" y="209">-4</text><text x="268" y="209">-6</text>
+        </g>
+        <text x="450" y="231" fill="var(--ink-dim)" text-anchor="middle" font-size="10.5"
+              letter-spacing="1.2">RATING POINTS, RELATIVE TO THE NRL</text>
+        <g font-size="13.5" font-weight="600" fill="var(--ink)">
+          <text x="4" y="34">NRL</text><text x="4" y="78">Super League</text>
+          <text x="4" y="122">NSW Cup</text><text x="4" y="166">Queensland Cup</text>
+        </g>
+        <g font-size="10.5" fill="var(--ink-dim)">
+          <text x="4" y="49">the hardest pool</text>
+          <text x="4" y="93">4.3 points easier</text>
+          <text x="4" y="137">5.8 points easier</text>
+          <text x="4" y="181">7.6 points easier</text>
+        </g>
+        <rect x="694" y="24" width="6" height="18" rx="1" fill="var(--nrl)"/>
+        <rect x="391" y="68" width="309" height="18" rx="1" fill="var(--sl)" opacity=".85"/>
+        <rect x="282" y="112" width="418" height="18" rx="1" fill="var(--nsw)" opacity=".85"/>
+        <rect x="153" y="156" width="547" height="18" rx="1" fill="var(--qld)" opacity=".85"/>
+      </g>
+    </svg>
+    <figcaption>Read it as difficulty. The NRL is the hardest place to rate well; Super
+    League is a little easier; the two Australian feeder competitions easier again. So a
+    player moving <em>up</em> the ladder should be expected to rate lower, and vice versa.</figcaption>
+  </figure>
+
+  <div class="note good">
+    <span class="lbl">Why we believe the ladder</span>
+    <p>Two checks that nothing in the method forces to pass. <strong>Both directions of
+    every pair agree:</strong> players moving NRL to Super League gain about the same amount
+    as players moving the other way lose — measured on completely different sets of players.
+    <strong>And the three steps add up:</strong> the Queensland Cup to the NRL, plus the NRL
+    to Super League, equals the Queensland Cup to Super League measured directly, to within
+    a tenth of a point.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Using it on a real recruitment question</h2>
+  <p class="sub">The six best-rated Queensland Cup players with a full season behind them,
+  translated into Super League.</p>
+
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Player</th><th>Position</th><th class="num">Matches</th>
+          <th class="num">In the Q Cup</th><th class="num">Expected in SL</th><th class="num">Individual range</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Dudley Dotoi</td><td>Winger</td><td class="num">34</td><td class="num">72</td><td class="num">68</td><td class="num dim">±15</td></tr>
+          <tr><td>Liam Sutton</td><td>Half Back</td><td class="num">15</td><td class="num">71</td><td class="num">68</td><td class="num dim">±15</td></tr>
+          <tr><td>Takitau Mapapalangi</td><td>Bench</td><td class="num">14</td><td class="num">70</td><td class="num">66</td><td class="num dim">±15</td></tr>
+          <tr><td>Keano Kini</td><td>Full Back</td><td class="num">17</td><td class="num">70</td><td class="num">66</td><td class="num dim">±15</td></tr>
+          <tr><td>Braidon Burns</td><td>Centre</td><td class="num">12</td><td class="num">69</td><td class="num">66</td><td class="num dim">±15</td></tr>
+          <tr><td>Kalolo Saitaua</td><td>Centre</td><td class="num">76</td><td class="num">68</td><td class="num">65</td><td class="num dim">±16</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p>Every one of them drops three or four points, because Super League is a step up from
+  the Queensland Cup. A 68 in Super League is still a good player: for context, the best
+  Leeds player on the current squad rates 66, and the club has 22 players with eight or
+  more matches this season.</p>
+
+  <p>What the table is good for: <strong>a shortlist</strong>. Six names worth a
+  conversation, and a realistic expectation attached to each. What it is not good for is the
+  next paragraph.</p>
+</section>
+
+<section>
+  <h2>The one thing that will get us into trouble</h2>
+  <p class="sub">Two very different uncertainties sit behind every translated number, and
+  they must not be quoted as one.</p>
+
+  <div class="note warn">
+    <span class="lbl">Please read this before quoting a translation</span>
+    <p><strong>The average shift between two competitions is known tightly — to about a
+    point and a half.</strong> Across 126 observed moves, an NRL player really does gain
+    about four points in Super League. That number is solid, and it is fine to say so.</p>
+    <p><strong>An individual player's outcome is not — about fourteen points.</strong> That
+    range is as wide as the gap between an average player and a very good one. How a
+    specific man adapts to a new country, a new club and a new style is mostly not
+    predictable from his statistics.</p>
+  </div>
+
+  <p>So the honest sentence is: <em>"players making this move typically rate three to four
+  points lower, and this one starts from 72."</em> The dishonest one is
+  <em>"he will be a 68."</em> The first survives a signing that does not work out; the
+  second does not.</p>
+
+  <p>Used that way the ladder does real work: it sets expectations, sizes a gap, and stops a
+  club paying NRL money for a Queensland Cup level. What it cannot do is rank two players
+  three points apart and tell you which will settle better.</p>
+</section>
+
+<section>
+  <h2>Contribution, and the team-list simulator</h2>
+  <p class="sub">A different question from "how good is he": how much of his team's work
+  actually goes through him.</p>
+
+  <p>Contribution is a player's share of his own team's output in a match — run metres,
+  post-contact metres, tackles, line breaks, tries — blended and scaled so the median
+  contributor sits at 50. It is deliberately not a quality rating. A moderate player in a
+  weak side can carry a large share of it.</p>
+
+  <p>That makes it the right input for one specific question: <strong>what does a team lose
+  when a player is out?</strong> The app's squad screen lets you untick names from a squad
+  and shows the expected contribution the line-up loses. That figure is what feeds the match
+  model as an availability signal.</p>
+
+  <div class="note">
+    <span class="lbl">What we learned by testing it against the match model</span>
+    <p>Adding player-level information to the match model does improve it — by about a
+    quarter of a point of margin error, which is real but small. The interesting part is
+    <em>which</em> player information helps: not who is in form, but <strong>how many of the
+    seventeen have barely played</strong>. The team's rating already knows how good the team
+    is; what it cannot know is that three of them are debutants.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Where the numbers stop</h2>
+  <p class="sub">Worth knowing before anyone leans on them in a meeting.</p>
+
+  <ul class="plain">
+    <li><strong>NRL 2026 positions are estimated, not read off a team sheet.</strong> Every
+    other competition-season has real per-match positions. For the current NRL season the
+    position comes from the player's other seasons, so a player who has changed role this
+    year may be measured against the wrong peer group.</li>
+    <li><strong>The feeder competitions stop at 2025.</strong> NSW Cup and Queensland Cup
+    ratings describe last season, not this one.</li>
+    <li><strong>The translation is measured on players who actually moved.</strong> Someone
+    promoted to the NRL was picked for a reason, so the shift measured on him need not apply
+    to a player nobody has promoted.</li>
+    <li><strong>Scores have not been checked against official results.</strong> The data is
+    internally consistent — the points in every row add up correctly — which is not the same
+    as verified. Worth a pass before any of it goes near a betting number.</li>
+    <li><strong>A rating is a summary of what happened, not a scouting report.</strong> It
+    knows nothing about attitude, injury history, or whether a player can kick under
+    pressure in November.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What would move this forward fastest</h2>
+  <p class="sub">Three things, in order of how much they would change.</p>
+
+  <ol class="steps">
+    <li><b>NRL 2026 positions, the way the Super League master came</b>Position joined row
+    by row rather than pasted alongside. That is the last remaining gap in the position data,
+    and it would put the current NRL season on the same footing as everything else.</li>
+    <li><b>Sign-off on the metric dictionary</b>All 341 rows are still marked for review. Ten
+    are flagged low confidence, and one — Charge Down — divides by something that is not in
+    the data. Nothing in the Volume and Rate layer can be finalised until those denominators
+    are agreed.</li>
+    <li><b>Team lists, even manually</b>Everything about availability is currently measured
+    on the seventeen who actually played, which is only known afterwards. Friday-morning team
+    sheets would turn it into something a club can use during the week.</li>
+  </ol>
+</section>
+
+<footer>
+  <p>Every figure here was computed from the database that runs the app, on 25 August 2026.
+  Where a number is a measurement it says so; where it is an estimate or a prediction it says
+  that instead. The companion document, <em>Four Leagues, One Scale</em>, shows the workings
+  behind all of it, including the checks that failed on the way.</p>
+</footer>
+
+</div>

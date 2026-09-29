@@ -1,0 +1,117 @@
+{
+  "what": "v1 translation model, held-out 2026 result, recorded before any revision informed by 2026",
+  "recorded_at": "2026-08-28T09:08:05+00:00",
+  "commit": "938cb51",
+  "git_tree_dirty": true,
+  "config_hash_canonical": "3d1160ad083c",
+  "artefacts": {
+    "translation_model_v2.pkl": "ef528cf680e7b102",
+    "config.json": "d781b9854945421f"
+  },
+  "input_fingerprint": {
+    "rows": 122359,
+    "sha256": "594e25ee756fc3c4"
+  },
+  "freeze_season": 2025,
+  "cohort_definition": "rated in NSW or QLD Cup in 2025 over at least 5 matches, then appeared in the NRL in 2026; one row per player",
+  "cohort_size": 134,
+  "graded_min_nrl_matches": 5,
+  "graded_size": 79,
+  "overall": [
+    {
+      "predictor": "ladder",
+      "n": 79,
+      "mae": 7.078,
+      "bias": 2.93
+    },
+    {
+      "predictor": "ridge",
+      "n": 79,
+      "mae": 6.573,
+      "bias": 2.515
+    },
+    {
+      "predictor": "no translation",
+      "n": 79,
+      "mae": 7.51,
+      "bias": -3.828
+    }
+  ],
+  "by_cohort": {
+    "NRL regular in 2025 as well": {
+      "n": 60,
+      "results": [
+        {
+          "predictor": "ladder",
+          "n": 60,
+          "mae": 7.547,
+          "bias": 2.861
+        },
+        {
+          "predictor": "ridge",
+          "n": 60,
+          "mae": 6.841,
+          "bias": 3.014
+        },
+        {
+          "predictor": "no translation",
+          "n": 60,
+          "mae": 7.943,
+          "bias": -3.847
+        }
+      ]
+    },
+    "first NRL season": {
+      "n": 10,
+      "results": [
+        {
+          "predictor": "ladder",
+          "n": 10,
+          "mae": 5.36,
+          "bias": 4.813
+        },
+        {
+          "predictor": "ridge",
+          "n": 10,
+          "mae": 5.628,
+          "bias": 1.991
+        },
+        {
+          "predictor": "no translation",
+          "n": 10,
+          "mae": 4.313,
+          "bias": -2.234
+        }
+      ]
+    },
+    "returning after a season away": {
+      "n": 9,
+      "results": [
+        {
+          "predictor": "ladder",
+          "n": 9,
+          "mae": 5.861,
+          "bias": 1.293
+        },
+        {
+          "predictor": "ridge",
+          "n": 9,
+          "mae": 5.833,
+          "bias": -0.221
+        },
+        {
+          "predictor": "no translation",
+          "n": 9,
+          "mae": 8.176,
+          "bias": -5.479
+        }
+      ]
+    }
+  },
+  "caveats": [
+    "The 2026 season was 20 rounds old when this was recorded, so `actual` rests on a partial season.",
+    "NRL 2026 positions are estimated, not from match sheets; that noise is in `actual`, not in the projection.",
+    "Only players a club chose to select appear, so this measures the projection among those given the chance.",
+    "The 'first NRL season' group is small; its numbers are indicative only."
+  ]
+}
