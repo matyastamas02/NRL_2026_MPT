@@ -37,4 +37,6 @@ TALLEC/_backups/
 !TALLEC/config.json
 !TALLEC/MANIFEST.json
 !TALLEC/v1_holdout_record.json
+# the dashboard's data file; tallec_dashboard.html is useless without it
+!TALLEC/dash_data.json
 !TALLEC/.claude/launch.json
