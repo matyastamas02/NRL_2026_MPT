@@ -1,42 +1,61 @@
-# secrets — never commit credentials
-*.json
-!.devcontainer/*.json
-.streamlit/secrets.toml
+# ─── credentials ────────────────────────────────────────────────────────────
+# Named, not blocked by extension.
+#
+# This used to be `*.json` with an allow-list underneath. The intention was right and
+# the shape was wrong: it blocked a file format rather than a kind of secret, so every
+# ordinary JSON the project needed had to be noticed and named back in. Four were —
+# config.json, MANIFEST.json, v1_holdout_record.json, dash_data.json — and the last one
+# was missed for a day, which left the dashboard on GitHub without the data it reads and
+# nothing able to regenerate it. A rule that has to be argued with four times is not
+# protecting anything; it is training people to add exceptions.
+#
+# So: say what a secret looks like. A new ordinary JSON now works by default, and a new
+# credential is caught by its name. The cost is that a secret with an unanticipated
+# filename gets through, which is why the list below is broad and why anything genuinely
+# sensitive should also never be written into this directory in the first place.
+#
+# Broad has its own price, demonstrated immediately: the test written to verify these
+# rules was called `test_gitignore_blocks_secrets.py` and `*secret*` blocked it. It was
+# renamed rather than excepted, because an allow-list is the thing being removed here.
+# If a legitimate file collides with a pattern below, rename the file.
+.env
+.env.*
+*secret*
+*credential*
 *service_account*
+*serviceaccount*
+*apikey*
+*api_key*
+*_key.json
+*-key.json
+*.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.streamlit/secrets.toml
+# the Google Cloud project behind the gspread service account; its key files are named
+# after it
 light-rhythm-*
 
-# python
+# ─── python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 .venv/
 venv/
 
-# local artifacts
+# ─── local artifacts ────────────────────────────────────────────────────────
 *.png
 ~$*.xlsx
 sheet_backup_*/
 updated_masters/
 
-# TALLEC operational data — local only, never committed
-# _backups holds full copies of tallec.db taken before every guarded write
-# (450 MB at eight retained snapshots), and the audit log is per-machine.
+# ─── TALLEC data ────────────────────────────────────────────────────────────
+# The code lives in tallec/ and its data does not. The databases carry Stats Perform
+# rows supplied under a client agreement and dates of birth for about three thousand
+# named players, and this repository is public. `tallec.db` was committed here in
+# August and sat publicly fetchable for five weeks before the history was rewritten on
+# 2026-09-29 to remove it. See tallec/DATA_NOT_IN_GIT.md.
+*.db
 _backups/
 tallec/_backups/
-tallec_audit.db
-tallec/tallec_audit.db
-
-# TALLEC code lives in TALLEC/ and its data does not. The databases carry licensed
-# Stats Perform rows and dates of birth for about three thousand named players, and this
-# repository is public, so they stay local. See TALLEC/DATA_NOT_IN_GIT.md.
-*.db
-TALLEC/_backups/
-
-# `*.json` above is a blanket rule for credentials, and it would silently swallow two
-# files TALLEC cannot run without: its configuration and the sealed holdout record that
-# pins the project's only untouched out-of-sample result. Named back in explicitly.
-!TALLEC/config.json
-!TALLEC/MANIFEST.json
-!TALLEC/v1_holdout_record.json
-# the dashboard's data file; tallec_dashboard.html is useless without it
-!TALLEC/dash_data.json
-!TALLEC/.claude/launch.json
