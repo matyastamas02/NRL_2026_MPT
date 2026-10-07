@@ -63,13 +63,34 @@ if DB_PATH is None:
              "tallec_app.db.")
     st.stop()
 
+# A push replaces the database file under a running app: Streamlit Cloud swaps the files
+# but keeps the process, and with it every cache. The cached connection then kept reading
+# the replaced file and every cached query its old contents, until someone rebooted the
+# app — seen on 2026-10-07, when a new tallec_app.db was live on disk and the app still
+# answered from the old one. So the connection is keyed on the file itself, and the
+# query caches are emptied the first time a run sees a different file.
+_st = DB_PATH.stat()
+DB_VERSION = (_st.st_ino, _st.st_mtime_ns, _st.st_size)
+
+
 @st.cache_resource
-def get_db():
+def _db_version_seen():
+    return {"version": None}
+
+
+_seen = _db_version_seen()
+if _seen["version"] != DB_VERSION:
+    st.cache_data.clear()
+    _seen["version"] = DB_VERSION
+
+
+@st.cache_resource
+def get_db(version):
     con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
     con.row_factory = sqlite3.Row
     return con
 
-con = get_db()
+con = get_db(DB_VERSION)
 
 # The competitions do not share a current season — NSW Cup and Queensland Cup data
 # stops at 2025 while NRL and Super League run to 2026 — so every competition-scoped
