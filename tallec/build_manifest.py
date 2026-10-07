@@ -49,10 +49,37 @@ TABLES = ["player_ratings", "player_contribution", "player_contribution_rating",
           "translation_ladder_v3", "translation_pairs_v3", "translation_model_v3_meta"]
 
 
-def file_hash(name):
+# Line endings must not reach a hash. to_csv() ends rows with os.linesep, so the same
+# table hashed to one value on Windows and another on macOS or Linux (Streamlit Cloud),
+# and a git checkout writes text files with whatever endings its autocrlf setting says.
+# Both made --check report drift on identical data after the move off Windows.
+#  * Tables: rows end in CRLF on every platform — what every manifest so far was
+#    written with, so those recorded hashes stay valid.
+#  * Text artefacts: hashed with CRLF folded to LF. A manifest recorded before this
+#    change hashed the raw bytes of a Windows checkout, so --check also accepts the
+#    CRLF form of the same content. Binary artefacts (.pkl) are hashed byte for byte.
+CSV_EOL = "\r\n"
+TEXT_SUFFIXES = (".json",)
+
+
+def _sha(b):
+    return hashlib.sha256(b).hexdigest()[:16]
+
+
+def file_hash(name, crlf=False):
     p = os.path.join(BASE, name)
-    return (hashlib.sha256(open(p, "rb").read()).hexdigest()[:16]
-            if os.path.exists(p) else None)
+    if not os.path.exists(p):
+        return None
+    b = open(p, "rb").read()
+    if name.endswith(TEXT_SUFFIXES):
+        b = b.replace(b"\r\n", b"\n")
+        if crlf:
+            b = b.replace(b"\n", b"\r\n")
+    return _sha(b)
+
+
+def frame_hash(d):
+    return _sha(d.to_csv(index=False, lineterminator=CSV_EOL).encode())
 
 
 def table_hash(con, table):
@@ -62,8 +89,7 @@ def table_hash(con, table):
     except Exception:
         return None
     d = d.sort_values(list(d.columns)).reset_index(drop=True)
-    return {"rows": len(d),
-            "sha256": hashlib.sha256(d.to_csv(index=False).encode()).hexdigest()[:16]}
+    return {"rows": len(d), "sha256": frame_hash(d)}
 
 
 def input_hash(con):
@@ -71,8 +97,7 @@ def input_hash(con):
         "SELECT player_id, competition, season, round, team, minutes, position, "
         "       all_run_metres, tackles, tries FROM player_match_stats "
         "ORDER BY competition, season, round, player_id", con)
-    return {"table": "player_match_stats", "rows": len(d),
-            "sha256": hashlib.sha256(d.to_csv(index=False).encode()).hexdigest()[:16]}
+    return {"table": "player_match_stats", "rows": len(d), "sha256": frame_hash(d)}
 
 
 def last_run(target):
@@ -138,8 +163,12 @@ def check():
             ("input player_match_stats", old["input"]["sha256"],
              new["input"]["sha256"])]
     for name in old["artefacts"]:
-        rows.append((name, old["artefacts"][name].get("sha256"),
-                     new["artefacts"].get(name, {}).get("sha256")))
+        a = old["artefacts"][name].get("sha256")
+        b = new["artefacts"].get(name, {}).get("sha256")
+        # a pre-normalisation manifest may hold the CRLF form of identical content
+        if a != b and a is not None and a == file_hash(name, crlf=True):
+            b = a
+        rows.append((name, a, b))
     for t in old["tables"]:
         a = (old["tables"][t] or {}).get("sha256")
         b = (new["tables"].get(t) or {}).get("sha256")
