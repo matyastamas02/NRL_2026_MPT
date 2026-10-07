@@ -78,7 +78,7 @@ Arrival-weighted mean AUC inside a direction: **0.676**, against 0.748 pooled.
 **There is player-level signal inside a direction**, which the first version of this report denied. It concluded that the data held nothing usable, and the fourth external review refuted that in one line: source minutes alone rank NSW Cup arrivals at 0.71. The failure was the specification — one slope per feature shared across every pathway — and not the data.
 
 
-The two directions the client asks about, now with intervals — which the previous version quoted without, having called them inverted on the strength of a bare 0.44 and 0.39: NSW->NRL 0.758 [0.707, 0.806]; QLD->NRL 0.656 [0.571, 0.744].
+The two feeder-to-NRL directions, now with intervals — which the previous version quoted without, calling them the client's and inverted on the strength of a bare 0.44 and 0.39. They are not the client's: Leeds recruits into Super League, measured below. NSW->NRL 0.758 [0.707, 0.806]; QLD->NRL 0.656 [0.571, 0.744].
 
 
 ## Is it calibrated

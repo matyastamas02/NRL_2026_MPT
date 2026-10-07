@@ -667,8 +667,9 @@ def main():
             A(f"**For a player with no record in the competition, the translation still "
               f"adds nothing.** Over {len(sub)} such entries the ladder saves "
               f"{b[0]:+.2f} points against leaving the rating untouched, 95% interval "
-              f"[{b[1]:+.2f}, {b[2]:+.2f}]. This is the group Leeds asks about, and it "
-              f"is the group where the headline number earns least.\n")
+              f"[{b[1]:+.2f}, {b[2]:+.2f}]. The client's own cohort, players entering "
+              f"Super League, is mostly first-timers like these, and this is the "
+              f"group where the headline number earns least.\n")
         else:
             A(f"**For a player returning to a competition, it does.** Over {len(sub)} "
               f"such entries the ladder saves {b[0]:+.2f} points against leaving the "
@@ -701,7 +702,9 @@ def main():
               f"players.\n")
 
     A("\n\n## Into the NRL specifically\n")
-    A("The Leeds question in its own right — a feeder player moving up.\n")
+    A("A feeder player moving up, split by whether he had been there before. Not "
+      "the client's direction — Leeds recruits into Super League, measured "
+      "above — but the question an NRL club would ask.\n")
     up = d[(d.target == "NRL") & (d.source.isin(["NSW", "QLD"]))]
     if len(up):
         rows = []

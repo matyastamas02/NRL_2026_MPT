@@ -148,7 +148,7 @@ The cause is spread. The ladder inherits the full range of the source rating whe
 
 That margin is worth stating plainly rather than dressing up. On a scale whose standard deviation is about 26, beating a constant by 1.16 points is a small edge — and the model's own error is still 20.1. The model is the right number to show because it is the only one of the four not beaten by a constant, not because it is accurate.
 
-**For a player with no record in the competition, the translation still adds nothing.** Over 320 such entries the ladder saves +0.99 points against leaving the rating untouched, 95% interval [-0.14, +2.07]. This is the group Leeds asks about, and it is the group where the headline number earns least.
+**For a player with no record in the competition, the translation still adds nothing.** Over 320 such entries the ladder saves +0.99 points against leaving the rating untouched, 95% interval [-0.14, +2.07]. The client's own cohort, players entering Super League, is mostly first-timers like these, and this is the group where the headline number earns least.
 
 **For a player returning to a competition, it does.** Over 121 such entries the ladder saves +1.90 points against leaving the rating untouched, 95% interval [+0.29, +3.48] — clear of zero.
 
@@ -188,7 +188,7 @@ Translation against leaving the rating alone: **+1.90** points of error saved [9
 
 ## Into the NRL specifically
 
-The Leeds question in its own right — a feeder player moving up.
+A feeder player moving up, split by whether he had been there before. Not the client's direction — Leeds recruits into Super League, measured above — but the question an NRL club would ask.
 
 | cohort | n_players | predictor | n | mae | rmse | bias |
 | --- | --- | --- | --- | --- | --- | --- |

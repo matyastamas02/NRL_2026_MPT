@@ -476,9 +476,11 @@ def main():
                 g = d[d.pair == r.direction]
                 pt, lo, hi = auc_ci(g[a.outcome], g.p_arrive, g.player_id)
                 bits.append(f"{r.direction} {pt:.3f} [{lo:.3f}, {hi:.3f}]")
-            W.append("\nThe two directions the client asks about, now with intervals — "
-                     "which the previous version quoted without, having called them "
-                     "inverted on the strength of a bare 0.44 and 0.39: "
+            W.append("\nThe two feeder-to-NRL directions, now with intervals — which the "
+                     "previous version quoted without, calling them the client's "
+                     "and inverted on the strength of a bare 0.44 and 0.39. They "
+                     "are not the client's: Leeds recruits into Super League, "
+                     "measured below. "
                      + "; ".join(bits) + ".\n")
 
     W.append("\n## Is it calibrated\n")

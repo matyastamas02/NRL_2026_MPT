@@ -1,9 +1,12 @@
 # TALLEC — handover
 
-Written 2026-08-25 at the end of a working session, for whoever picks this up next
-(including a fresh assistant session). `README.md` is the operating manual;
-`GIGOT_V2_SPEC.md` and `AUS_DATA.md` are the method and data documents. This file is
-the state of play, the open items, and the traps.
+Rewritten 2026-10-07, after the move to a new machine, for whoever picks this up next
+(including a fresh assistant session). It replaces the 2026-08-25 version, which still
+described the Windows laptop, the old rating scale, a database committed to the repo, and
+listed `fit_translation_v2.py` as a routine command. `README.md` is the operating manual;
+`GIGOT_V2_SPEC.md` and `AUS_DATA.md` are the method and data documents;
+`DATA_NOT_IN_GIT.md` says which data is in git and why. This file is the state of play,
+the open items, and the traps.
 
 ---
 
@@ -11,64 +14,72 @@ the state of play, the open items, and the traps.
 
 | What | Where |
 | --- | --- |
-| Working copy | `C:\Users\matyas-peter.tamas\Downloads\TALLEC\` — **no git remote**, 1 stale commit |
-| Deployed copy | `Downloads\NRL_2026_MPT\tallec\` — this is the versioned, canonical one |
-| GitHub | `github.com/matyastamas02/NRL_2026_MPT`, branch `main`, **public** |
-| Live app | https://bosc-tallec.streamlit.app — redeploys automatically on push to main |
-| Source data | `Downloads\TALLEC all Aus Data.xlsx`, `TALLEC_Super_League_Master_2021_2026_positions_complete.xlsx`, `Player Level Stats NRL.xlsx`, `sl21_players\` |
-| Match masters | `Downloads\NRL_2026_MPT\NRL_master.xlsx` and `SL_master.xlsx` (xLadder, not TALLEC) |
+| Deploy repo (canonical) | `~/Downloads/NRL_2026_MPT/tallec/` — `github.com/matyastamas02/NRL_2026_MPT`, branch `main`, **public** |
+| Working copy | `~/Downloads/TALLEC/` — its own git, **no remote**; kept identical to the deploy folder by hand |
+| Live app | https://bosc-tallec.streamlit.app — redeploys on push to `main`, reads `tallec_app.db` |
+| Full database | `tallec.db` (110 MiB), in both folders, **not in git**; audit log `tallec_audit.db` and `_backups/` beside it |
+| Source data | `~/Downloads`: `TALLEC all Aus Data.xlsx`, `Player Level Stats NRL.xlsx`, `TALLEC_Super_League_Master_2021_2026_positions_complete.xlsx`, `Metadata.csv`, `TALLEC SL26 All Players.csv`, `BOSC_Full_Metric_Rate_Review_v2.xlsx`; `~/Downloads/sl21_players/` |
+| Match masters | `NRL_2026_MPT/NRL_master.xlsx` and `SL_master.xlsx` — xLadder's, read by TALLEC, **never written by it** |
+| Python | `NRL_2026_MPT/.venv` (3.14, scikit-learn 1.7.2): run as `../.venv/bin/python script.py` from `tallec/` |
 
-**The two copies are synchronised by hand.** Work in `TALLEC\`, copy the changed files
-into `NRL_2026_MPT\tallec\`, run the checks *there*, then commit and push. Every deploy
-this session needed 10–26 files copied manually; making `TALLEC\` a clone of the deploy
-repo would remove the step and the risk.
+Work in either folder, but run the checks and commit in `NRL_2026_MPT/tallec/`, then copy
+the changed files back so `~/Downloads/TALLEC/` stays identical. Making the working copy
+a clone of the deploy repo would remove that step; it has not been done.
 
-Client documents (private artifacts, shared from their own share menu):
+Client documents (private artifacts; shared from each page's own Share menu):
 
-- **What Is Live** — status note: https://claude.ai/code/artifact/3ddd7f4c-014a-4819-8008-e5ddfb0d6655
-- **Reading the Numbers** — how to read a rating: https://claude.ai/code/artifact/769e147b-3aaa-475a-8e1b-418f5c5f9e8b
-- **Four Leagues, One Scale** — the workings: https://claude.ai/code/artifact/346b0b8e-27b1-460e-984c-8c446ed0bc63
+- **What Is Live** — status note, rewritten 2026-10-07: https://claude.ai/code/artifact/3ddd7f4c-014a-4819-8008-e5ddfb0d6655
+- **Reading the Numbers** — August, old scale, marked superseded: https://claude.ai/code/artifact/769e147b-3aaa-475a-8e1b-418f5c5f9e8b
+- **Four Leagues, One Scale** — August workings, marked superseded: https://claude.ai/code/artifact/346b0b8e-27b1-460e-984c-8c446ed0bc63
 
-Their sources are `what_is_live.html`, `reading_the_numbers.html`, `session_writeup.html`
-in `TALLEC\`. They are **not** in the repo, deliberately: it is public and they contain a
-recruitment shortlist with named players and a frank assessment of the xLadder Super
-League model.
+Their sources are `what_is_live.html`, `reading_the_numbers.html` and
+`session_writeup.html` in this folder. They are in the public repo, together with
+`transfer_dataset.csv`; the owner has said that is fine.
 
 ---
 
 ## 2. State as of this handover
 
-`tallec.db` — 89 MB, **122,359 player-match rows**, four competitions, 23 league-seasons,
-**1,873 rated players**, all four rated within position group.
+Counts are generated, not written here: the README's data-state block (`datastate.py`)
+and the footer of the live app say what the database holds. The competition ladder lives
+in `translation_ladder_v3`. The published scale was recalibrated on 2026-09-22 to a
+**peer score** — 50 is the median of the player's position group in that competition and
+season, not a percentile, and not comparable across competitions without Translation.
+**Every figure from before 2026-09-22 is on the old scale and must not be quoted**,
+including the −4.3 / −5.8 / −7.6 ladder, the 0.77–0.91 stability, the 3.8-point
+correction and the TRACE_REPORT conclusion.
 
-| Competition | Seasons | Rows | Rated | Position source |
-| --- | --- | --- | --- | --- |
-| NRL | 2020–2026 | 44,961 | 466 (2026) | match sheet 2020 only; 2021–2026 estimated |
-| Super League | 2021–2026 | 31,763 | 417 (2026) | match sheet, every season |
-| NSW Cup | 2021–2025 | 21,427 | 496 (2025) | match sheet |
-| Queensland Cup | 2021–2025 | 24,208 | 494 (2025) | match sheet (91%) |
+The client is Leeds, a Super League club, so the client's direction is **into Super
+League** (`CLIENT_TARGET = "SL"`, sources NRL, NSW Cup, Queensland Cup). From 23 to 29
+September the reports called feeder-to-NRL the client's cohort; the fifth external
+review caught it, and the last two sentences still saying so were corrected on
+2026-10-07.
 
-The measured competition ladder lives in `translation_ladder_v3` and is printed by
-`fit_translation_v3.py`; it is deliberately not restated here. It now carries a row per
-horizon, and every figure moved when the published scale was recalibrated on 22 September
-— the numbers this paragraph used to quote were from the old compressed scale and were
-wrong for three days before anyone noticed. Derived figures belong in the artefact that
-computes them.
+Where the results stand (source and date with each, so they can be re-derived):
 
-Match-model result: the player layer is worth **+0.27 MAE [+0.08, +0.46]** on the NRL over
-752 out-of-sample fixtures (significant), +0.21 [−0.27, +0.67] on Super League (not).
-The useful signal is squad inexperience, not form. Measured before the scale
-recalibration and on the actual line-up rather than a Friday team sheet, so treat it as
-an upper bound pending item 6.
+- **Translation into Super League**, 90 moves (`ROLLING_REPORT.md`): beats carrying the
+  Australian rating across by +7.79 [+4.21, +11.40] and a flat 50 by +2.66
+  [+0.16, +5.12]; against a two-parameter straight line, −0.26 [−1.56, +1.06] — not
+  distinguishable. A calibrated correction, not a recruit ranking.
+- **Arrival into Super League** (`ARRIVAL_REPORT.md`): +0.168 AUC [+0.093, +0.247]
+  against source minutes alone; across all twelve directions the model is clearly ahead
+  in 4.
+- **Player layer in the match model** (`gigot_v2.py`, re-run 2026-10-07 after the
+  2026-09-22 rebuild): +0.24 MAE [+0.05, +0.44] on the NRL over 752 walk-forward
+  fixtures, +1.13 [+0.62, +1.63] on Super League over 497. Measured on the actual
+  line-up, so an upper bound until team lists exist.
+- Verdict: good for an internal or beta demo; not yet a validated recruitment ranking.
 
-Verification, in order: `python -m pytest tests -q`, `python smoke_bosc.py`,
-`python build_manifest.py --check`, `python datastate.py --check`, and
-`python export_review_package.py --check` before sending the package anywhere. No count is
-quoted — one written down here is one that goes stale, which has happened four times.
+One item from the August handover looks closed by the Super League 2025 repair of
+2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
+15.69 in training, which suggested an in-sample column. The same column now scores
+17.17 for 2025 against 14.9–16.1 for 2022–2024 (checked 2026-10-07 from
+`SL_master.xlsx`, read only). It is an xLadder matter in any case.
 
-Commits this session: `f14fe29` (four competitions), `4aea993` (external-review fixes),
-`e811a80` (guarded writes, audit, provenance, tests), `9f203ef` (the post-contact-metres
-availability bug).
+Verification, in order, from `tallec/`: `pytest tests -q`, `smoke_bosc.py`,
+`build_manifest.py --check`, `datastate.py --check`, `build_app_db.py --check`, and
+`export_review_package.py --check` before sending the review package anywhere (it looks
+for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--out`).
 
 ---
 
@@ -76,53 +87,63 @@ availability bug).
 
 ### Waiting on Mike
 
-1. **NRL 2026 positions**, joined row by row the way the Super League master was. The last
-   position gap: 2026 NRL positions are estimated (3,033 rows from a metadata file, 1,754
-   from players' Australian careers, 134 unknown). **Run the four acceptance checks on
-   arrival** — see §4.
-2. **Metric dictionary sign-off.** All 341 rows sit at `Decision=Review`; ten are low
-   confidence and one (`Charge Down`) divides by something not in the data. Nothing in the
-   Volume + Rate layer can be finalised without it. This is a rugby judgement.
-3. **Team lists**, even manually typed — a list of names per club per round. Everything
-   about availability is currently measured on the seventeen who actually played, which is
-   only known afterwards.
-4. **2026 for NSW Cup and Queensland Cup** — the Australian history file stops at 2025, so
-   those ratings describe last season.
-5. **Confirm one row**: the Ben Talty reassignment gives him a round-20 Capras appearance,
-   while his other Queensland Cup 2025 rows are Burleigh Bears. Done as instructed; worth
-   a sentence back.
+1. **2026 data** — NSW Cup and Queensland Cup 2026, and NRL 2026 with match-sheet
+   positions. Promised for early October. Run the position checks in §4 on arrival.
+2. **Super League set restarts** — NULL on every row (`metric_spec.DATA_REQUESTS`
+   DATA-1). Without it discipline cannot be compared across hemispheres.
+3. **`Try Assist - Kick` and `Kick - Forced Dropout`** — named in Mike's spec, absent from
+   the extract (DATA-2).
+4. **Middles: hit-up metres or line-break assists**, and confirmation of the name
+   "Edge". Folding Lock into Middles dropped the lock block's LBA-per-receipt slot
+   (`metric_spec.LOCK_BLOCK_RETIRED`).
+5. **Team lists**, even typed by hand — a list of names per club per round.
+6. **Metric dictionary** — all 341 rows still at `Decision=Review`; Mike's position
+   specification may have superseded it, which Mike should confirm.
+7. **The Ben Talty row** — reassigned as instructed, which gives Ben Talty a round-20
+   Capras appearance while every other Queensland Cup 2025 row for the player is Burleigh
+   Bears.
 
 ### Ours, not started
 
-6. **The real team-list backtest** (P2). Everything measured so far uses the actual line-up
-   and post-match minutes, which is an upper bound. Whether the +0.27 survives on
-   Friday-morning team sheets is the single question that would most change what can be
-   claimed. Needs item 3.
-7. **Position-specific ratings** (P3) — a player who covers hooker and bench gets one
-   rating against his most common position. Needs item 1 first.
-8. **Analyst workflow and shortlist export** (P3) — the flow Leeds would actually use:
-   filter, shortlist, export.
-9. ~~Generated data-state block in the READMEs.~~ **Done** 20 September — `datastate.py`
-   writes both between markers and `--check` exits 1 when either is behind. The same
-   problem then recurred in three reports and in the review package, so `report_*.py` now
-   derive their claims and `export_review_package.py --check` compares the package with
-   this checkout.
-10. **Regenerate the Super League master's stored margin predictions out-of-sample.** An
-    xLadder issue rather than a TALLEC one, but the Super League app reports its accuracy
-    from that column and it is in-sample for 2025 (training MAE 15.69, held-out 7.63).
-11. **The database is 111 MB in a public repo.** Under GitHub's hard limit, over its
-    recommendation, and it is licensed Stats Perform data including dates of birth. The
-    user has decided to leave it public for now. Options if that changes: drop
-    `player_match_raw` from the deployed copy (the app does not read it), or make the repo
-    private and grant the Streamlit GitHub App access.
+8. **Translation Evidence Card** — per direction, the straight line and conformal bands.
+9. **2026 as exploratory data**; 2027 stays the confirmatory holdout.
+10. **Established-role output and a Super-League-target shortlist validation.**
+11. **Rating reliability and a measurement-error model.**
+12. **Sensitivity of the arrival model's 0.35 pooling.**
+13. **The real team-list backtest** — needs item 5; the single question that would most
+    change what can be claimed about the match model.
+14. **Refresh *Reading the Numbers*** on the peer-score scale, or retire it. The status
+    note currently points readers to the app's own explanation instead.
+
+### Commercial (the owner's, not the code's)
+
+- One-page IP and revenue-share agreement: the LICENSE names joint ownership with no
+  percentages.
+- The investor hosting quote (2026-09-03: 70–105 h build, €80–150/month running,
+  4–8 h/month support) is still open.
 
 ---
 
 ## 4. Traps — read before touching anything
 
+**Do not run or import `fit_translation_v2.py`.** It overwrites
+`translation_model_v2.pkl`, which is sealed (hash `ef528cf680e7b102`):
+`v1_holdout_record.json` records an out-of-sample result produced by that exact file, the
+only untouched holdout the project has. Do not touch `v1_holdout_record.json` either. The
+current ladder and model come from `fit_translation_v3.py`. Every new fit reads
+`FREEZE_SEASON` (2025) from `config.json`.
+
+**The live app reads `tallec_app.db`, not `tallec.db`.** A weekly update changes nothing
+on the live site until `python build_app_db.py` has run and `tallec_app.db` is committed
+and pushed; `--check` says when it is behind. Nothing else may write to that file.
+
+**Do not write derived numbers into prose by hand.** It has gone stale four times. The
+reports are generated by their scripts; if a sentence in one is wrong, fix the generator
+and the report together.
+
 **Validate any position column before loading it.** The first Super League position file
-was misaligned and would have silently corrupted every rating. Four checks separate real
-from misaligned, and the broken file failed all four:
+was misaligned and would have silently corrupted every rating. Five checks separate real
+from misaligned, and the broken file failed all of them:
 
 | Check | Real match-sheet data | The broken file |
 | --- | --- | --- |
@@ -132,8 +153,8 @@ from misaligned, and the broken file failed all four:
 | Passes per minute, spread | ~30× (hookers highest) | 1.8× |
 | Distinct positions per player | ~1.5 | 1.92 |
 
-Also worth a cross-check against the independent Australian career record: the corrected
-file agreed on 74% of players, the broken one on 12%.
+Also cross-check against the independent Australian career record: the corrected file
+agreed on 74% of players, the broken one on 12%.
 
 **`ingest_full_season.py` rebuilds its tables.** It refuses to run while competitions it
 does not manage are present, but that guard only fires *because* the Australian data is
@@ -148,68 +169,63 @@ loaded. It deleted the positions once when the database held only NRL and SL. Pr
 exception, recorded either way. The audit log is in `tallec_audit.db`, a **separate file
 on purpose**: it lived inside `tallec.db` first, so a rollback erased the record of the
 failure it was recovering from. `python runtime.py restore` puts the last snapshot back.
-`_backups/` holds eight snapshots, 450 MB, git-ignored.
 
 **A stat a season never recorded must not be scored as average.** Post-contact metres only
-exist from 2025 and carried 24% of a prop's weight in every earlier season. The engine now
+exist from 2025 and carried 24% of a prop's weight in every earlier season. The engine
 drops rates below `min_rate_coverage` and renormalises. If a new feed adds or removes a
 column, check `eng.dropped` per season before trusting cross-season numbers.
 
 **Position coverage gates the rating mode.** A competition is rated within position groups
 only above 90% coverage (`min_position_coverage`); below it, the whole competition is the
-peer group, because a partly-known pool makes two identical performances score differently.
-`player_ratings.rating_basis` records which applied and the app states it in words.
+peer group. `player_ratings.rating_basis` records which applied and the app states it.
 
-**`HF` is Huddersfield and `HFC` is Hull FC.** The project notes say `HF = Hull FC`.
-`team_map.py` solves the codes from scores and fixtures rather than from documentation, and
-validates the master's columns — an earlier version searched by filename and silently found
-a four-month-old master in the parent folder.
+**`HF` is Huddersfield and `HFC` is Hull FC.** The xLadder notes say `HF = Hull FC`.
+`team_map.py` solves the codes from scores and fixtures rather than from documentation.
 
 **Competitions do not share a current season.** NSW Cup and Queensland Cup stop at 2025;
-NRL and Super League run to 2026. Use `season_of(comp)` in the app,
-per-competition in `regenerate_full.py`.
+NRL and Super League run to 2026. Use `season_of(comp)` in the app, per-competition in
+`regenerate_full.py`.
 
-**The Stats Perform Player ID is global** across competitions — verified on 169 shared ids
-with 100% name and 98% date-of-birth agreement. But feeds vary: some carry it, some do not,
-and pandas reads it as float when the file has blank rows, which turns `24528` into
-`24528.0` and forks every identity. Always go through `sp_schema.normalize_player_id`.
+**The Stats Perform Player ID is global**, but pandas reads it as float when a file has
+blank rows, which turns `24528` into `24528.0` and forks every identity. Always go through
+`sp_schema.normalize_player_id`.
 
 **Interchange is a role, not a position.** A player's career position is the mode of his
-*starting* positions (`sp_schema.primary_position`). Getting this wrong moved five bench
-forwards to "Interchange" on the first weekly import.
+*starting* positions (`sp_schema.primary_position`).
+
+**The history was rewritten on 2026-09-29** to remove `tallec.db`. Any clone from before
+then still holds it and has a diverged `main`; re-clone rather than pull.
 
 ---
 
 ## 5. Running things
 
 ```bash
-python -m pytest tests -q                 # 31 tests, synthetic data, safe any time
-python smoke_bosc.py                      # all six app pages, all four competitions
-python -m streamlit run bosc_app.py       # the app locally
+cd ~/Downloads/NRL_2026_MPT/tallec
+../.venv/bin/python -m pytest tests -q     # synthetic data, safe any time
+../.venv/bin/python smoke_bosc.py          # every app page, all four competitions
+../.venv/bin/python -m streamlit run bosc_app.py --server.port 8503
 
-python weekly_update.py --file "SL26 Players.csv" --competition SL --season 2026 --dry-run
-python weekly_update.py --file ... --competition SL --season 2026     # for real
-python regenerate_full.py                 # ratings + contribution, all competitions
-python fit_translation_v2.py              # the ladder and the translation model
-python gigot_v2.py                        # the match-model evaluation
-python runtime.py                         # provenance and audit counts
-python runtime.py restore                 # undo the last guarded write
+../.venv/bin/python weekly_update.py --file "SL26 Players.csv" --competition SL --season 2026 --dry-run
+../.venv/bin/python weekly_update.py --file ... --competition SL --season 2026   # for real
+../.venv/bin/python regenerate_full.py     # ratings + contribution, all competitions
+../.venv/bin/python build_app_db.py        # refresh the copy the live app reads
+../.venv/bin/python fit_translation_v3.py  # the ladder and the translation model
+../.venv/bin/python gigot_v2.py            # the match-model evaluation (read-only)
+../.venv/bin/python runtime.py             # provenance and audit counts
+../.venv/bin/python runtime.py restore     # undo the last guarded write
 ```
 
-Deploy: copy the changed files into `NRL_2026_MPT\tallec\`, run the two checks there,
-`git add -A && git commit && git push origin main`. Streamlit redeploys itself; a cold
-start with an 89 MB database takes a few minutes.
+Deploy: run the checks in §2, `git add` the changed files (including `tallec_app.db` if
+the data moved), commit, `git push origin main`. Streamlit redeploys itself; a cold start
+takes a few minutes. Then copy the changed files into `~/Downloads/TALLEC/`.
 
 ---
 
 ## 6. How the client conversation stands
 
-Mike has been sent nothing yet from this session — the three artifacts are private until
-shared. The status note (**What Is Live**) is written to be the first thing he opens: it
-names the app, what changed, what the code review found, and the three asks. Sending that
-plus the other two links, or the three HTML files as attachments, is the next client-facing
-step.
-
-The commercial item is still open and unrelated to the code: the repo LICENSE names joint
-ownership with no written revenue share. One page — who owns what, what percentage, what
-happens on a split — is an easy conversation now and a hard one after a club signs.
+On 2026-10-07 the status note **What Is Live** was rewritten for that day and an update
+email to Mike drafted around it. The two August documents carry a banner saying their
+numbers are on the old scale. Whatever was sent between 2 and 23 September is not
+reconstructed here and does not need to be: the new note supersedes it. Invoicing for the
+first checkpoint is done.
