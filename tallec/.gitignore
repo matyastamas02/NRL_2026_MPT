@@ -3,6 +3,9 @@ __pycache__/
 _backups/
 *.pyc
 
-# The databases are not in git: too large for GitHub, licensed Stats Perform data,
-# and they carry dates of birth. See DATA_NOT_IN_GIT.md.
+# The full database is not in git: it is over GitHub's 100 MiB file limit. The copy
+# the deployed app reads is — tallec_app.db, built by build_app_db.py, committed
+# knowingly on 2026-10-07 although it carries Stats Perform rows and dates of birth.
+# See DATA_NOT_IN_GIT.md.
 *.db
+!tallec_app.db

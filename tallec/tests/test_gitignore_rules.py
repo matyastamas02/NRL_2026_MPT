@@ -84,10 +84,16 @@ def test_an_ordinary_file_is_not_blocked(path):
 
 
 def test_the_databases_stay_local():
-    """Licensed Stats Perform rows and three thousand dates of birth, public repo."""
+    """The full database is over GitHub's file limit; the others are working files."""
     for path in ("tallec/tallec.db", "tallec/tallec_audit.db", "anything.db",
-                 "tallec/_backups/tallec_20260101.db"):
+                 "tallec/tallec_seed_backup.db", "tallec/_backups/tallec_20260101.db",
+                 "tallec_app.db", "tallec/_backups/tallec_app.db"):
         assert ignored(path), path
+
+
+def test_the_app_copy_is_the_one_database_let_through():
+    """Without it the deployed app has nothing to open (2026-09-29 to 2026-10-07)."""
+    assert not ignored("tallec/tallec_app.db")
 
 
 def test_nothing_currently_tracked_has_become_ignored():

@@ -147,7 +147,7 @@ def row_count(con=None):
             con.close()
 
 
-def provenance(con=None):
+def provenance(con=None, db=None):
     """Everything needed to say which run produced a number.
 
     `dirty` and `code_dirty` are different claims and only the second one is meaningful.
@@ -157,7 +157,11 @@ def provenance(con=None):
     question a reviewer is actually asking: was the code at a committed state? The
     integrity of the data is carried by the content hashes in MANIFEST.json, which a
     row count or a git status could not establish anyway.
+
+    `db` names the file `con` was opened on, so a reader of the deployed copy
+    (tallec_app.db) reports that file's size rather than a tallec.db that is not there.
     """
+    db = db or DB
     sha = _git("rev-parse", "--short", "HEAD")
     status = _git("status", "--porcelain") or ""
     # the porcelain format is two status characters then a space then the path, but a
@@ -174,7 +178,7 @@ def provenance(con=None):
             "code_dirty": bool(code_paths), "dirty_paths": paths[:20],
             "config_hash": config_hash(), "at": _now(),
             "db_rows": row_count(con),
-            "db_mb": round(os.path.getsize(DB) / 1048576, 1) if os.path.exists(DB) else 0}
+            "db_mb": round(os.path.getsize(db) / 1048576, 1) if os.path.exists(db) else 0}
 
 
 def snapshot(label="manual"):

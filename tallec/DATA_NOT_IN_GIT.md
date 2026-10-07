@@ -1,19 +1,39 @@
-# The data is not in this repository, and cannot be
+# What data is in this repository, and what is not
 
 Everything here runs against `tallec.db`, which is not in git and was removed from its
-history on 2026-09-29. Three reasons, any one of which is sufficient:
+history on 2026-09-29. One reason is enough on its own:
 
-- **Size.** It is 111 MB. GitHub refuses any file over 100 MB, so a repository containing
-  it cannot be pushed at all.
-- **Licence.** It holds Stats Perform data supplied under a client agreement. It is not
-  ours to publish.
+- **Size.** It is 110 MiB. GitHub refuses any file over 100 MiB, so a repository
+  containing it cannot be pushed at all.
+
+Two more were the reason for the 2026-09-29 rewrite, and still describe the data:
+
+- **Licence.** It holds Stats Perform data supplied under a client agreement.
 - **Personal data.** `players.dob` is a date of birth for roughly 3,000 named athletes.
+
+## The one database that is committed
+
+Taking `tallec.db` out left the live app with nothing to open, and it ran on an empty
+file from 2026-09-29 until 2026-10-07. Since then the repository carries
+**`tallec_app.db`** — `tallec.db` without `player_match_raw`, the full Stats Perform
+export that the app never reads. It is about 48 MB and is built by `build_app_db.py`;
+`python build_app_db.py --check` exits 1 when it has fallen behind `tallec.db`.
+
+It still contains Stats Perform rows and the dates of birth, in a public repository.
+The project owner decided this knowingly on 2026-10-07, with the two reasons above
+stated, as the way to keep the app running without a private repository or a separate
+data host. If that decision is reversed, either make the repository private
+(and grant the Streamlit GitHub App access, or both apps stop deploying), or host
+`tallec_app.db` somewhere private and fetch it at startup.
+
+Nothing writes to `tallec_app.db` except `build_app_db.py`. Every ingest, rebuild and
+guarded write targets `tallec.db`, and the copy is rebuilt from it afterwards.
 
 ## What is missing
 
 | file | size | what it is |
 | --- | --- | --- |
-| `tallec.db` | 111 MB | everything — 122,359 player-match rows across four competitions, ratings, translation tables, position metrics |
+| `tallec.db` | 110 MiB | everything — 122,359 player-match rows across four competitions, ratings, translation tables, position metrics |
 | `tallec_audit.db` | 52 KB | the guarded-write log: every rebuild, its config hash and row counts |
 | `tallec_seed_backup.db` | 328 KB | the original seeded database, kept for provenance |
 

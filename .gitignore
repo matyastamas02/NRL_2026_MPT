@@ -51,11 +51,14 @@ sheet_backup_*/
 updated_masters/
 
 # ─── TALLEC data ────────────────────────────────────────────────────────────
-# The code lives in tallec/ and its data does not. The databases carry Stats Perform
-# rows supplied under a client agreement and dates of birth for about three thousand
-# named players, and this repository is public. `tallec.db` was committed here in
-# August and sat publicly fetchable for five weeks before the history was rewritten on
-# 2026-09-29 to remove it. See tallec/DATA_NOT_IN_GIT.md.
+# The full database stays out: `tallec.db` is over GitHub's 100 MiB file limit, and the
+# audit log and snapshots are working files. One database is named back in — the copy
+# the deployed app reads, `tallec_app.db`, which is tallec.db without player_match_raw
+# and is built by tallec/build_app_db.py. It carries Stats Perform rows and dates of
+# birth and this repository is public; that was decided knowingly on 2026-10-07, after
+# the 2026-09-29 history rewrite had left the live app with no database at all. See
+# tallec/DATA_NOT_IN_GIT.md.
 *.db
+!tallec/tallec_app.db
 _backups/
 tallec/_backups/

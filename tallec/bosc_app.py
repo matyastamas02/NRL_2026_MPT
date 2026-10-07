@@ -49,11 +49,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── Database & Cache ──────────────────────────────────────────────────
-DB_PATH = Path(__file__).parent / "tallec.db"
+# The full tallec.db never goes to git (DATA_NOT_IN_GIT.md). Where it is present — the
+# owner's machine — the app reads it; the deployed app reads tallec_app.db, the same
+# tables without player_match_raw, built by build_app_db.py. Opened read-only: a plain
+# connect on a missing path creates an empty file, which is how the live app spent a
+# week reporting "no such table" instead of "no database".
+_HERE = Path(__file__).parent
+DB_PATH = next((p for p in (_HERE / "tallec.db", _HERE / "tallec_app.db")
+                if p.exists()), None)
+if DB_PATH is None:
+    st.error("No database next to the app: neither tallec.db nor tallec_app.db is "
+             "present. Run `python build_app_db.py` beside tallec.db and commit "
+             "tallec_app.db.")
+    st.stop()
 
 @st.cache_resource
 def get_db():
-    con = sqlite3.connect(DB_PATH, check_same_thread=False)
+    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
     con.row_factory = sqlite3.Row
     return con
 
@@ -954,7 +966,7 @@ _cov = pd.read_sql("SELECT competition, min(season) s0, max(season) s1, count(*)
 @st.cache_data
 def _build_info():
     """Which code and which run produced the numbers on screen."""
-    prov = runtime.provenance()
+    prov = runtime.provenance(con, DB_PATH)
     try:
         last = pd.read_sql("SELECT run_at, target FROM model_runs "
                            "ORDER BY id DESC LIMIT 1", runtime.audit_con())
@@ -974,7 +986,7 @@ st.caption(
 st.caption(
     f"build {_prov['commit']}"
     + (" (uncommitted changes)" if _prov["dirty"] else "")
-    + f" · config {_prov['config_hash']} · database {_prov['db_mb']} MB, "
+    + f" · config {_prov['config_hash']} · database {DB_PATH.name} {_prov['db_mb']} MB, "
       f"{_prov['db_rows']:,} rows. Every figure here can be traced to the run that "
       f"produced it — see the model_runs and data_imports tables."
 )

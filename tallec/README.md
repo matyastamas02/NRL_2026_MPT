@@ -113,7 +113,7 @@ commit, the config hash and when the ratings were last rebuilt.
 python -m pytest tests -q
 ```
 
-27 tests, synthetic data only, never touches `tallec.db`. Every one corresponds to a
+Synthetic data only, never touches `tallec.db`. Every one corresponds to a
 bug that shipped at least once: the float player-id that forked every identity, the
 Interchange rule, the position-coverage gate, shrinkage rising with evidence, the
 leakage claim, the scoring validation, the cross-club round repeat, and the rollback.
@@ -139,6 +139,14 @@ pool is not a strict walk-forward — so that nobody mistakes it for the strict 
    automatically afterwards.
 5. **Check the summary line**: rows now held for that competition and season, the last
    round, and the registry size.
+6. **Rebuild the app's copy and push it.** The live app does not read `tallec.db`; it
+   reads `tallec_app.db`, so nothing reaches it until this runs and the file is
+   committed:
+
+   ```
+   python build_app_db.py            # then: git add tallec_app.db, commit, push
+   python build_app_db.py --check    # exit 1 if the copy is behind tallec.db
+   ```
 
 Useful flags:
 
@@ -178,9 +186,12 @@ python -m streamlit run bosc_app.py
 ```
 
 Deployed from the `NRL_2026_MPT` repo (`tallec/bosc_app.py`) to
-https://bosc-tallec.streamlit.app — it reads the bundled `tallec.db`, so a data change
-needs the database copied across and pushed. Streamlit Cloud installs from the
-`requirements.txt` nearest the main module.
+https://bosc-tallec.streamlit.app. `tallec.db` is not in git (it is over GitHub's file
+limit), so the deployed app reads `tallec_app.db`: the same tables without
+`player_match_raw`, which the app never reads, built by `python build_app_db.py`.
+Locally the app prefers `tallec.db` when it is present; the footer names the file it
+opened. A data change reaches the live app only once `tallec_app.db` is rebuilt and
+pushed. Streamlit Cloud installs from the `requirements.txt` nearest the main module.
 
 Before pushing an app change, run the headless page check:
 
