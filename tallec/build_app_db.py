@@ -13,13 +13,18 @@ it does read is in the other tables, which come to under half the file. This wri
 `tallec_app.db`, the same database without that one table, and that is the file that
 goes to git.
 
+One table is added. The audit log lives in its own file, `tallec_audit.db`, which stays
+local, so the deployed app could not say when the ratings were last rebuilt. Its
+`model_runs` table is copied in as `audit_model_runs`, and the app reads it from there
+when the audit log is absent.
+
 Two rules keep the copy honest:
 
   * nothing writes to it except this script — every ingest, rebuild and guarded write
     still targets `tallec.db`, and the copy is rebuilt from it afterwards;
-  * `--check` compares every table in the copy with the same table in `tallec.db`, row
-    for row, and exits 1 on any difference, so a copy left behind after a weekly update
-    is caught before it is pushed.
+  * `--check` compares every table in the copy with the same table in `tallec.db`, and
+    `audit_model_runs` with the audit log, row for row, and exits 1 on any difference,
+    so a copy left behind after a weekly update is caught before it is pushed.
 
     python build_app_db.py            # rebuild tallec_app.db if it is behind
     python build_app_db.py --check    # exit 1 if it differs from tallec.db
@@ -32,9 +37,12 @@ import sys
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
 APP_DB = os.path.join(BASE, "tallec_app.db")
+AUDIT = os.path.join(BASE, "tallec_audit.db")
 
 # Tables the app does not read and the copy leaves out. Nothing else is dropped.
 LEFT_OUT = ("player_match_raw",)
+# Added to the copy from the audit log: name in the copy -> table in tallec_audit.db.
+FROM_AUDIT = {"audit_model_runs": "model_runs"}
 
 
 def _tables(con, schema="main"):
@@ -49,19 +57,24 @@ def differences():
         return [f"{os.path.basename(APP_DB)} does not exist"]
     con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     con.execute("ATTACH DATABASE ? AS app", (f"file:{APP_DB}?mode=ro",))
-    want = [t for t in _tables(con) if t not in LEFT_OUT]
+    pairs = [(f'main."{t}"', t, "tallec.db") for t in _tables(con) if t not in LEFT_OUT]
+    if os.path.exists(AUDIT):
+        con.execute("ATTACH DATABASE ? AS audit", (f"file:{AUDIT}?mode=ro",))
+        pairs += [(f'audit."{src}"', name, "the audit log")
+                  for name, src in FROM_AUDIT.items() if src in _tables(con, "audit")]
+    want = [name for _, name, _ in pairs]
     have = _tables(con, "app")
     out = [f"missing table {t}" for t in want if t not in have]
     out += [f"table {t} should not be in the copy" for t in have if t not in want]
-    for t in (t for t in want if t in have):
-        n_main = con.execute(f'SELECT count(*) FROM main."{t}"').fetchone()[0]
+    for ref, t, where in (p for p in pairs if p[1] in have):
+        n_src = con.execute(f"SELECT count(*) FROM {ref}").fetchone()[0]
         n_app = con.execute(f'SELECT count(*) FROM app."{t}"').fetchone()[0]
-        if n_main != n_app:
-            out.append(f"{t}: {n_app:,} rows in the copy, {n_main:,} in tallec.db")
+        if n_src != n_app:
+            out.append(f"{t}: {n_app:,} rows in the copy, {n_src:,} in {where}")
             continue
         try:
             only = con.execute(
-                f'SELECT count(*) FROM (SELECT * FROM main."{t}" '
+                f'SELECT count(*) FROM (SELECT * FROM {ref} '
                 f'EXCEPT SELECT * FROM app."{t}")').fetchone()[0]
         except sqlite3.OperationalError as e:      # the columns no longer line up
             out.append(f"{t}: {e}")
@@ -82,6 +95,15 @@ def build():
     src.close()
     for t in LEFT_OUT:
         dst.execute(f'DROP TABLE IF EXISTS "{t}"')
+    if os.path.exists(AUDIT):
+        dst.execute("ATTACH DATABASE ? AS audit", (AUDIT,))
+        have = {r[0] for r in dst.execute(
+            "SELECT name FROM audit.sqlite_master WHERE type='table'")}
+        for name, src in FROM_AUDIT.items():
+            if src in have:
+                dst.execute(f'CREATE TABLE main."{name}" AS SELECT * FROM audit."{src}"')
+        dst.commit()
+        dst.execute("DETACH DATABASE audit")
     dst.commit()
     dst.execute("PRAGMA journal_mode=DELETE")
     dst.execute("VACUUM")

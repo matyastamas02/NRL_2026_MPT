@@ -27,6 +27,7 @@ def dbs(tmp_path, monkeypatch):
     con.close()
     monkeypatch.setattr(bad, "DB", str(full))
     monkeypatch.setattr(bad, "APP_DB", str(app))
+    monkeypatch.setattr(bad, "AUDIT", str(tmp_path / "tallec_audit.db"))   # absent
     return full, app
 
 
@@ -68,3 +69,20 @@ def test_building_never_writes_to_the_full_database(dbs):
     before = full.read_bytes()
     bad.build()
     assert full.read_bytes() == before
+
+
+def test_the_audit_run_log_travels_with_the_copy(dbs, tmp_path):
+    """So the deployed app can say when the ratings were last rebuilt."""
+    full, app = dbs
+    audit = sqlite3.connect(tmp_path / "tallec_audit.db")
+    audit.execute("CREATE TABLE model_runs (id INTEGER PRIMARY KEY, run_at TEXT, target TEXT)")
+    audit.execute("INSERT INTO model_runs VALUES (1, '2026-09-22T17:49:06+00:00', 'x')")
+    audit.commit()
+    bad.build()
+    got = sqlite3.connect(app).execute(
+        "SELECT run_at FROM audit_model_runs ORDER BY id DESC LIMIT 1").fetchone()
+    assert got == ("2026-09-22T17:49:06+00:00",)
+    assert bad.differences() == []
+    audit.execute("INSERT INTO model_runs VALUES (2, '2026-10-07T09:00:00+00:00', 'x')")
+    audit.commit()
+    assert bad.differences() == ["audit_model_runs: 1 rows in the copy, 2 in the audit log"]

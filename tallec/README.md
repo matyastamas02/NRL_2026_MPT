@@ -188,7 +188,8 @@ python -m streamlit run bosc_app.py
 Deployed from the `NRL_2026_MPT` repo (`tallec/bosc_app.py`) to
 https://bosc-tallec.streamlit.app. `tallec.db` is not in git (it is over GitHub's file
 limit), so the deployed app reads `tallec_app.db`: the same tables without
-`player_match_raw`, which the app never reads, built by `python build_app_db.py`.
+`player_match_raw`, which the app never reads, plus the audit log's run table, built by
+`python build_app_db.py`.
 Locally the app prefers `tallec.db` when it is present; the footer names the file it
 opened. A data change reaches the live app only once `tallec_app.db` is rebuilt and
 pushed. Streamlit Cloud installs from the `requirements.txt` nearest the main module.

@@ -967,12 +967,18 @@ _cov = pd.read_sql("SELECT competition, min(season) s0, max(season) s1, count(*)
 def _build_info():
     """Which code and which run produced the numbers on screen."""
     prov = runtime.provenance(con, DB_PATH)
-    try:
-        last = pd.read_sql("SELECT run_at, target FROM model_runs "
-                           "ORDER BY id DESC LIMIT 1", runtime.audit_con())
-        ran = f"{last.run_at[0][:16].replace('T', ' ')} UTC" if len(last) else "unknown"
-    except Exception:
-        ran = "unknown"
+    ran = "unknown"
+    # The audit log stays local; the deployed copy carries its run table as
+    # audit_model_runs (build_app_db.py), so fall back to that when the log is absent.
+    for table, source in (("model_runs", runtime.audit_con), ("audit_model_runs", lambda: con)):
+        try:
+            last = pd.read_sql(f"SELECT run_at, target FROM {table} "
+                               "ORDER BY id DESC LIMIT 1", source())
+        except Exception:
+            continue
+        if len(last):
+            ran = f"{last.run_at[0][:16].replace('T', ' ')} UTC"
+            break
     return prov, ran
 
 

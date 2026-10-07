@@ -16,7 +16,9 @@ Two more were the reason for the 2026-09-29 rewrite, and still describe the data
 Taking `tallec.db` out left the live app with nothing to open, and it ran on an empty
 file from 2026-09-29 until 2026-10-07. Since then the repository carries
 **`tallec_app.db`** — `tallec.db` without `player_match_raw`, the full Stats Perform
-export that the app never reads. It is about 48 MB and is built by `build_app_db.py`;
+export that the app never reads — plus the audit log's `model_runs` table as
+`audit_model_runs`, so the app can say when the ratings were last rebuilt. It is about
+48 MB and is built by `build_app_db.py`;
 `python build_app_db.py --check` exits 1 when it has fallen behind `tallec.db`.
 
 It still contains Stats Perform rows and the dates of birth, in a public repository.
