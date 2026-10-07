@@ -192,11 +192,30 @@
 
   @media (max-width: 620px) { body { font-size: 16px; } header { padding-top: 48px; } }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* added 2026-10-07: this page is kept for the record, its figures are not current */
+  .superseded {
+    border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 4px;
+    padding: 16px 20px; margin: 0 0 30px; max-width: 70ch;
+  }
+  .superseded .lbl {
+    display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--warn); margin-bottom: 6px;
+  }
+  .superseded p { margin: 0; max-width: none; font-size: 15.5px; line-height: 1.55; }
 </style>
 
 <div class="wrap">
 
 <header>
+  <div class="superseded" role="note">
+    <span class="lbl">Superseded · 7 October 2026</span>
+    <p>This page describes the August build. The rating scale was recalibrated on
+    22 September, so the ratings, the competition ladder and the translation figures below are on the old scale. Please do not quote them. The
+    current state, and how to read a rating now, is in
+    <a href="https://claude.ai/code/artifact/3ddd7f4c-014a-4819-8008-e5ddfb0d6655">What Is Live</a>.</p>
+  </div>
   <p class="kicker">TALLEC · How to read it · August 2026</p>
   <h1>Reading the numbers</h1>
   <p class="lede">Every player in four competitions gets a rating out of 100, and any
