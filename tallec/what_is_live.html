@@ -181,8 +181,8 @@
   <p class="kicker">TALLEC · Status · 7 October 2026</p>
   <h1>What is live</h1>
   <p class="lede">Where the project stands after the September reviews: what changed, what
-  the numbers now say about players moving into Super League, and what is still waiting on
-  data from you.</p>
+  the numbers now say about players moving between competitions, and what is still waiting
+  on data from you.</p>
 </header>
 
 <div class="rule"></div>
@@ -206,14 +206,13 @@
     <div class="cell"><b>4</b><span>competitions</span></div>
     <div class="cell"><b>122,359</b><span>player-match records</span></div>
     <div class="cell"><b>1,835</b><span>players rated, as of the end of 2025</span></div>
-    <div class="cell"><b>90</b><span>moves into Super League behind the headline result</span></div>
+    <div class="cell"><b>441</b><span>moves between competitions forecast out of sample</span></div>
   </div>
 </section>
 
 <section>
   <h2>What changed since August</h2>
-  <p class="sub">Five independent reviews have now been through the method. Each one
-  changed something, and the figures on this page are the ones that survived the fifth.</p>
+  <p class="sub">The main changes since the 25 August note.</p>
 
   <div class="rows">
     <div class="row">
@@ -232,11 +231,11 @@
     <div class="row">
       <span class="chip live">now live</span>
       <div>
-        <div class="t">Everything is measured on moves into Super League</div>
-        <p>Leeds recruits into Super League, so the evaluation now targets exactly that:
-        players coming from the NRL, the NSW Cup and the Queensland Cup. For a week in late
-        September the reports treated moves into the NRL as the client's question. The fifth
-        review caught it, and every report has been corrected.</p>
+        <div class="t">Every direction between the four competitions</div>
+        <p>The translation and arrival models are fitted and tested on moves in every
+        direction between the NRL, Super League, the NSW Cup and the Queensland Cup that has
+        enough moves behind it, and the Translation page offers each of those pairs. Moves
+        into Super League are reported first below, because that is where Leeds recruits.</p>
       </div>
     </div>
     <div class="row">
@@ -262,8 +261,7 @@
 
 <section>
   <h2>What the numbers say now</h2>
-  <p class="sub">The Leeds question on its own: a player is in the NRL, the NSW Cup or the
-  Queensland Cup, so what would he do in Super League?</p>
+  <p class="sub">Moves into Super League first, then every other direction.</p>
 
   <p>Each season from 2023 to 2025 was forecast using only what was known before it, then
   scored against what the players actually did. The figures are points of rating error
@@ -293,11 +291,20 @@
   age and workload beats a simple straight line, so the claim it supports is a calibrated
   correction, not a ranking of recruits.</p>
 
+  <h3>The other directions</h3>
+  <p>The same backtest forecasts 441 moves in all. Pooled, the model beats assuming every
+  arrival is average by 1.16 points (interval +0.13 to +2.20). Nine directions have enough
+  moves to be scored on their own, and against the straight line the model is ahead in six
+  of them on point estimates. The interval clears zero in five: ahead for NRL into the Queensland Cup and
+  NSW Cup into the Queensland Cup, behind for NRL into the NSW Cup, Queensland Cup into the
+  NSW Cup, and Queensland Cup into Super League.</p>
+
   <h3>Who arrives at all</h3>
   <p>A separate model asks the step before: of all the players at a given level, which ones
-  turn up in Super League the next season. It ranks them better than minutes played alone,
-  by +0.168 AUC (interval +0.093 to +0.247), and the top tenth of its list holds 31% of the
-  players who actually arrived. Use it to order a shortlist, not to put a probability next
+  turn up in another competition the next season. Across twelve directions it beats minutes
+  played alone clearly in four. Into Super League it does so by +0.168 AUC (interval +0.093
+  to +0.247), and the top tenth of its list holds 31% of the players who actually
+  arrived. Use it to order a shortlist, not to put a probability next
   to a name: it ranks arrivals, and without contract or registration data it cannot tell a
   signing that worked from one that did not.</p>
 
