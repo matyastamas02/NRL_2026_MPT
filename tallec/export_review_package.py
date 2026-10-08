@@ -27,6 +27,7 @@ import io
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import time
 
@@ -52,7 +53,9 @@ CODE_CORE = [
     "cohorts.py",                  # retired from the backtest; still used by the trace
     "aging.py",
     "sp_schema.py",                # position groups, date-of-birth parsing
-    "predict_translation.py",      # what the app actually calls
+    "predict_translation.py",      # what the app actually calls: the line into SL
+    "noise_floor.py",              # how much of the error is noise in the target
+    "team_role_trend.py",          # team context, expected role and trend, tested
     "position_metrics.py",         # the client's per-position metric set
     "metric_spec.py",
     "runtime.py",                  # guarded writes, config hashing
@@ -65,6 +68,7 @@ CODE_CONTEXT = [
     "regenerate_full.py", "validate_ratings.py", "report_point0.py", "report_freeze.py",
     "trace_cohort.py", "teamlist_backtest.py", "validate_positions.py", "gigot_v2.py",
     "gigot_contribution.py", "datastate.py", "smoke_bosc.py",
+    "bosc_app.py", "build_app_db.py", "team_map.py",
 ]
 DOCS = [
     "README.md", "HANDOVER.md", "POINT0_REPORT.md", "ROLLING_REPORT.md",
@@ -75,8 +79,16 @@ DOCS = [
     "VARIANCE_BIAS_REPORT.md",     # what the constant-ability assumption costs
     "WEIGHTS_REPORT.md",           # the Middles/Edge weight comparison
     "MANIFEST.json", "v1_holdout_record.json",
+    "what_is_live.html",           # the status note whose claims are under review
 ]
 TESTS_DIR = "tests"
+# the hand-written files at the package root live here, so they are versioned with the
+# code they describe instead of only inside a zip
+ROOT_DIR = os.path.join(BASE, "review_package")
+ROOT_FILES = ("00_START_HERE.md", "PROMPT.md", "reproduce.py")
+# analyses re-run for the package: script, the data folder it writes, the results file
+ANALYSES = (("noise_floor.py", "data/noise_floor", "results/noise_floor.txt"),
+            ("team_role_trend.py", "data/team_role_trend", "results/team_role_trend.txt"))
 
 
 def sha(path):
@@ -178,6 +190,12 @@ def tables(out):
 
 def copy_code(out):
     got = []
+    for n in ROOT_FILES:
+        src = os.path.join(ROOT_DIR, n)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(out, n))
+        else:
+            print(f"  {n}: missing from review_package/, not copied")
     for group, names in (("code", CODE_CORE), ("code_context", CODE_CONTEXT),
                          ("docs", DOCS)):
         for n in names:
@@ -215,6 +233,16 @@ def check(out):
         print(f"no package at {out}; run the exporter first")
         return 1
     stale, missing, checked = [], [], 0
+    for n in ROOT_FILES:
+        src, dst = os.path.join(ROOT_DIR, n), os.path.join(out, n)
+        if not os.path.exists(src):
+            continue
+        if not os.path.exists(dst):
+            missing.append(n)
+            continue
+        checked += 1
+        if sha(src) != sha(dst):
+            stale.append(n)
     for group, names in (("code", CODE_CORE), ("code_context", CODE_CONTEXT),
                          ("docs", DOCS)):
         for n in names:
@@ -250,6 +278,35 @@ def check(out):
         return 0
     print("\nRun `python export_review_package.py` before sending it to anyone.")
     return 1
+
+
+def analyses(out):
+    """Re-run the analyses behind the status note, keeping their frames and output.
+
+    Each writes the frames it computed from into its data folder, so `reproduce.py`
+    can recompute the claims from them without the database, and its printed result
+    goes to results/ as the reference those recomputations are checked against.
+    """
+    got = []
+    for script, data_dir, result in ANALYSES:
+        print(f"  {script} ...", flush=True)
+        r = subprocess.run([sys.executable, os.path.join(BASE, script),
+                            os.path.join(out, data_dir)],
+                           capture_output=True, text=True, cwd=BASE)
+        if r.returncode != 0:
+            raise RuntimeError(f"{script} failed:\n{r.stderr[-2000:]}")
+        dst = os.path.join(out, result)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        io.open(dst, "w", encoding="utf-8", newline="\n").write(r.stdout)
+        got.append((result, os.path.getsize(dst)))
+        for f in sorted(os.listdir(os.path.join(out, data_dir))):
+            rel = f"{data_dir}/{f}"
+            if f.endswith(".csv"):
+                n = sum(1 for _ in io.open(os.path.join(out, rel), encoding="utf-8")) - 1
+            else:
+                n = os.path.getsize(os.path.join(out, rel))
+            got.append((rel, n))
+    return got
 
 
 def manifest(out, fits, data, code):
@@ -289,6 +346,8 @@ def main():
     ap.add_argument("--origins", default="2023,2024,2025")
     ap.add_argument("--skip-rolling", action="store_true",
                     help="reuse the frames already exported (the backtest is slow)")
+    ap.add_argument("--skip-analyses", action="store_true",
+                    help="do not re-run noise_floor.py and team_role_trend.py")
     ap.add_argument("--check", action="store_true",
                     help="report which packaged files no longer match the repo, "
                          "write nothing, exit 1 if any do not")
@@ -309,6 +368,11 @@ def main():
     else:
         print("rolling backtest frames (slow) ...")
         fits = rolling_frames(out, [int(x) for x in a.origins.split(",")])
+    if a.skip_analyses:
+        print("analyses: not re-run")
+    else:
+        print("analyses behind the status note ...")
+        data += analyses(out)
     # listed either way, so a --skip-rolling run still produces a complete manifest
     for o in a.origins.split(","):
         for k in ("rolling_train", "rolling_eval"):

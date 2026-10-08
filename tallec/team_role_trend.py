@@ -26,7 +26,7 @@ The new club itself is read from the target season, which is known at signing.
 Read-only against tallec.db and the xLadder masters.
 
     python team_role_trend.py            # prints the comparison
-    python team_role_trend.py <file>     # also writes the scored moves to a CSV
+    python team_role_trend.py <folder>   # also writes the frames it was computed from
 """
 import os
 import sqlite3
@@ -170,6 +170,11 @@ def design(df, cols, stats=None):
     return np.column_stack(X), st
 
 
+OUT = sys.argv[1] if len(sys.argv) > 1 else None
+KEEP = ["player_id", "source", "target", "pair", "season_src", "season_tgt",
+        "class_source", "class_target", "raw_position", "group", "old_team", "new_team",
+        "trend", "start_share", "old_margin", "new_margin", "old_xl", "new_xl",
+        "incumbents", "vacated_LOOKAHEAD"]
 scored, cover = [], []
 for origin in ORIGINS:
     print(f"origin {origin} ...", flush=True)
@@ -182,6 +187,10 @@ for origin in ORIGINS:
     tr = features(tr, sea, pos)
     te_ = features(pend, sea, pos)
     te_["origin"] = origin
+    if OUT:
+        os.makedirs(OUT, exist_ok=True)
+        tr[[c for c in KEEP + ["line"] if c in tr]].to_csv(
+            os.path.join(OUT, f"train_{origin}.csv"), index=False)
     cover.append(te_[list(dict.fromkeys(sum(FEATS.values(), [])))].notna().mean().rename(origin))
     for name, cols in FEATS.items():
         cols = list(dict.fromkeys(cols))
@@ -203,6 +212,17 @@ for label, sub in (("all moves", d), ("into Super League", d[d.target == "SL"]))
         mae = float((sub.class_target - sub[f'ext::{name}']).abs().mean())
         print(f"    {name:32s} MAE {mae:6.2f}  gain {b[0]:+.2f} [{b[1]:+.2f}, {b[2]:+.2f}]"
               + ("  clear" if (b[1] > 0 or b[2] < 0) else ""))
-if len(sys.argv) > 1:
-    d.to_csv(sys.argv[1], index=False)
+if OUT:
+    cols = [c for c in KEEP + ["origin", "cohort", "transition_type", "model", "line_direction"]
+            if c in d] + [c for c in d if c.startswith("ext::")]
+    d[cols].to_csv(os.path.join(OUT, "eval.csv"), index=False)
+    margin.reset_index().to_csv(os.path.join(OUT, "team_margin.csv"), index=False)
+    xladder.reset_index().to_csv(os.path.join(OUT, "xladder_eppg.csv"), index=False)
+    chk = pm[pm.position_source == "match"].assign(
+        truth=lambda x: (x.position != "Interchange").astype(int),
+        rule=[1.0 if k in START else 0.0 if k in BENCH else np.nan
+              for k in zip(pm.loc[pm.position_source == "match", "i_in"].fillna(-1).astype(int),
+                           pm.loc[pm.position_source == "match", "i_out"].fillna(-1).astype(int))])
+    chk[["comp", "season", "minutes", "i_in", "i_out", "truth", "rule"]].to_csv(
+        os.path.join(OUT, "starts_rule_check.csv.gz"), index=False, compression="gzip")
 con.close()

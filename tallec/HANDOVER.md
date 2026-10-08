@@ -120,6 +120,12 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
     change what can be claimed about the match model.
 14. **Refresh *Reading the Numbers*** on the peer-score scale, or retire it. The status
     note currently points readers to the app's own explanation instead.
+15. **Position-specific ratings.** A player who covers several positions gets one rating
+    against his most common one; the scope asks for "multiple positional ratings for the
+    same player (e.g. centre and wing)". Not built.
+16. **Two scope definitions to settle with Mike.** Form uses a five-match window
+    (`config.json`); the scope asks for "3 & 5 game rolling averages". Divergence is Form
+    minus Class on the composite scale; the scope defines it as "% over or under".
 
 ### Commercial (the owner's, not the code's)
 

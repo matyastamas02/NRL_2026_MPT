@@ -20,7 +20,7 @@ subtracted from each squared error.
 Read-only: opens tallec.db read-only and writes nothing unless given an output folder.
 
     python noise_floor.py              # prints the result
-    python noise_floor.py <folder>     # also writes the per-mover and split-half CSVs
+    python noise_floor.py <folder>     # also writes the per-mover, split-half and stayer CSVs
 """
 import math
 import os
@@ -228,4 +228,5 @@ if OUT:
     os.makedirs(OUT, exist_ok=True)
     m.to_csv(os.path.join(OUT, "movers_floor.csv"), index=False)
     S.to_csv(os.path.join(OUT, "split_half.csv"), index=False)
+    st.to_csv(os.path.join(OUT, "stayers.csv"), index=False)
 con.close()
