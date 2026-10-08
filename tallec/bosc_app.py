@@ -3,25 +3,19 @@
 BOSC — Player Intelligence Dashboard for Rugby League Recruitment
 MVP: Search, Benchmarks, Comparison, Trends tabs.
 """
-# A push swaps the files under a running app, and Python keeps the modules it has
-# already imported. The new bosc_app.py then imported `comparables` from the old
-# predict_translation still in memory, and the live app stopped with an ImportError
-# until a reboot. So the app's own modules are reloaded, dependencies first, whenever
-# their file has changed since they were loaded.
+# A push swaps the files under a running app and Python keeps every module it has
+# imported, so the app's own modules are reloaded whenever their source -- or a file
+# they cache from, such as the database or the model pickle -- has changed since they
+# were loaded. See app_reload.py; it reloads itself first when it has changed.
 import importlib as _importlib
 import os as _os
-import sys as _sys
 
 _APP_DIR = _os.path.dirname(_os.path.abspath(__file__))
-for _name in ("sp_schema", "metric_spec", "translation_features", "runtime",
-              "player_rating_engine", "predict_translation"):
-    _mod = _sys.modules.get(_name)
-    _file = getattr(_mod, "__file__", None)
-    if _file and _os.path.dirname(_os.path.abspath(_file)) == _APP_DIR:
-        _stamp = _os.path.getmtime(_file)
-        if getattr(_mod, "_loaded_mtime", None) != _stamp:
-            _mod = _importlib.reload(_mod)
-        _mod._loaded_mtime = _stamp
+import app_reload as _app_reload
+if getattr(_app_reload, "_loaded_stamp", None) != _os.path.getmtime(_app_reload.__file__):
+    _app_reload = _importlib.reload(_app_reload)
+    _app_reload._loaded_stamp = _os.path.getmtime(_app_reload.__file__)
+_app_reload.refresh(_APP_DIR)
 
 import metric_spec as ms
 import sp_schema as sp
@@ -799,10 +793,8 @@ elif page == "🎯 Position":
 
 elif page == "🔄 Comparison":
     st.subheader("Competition Translation")
-    st.write("How a player's rating carries across competitions. The shift for each "
-             "pair is **measured**, not assumed: it comes from players who played both "
-             "competitions in the same season (NSW/QLD Cup ↔ NRL) or in adjacent "
-             "seasons (Australia ↔ Super League), so the player is held fixed.")
+    st.write("How players' ratings have carried from one competition to another, "
+             "measured on earlier players who made the move, one season to the next.")
 
     ladder = load_ladder()
     pairs = [(r.source, r.target) for r in ladder.itertuples()]
@@ -838,9 +830,49 @@ elif page == "🔄 Comparison":
                         raw_position=p.get("position"), age=p.get("age"),
                         minutes_pg=p.get("mins_pg"), games=p.get("games"))
 
+        # ── the comparison card first: what earlier entrants like him actually did,
+        # chosen by the rule fixed in predict_translation.comparables
+        st.markdown(f"**Players who entered {COMP_NAME[tgt]} from {COMP_NAME[src]} "
+                    f"before**")
+        st.caption("**Rated entrants only (three or more matches in the new "
+                   "competition). Signing success and signings who played less are not "
+                   "measured.**")
+        cmp_ = comparables(p["class_score"], src, tgt,
+                           position_group=sp.POSITION_GROUP.get(p.get("position")),
+                           exclude_player=p.get("player_id"))
+        if cmp_["n"] == 0:
+            st.info(f"Not enough earlier entrants from {COMP_NAME[src]} into "
+                    f"{COMP_NAME[tgt]} near a rating of {p['class_score']:.0f} to compare "
+                    f"with ({cmp_['n_direction']} rated entrants in this direction in all).")
+        else:
+            cols = st.columns(4 if cmp_["wide"] else 3)
+            cols[0].metric("Comparable players", f"{cmp_['n']}")
+            cols[1].metric(f"Their median in {COMP_NAME[tgt]}", f"{cmp_['median']:.0f}")
+            cols[2].metric("Middle half", f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f}")
+            if cmp_["wide"]:
+                cols[3].metric("Most of them (10–90%)",
+                               f"{cmp_['q10']:.0f}–{cmp_['q90']:.0f}")
+            st.caption(
+                f"Players rated within ±{cmp_['window']:g} of {p['class_score']:.0f} in "
+                f"{COMP_NAME[src]} when they entered {COMP_NAME[tgt]} the next season, "
+                f"{cmp_['basis']}; one case per player, the closest rating. "
+                f"{cmp_['n_direction']} rated entrants in this direction in all. The "
+                f"rating before the move is his Class in {COMP_NAME[src]}; the rating "
+                f"after it is his rating for the season he moved. These ranges describe "
+                f"what these players did, not a forecast interval for this one.")
+            show = cmp_["rows"][["name", "season_src", "season_tgt", "raw_position",
+                                 "class_source", "class_target", "n_target"]].copy()
+            show.columns = ["Player", f"Season in {src}", f"Season in {tgt}", "Position",
+                            f"Class in {src} before", f"Season rating in {tgt}",
+                            f"Matches in {tgt}"]
+            st.dataframe(show.round(0), width="stretch", hide_index=True)
+
+        # ── then the line forecast, as a secondary reference point
+        st.divider()
+        st.markdown("**A single-number forecast, for reference**")
         k1, k2, k3, k4 = st.columns(4)
         k1.metric(f"Rating in {COMP_NAME[src]}", f"{p['class_score']:.0f}")
-        k2.metric(f"➜ Forecast in {COMP_NAME[tgt]}", f"{res['score_target']:.0f}",
+        k2.metric(f"Forecast in {COMP_NAME[tgt]}", f"{res['score_target']:.0f}",
                   delta=f"{res['shift_points']:+.1f}")
         k3.metric("His level translated", f"{res['score_ladder']:.0f}",
                   delta=f"{res['ladder_shift_points']:+.1f}", delta_color="off")
@@ -857,70 +889,32 @@ elif page == "🔄 Comparison":
                          f"{res['line']['n']} earlier moves between all competitions, "
                          f"because too few have gone from {COMP_NAME[src]}")
             how = (f"For moves into {COMP_NAME[tgt]} it is a straight line fitted to "
-                   f"{fitted_on}. In the 2023–2025 backtest the conditional model, "
-                   f"which also uses the player's position group, showed no clear "
-                   f"advantage over this line on moves into Super League, so the "
-                   f"simpler line is used.")
+                   f"{fitted_on}, used as a simple default: in the 2023–2025 backtest the "
+                   f"conditional model, which also uses the player's position group, "
+                   f"showed no clear advantage over it.")
         else:
-            how = ("It uses his rating, the direction of the move and his position "
-                   "group.")
+            how = ("It comes from the conditional model, which uses his rating, the "
+                   "direction of the move and his position group.")
         st.caption(
-            "**The forecast is the number to use.** It answers *what will he do here "
-            f"next season*. {how} **His level translated** answers a different "
-            "question — *what has a player of his standard historically scored over "
-            "there* — and is a true statement about the two competitions, but a poor "
-            "forecast of one man.")
+            f"The forecast is one number for what he might rate there next season. {how} "
+            "**His level translated** applies the average shift seen for this pair of "
+            "competitions; it describes the pair, not one player.")
         if res.get("forecast_note"):
             st.caption(res["forecast_note"])
         st.caption(f"{res['interpretation']} Based on **{res['n_obs']} observed player "
                    f"moves** between these two competitions.")
 
-        st.markdown("**Two different uncertainties — worth keeping apart**")
         u1, u2 = st.columns(2)
-        u1.metric("Average level gap for this pair",
+        u1.metric("Average shift for this pair",
                   f"{res['ladder_shift_points']:+.1f} pts",
                   delta=f"±{res['avg_band_points']:.1f} at 95%", delta_color="off")
         u2.metric("This individual player", f"{res['score_target']:.0f} pts",
                   delta=f"±{res['band_points']:.1f} historical range", delta_color="off")
-        st.caption("The average level difference between two competitions is measured "
-                   "tightly. **One player's** outcome is not: the individual range is "
-                   "about as wide as the whole spread of player ratings. It is 1.96 "
-                   "times the spread of past errors for this kind of move — a guide to "
-                   "how widely outcomes have varied, not a calibrated 95% promise. Use "
-                   "the forecast to set expectations, and the range to remember how "
-                   "little anyone can promise about one signing.")
-
-        # the comparison card: real outcomes of earlier movers like this one, chosen by
-        # the rule fixed in predict_translation.comparables, not by hand
-        st.divider()
-        st.write(f"**Players who made this move before**")
-        cmp_ = comparables(p["class_score"], src, tgt,
-                           position_group=sp.POSITION_GROUP.get(p.get("position")),
-                           exclude_player=p.get("player_id"))
-        if cmp_["n"] == 0:
-            st.info(f"Not enough earlier moves from {COMP_NAME[src]} into "
-                    f"{COMP_NAME[tgt]} near a rating of {p['class_score']:.0f} to compare "
-                    f"with ({cmp_['n_direction']} moves in this direction in all).")
-        else:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Comparable moves", f"{cmp_['n']}")
-            c2.metric(f"Median in {COMP_NAME[tgt]}", f"{cmp_['median']:.0f}")
-            c3.metric("Middle half", f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f}")
-            c4.metric("Most of them (10–90%)", f"{cmp_['q10']:.0f}–{cmp_['q90']:.0f}")
-            st.caption(
-                f"Players who moved from {COMP_NAME[src]} into {COMP_NAME[tgt]} the next "
-                f"season with a rating within ±{cmp_['window']:g} of "
-                f"{p['class_score']:.0f}, {cmp_['basis']}; {cmp_['n_direction']} moves "
-                f"in this direction in all. Only movers who played at least three "
-                f"matches in {COMP_NAME[tgt]} are included, so players who moved and "
-                f"barely played are not in this list. The forecast above is a single "
-                f"line through moves like these; this shows how far apart their real "
-                f"outcomes were.")
-            show = cmp_["rows"][["name", "season_tgt", "raw_position", "class_source",
-                                 "class_target", "n_tgt"]].copy()
-            show.columns = ["Player", "Moved for", "Position", f"Rating in {src}",
-                            f"Rating in {tgt}", f"Matches in {tgt}"]
-            st.dataframe(show.round(0), width="stretch", hide_index=True)
+        st.caption("The average shift for a pair of competitions is known within the "
+                   "range shown. One player's outcome is not: the individual range is "
+                   "1.96 times the spread of past errors for this kind of move, about as "
+                   "wide as the whole spread of ratings. It is a guide to how widely "
+                   "outcomes have varied, not a calibrated 95% promise.")
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")
@@ -949,13 +943,12 @@ elif page == "🔄 Comparison":
     both_ways = [(a, b) for (a, b) in by if (b, a) in by and a < b]
     odd = [f"{COMP_NAME[a]} ↔ {COMP_NAME[b]}" for a, b in both_ways
            if by[(a, b)].shift_pts * by[(b, a)].shift_pts >= 0]
-    st.caption("A positive shift means the player rates **higher** in the destination "
-               "the next season, i.e. it is the weaker pool. Both directions of a pair "
-               "are listed separately and should carry opposite signs, which is the main "
-               f"internal check on the ladder: {len(both_ways) - len(odd)} of "
-               f"{len(both_ways)} pairs do"
-               + (f"; {', '.join(odd)} does not, so read that pair with care."
-                  if odd else "."))
+    st.caption("A positive shift means players who made this move rated higher in the "
+               "destination the next season than in the source. The two directions of a "
+               "pair come from different players and seasons, so they need not mirror "
+               f"each other; in this ladder {len(both_ways) - len(odd)} of "
+               f"{len(both_ways)} pairs have opposite signs"
+               + (f", and {', '.join(odd)} does not." if odd else "."))
 
 # ─── PAGE: Squad & Contribution (GIGOT) ────────────────────────────────
 elif page == "🏉 Squad (GIGOT)":

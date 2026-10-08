@@ -124,10 +124,10 @@ POS_GROUP = _PKL.get("position_group", {})
 
 # Moves into these competitions are forecast by a straight line, target ~ source, fitted
 # per direction on the same pairs the shipped model was fitted on (translation_pairs_v3).
-# In the 2023-2025 rolling backtest the conditional model was no more accurate than that
-# line for the 90 moves into Super League (MAE 17.98 against 17.72, difference -1.56 to
-# +1.06), and the two stayed indistinguishable on less noisy targets (noise_floor.py).
-# The line is as accurate and is explained by two numbers. Decided 2026-10-08.
+# In the 2023-2025 rolling backtest the conditional model showed no clear advantage over
+# that line for the 90 moves into Super League (MAE 17.98 against 17.72, difference -1.56
+# to +1.06), which is not equivalence. The line is a provisional default because it is
+# simpler to explain, not because it was shown to be as accurate. Decided 2026-10-08.
 LINE_TARGETS = ("SL",)
 MIN_LINE_PAIRS = 25          # the backtest's threshold for a direction's own line
 # Only the next-season horizon was backtested, so only it gets a line. The fallback is
@@ -163,41 +163,58 @@ def _line(source, target, layer):
                         "FROM translation_pairs_v3 WHERE layer = ?", con, params=(layer,))
         con.close()
         own = p[(p.source == source) & (p.target == target)]
-        _LINES[key] = (_fit_line(own, "direction") if len(own) >= MIN_LINE_PAIRS
+        # a direction gets its own line only with enough pairs and a source rating that
+        # varies; a constant source cannot identify a slope (the backtest's rule too)
+        _LINES[key] = (_fit_line(own, "direction")
+                       if len(own) >= MIN_LINE_PAIRS and own.class_source.std() > 0
                        else _fit_line(p, "pooled") if len(p) >= MIN_LINE_PAIRS else None)
     return _LINES[key]
 
 
-# ── comparable past moves ─────────────────────────────────────────────────────
-# What the sixth review proposed showing beside, or instead of, a point forecast: the
-# real outcomes of earlier players who made the same move from a similar rating. The
-# rule is fixed here, before anyone looks at a particular player: same direction, next
-# season, source rating within COMP_WINDOW points; the same position group when that
-# still leaves COMP_MIN moves, otherwise any position, and the card says which; the
-# window doubles once if there are still too few; below that, "not enough data". The
-# player himself is left out. Every pair is a mover who played at least three matches
-# in the new competition, so players who moved and barely played are not represented.
+# ── comparable past entrants ──────────────────────────────────────────────────
+# The real outcomes of earlier players who entered the same competition from the same
+# one. The rows are the explicit entry cohort (`entry_cohort`, built by
+# build_entry_cohort.py the way the frozen 2026 test builds it): first and returning
+# entries, rated in the new competition, landing up to the freeze season. Until the
+# seventh review this read the translation pairs, which are not entrants.
+#
+# The rule is fixed in code, before anyone looks at a player: same direction, source
+# rating within COMP_WINDOW points; one case per player, the one with the closest source
+# rating, then the earliest landing season, then the lowest id; the same position group
+# when that leaves COMP_MIN players, otherwise any position, and the card says which;
+# the window doubled once; below that, "not enough data". The queried player is left out
+# entirely. Only rated entrants -- three or more matches in the new competition -- exist
+# here, so a move that failed before three matches is invisible.
 COMP_WINDOW = 7.5
-COMP_MIN = 8
+COMP_MIN = 8            # distinct players
+COMP_WIDE_MIN = 20      # below this the 10-90% range is not shown
 
 
-def comparables(score, source, target, position_group=None, exclude_player=None,
-                layer=LAYER_NEXT_SEASON):
-    """Earlier movers like this one, their outcomes and the rule that chose them."""
+def _one_per_player(rows, score):
+    r = rows.assign(gap=(rows.class_source - float(score)).abs(),
+                    _id=rows.player_id.astype(str))
+    r = r.sort_values(["gap", "season_tgt", "_id"]).drop_duplicates("_id", keep="first")
+    return r.drop(columns="_id")
+
+
+def comparables(score, source, target, position_group=None, exclude_player=None):
+    """Earlier entrants like this one, their outcomes and the rule that chose them."""
     import sp_schema as sp
     con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
-    p = pd.read_sql("SELECT player_id, name, season_src, season_tgt, class_source, "
-                    "class_target, raw_position, n_tgt FROM translation_pairs_v3 "
-                    "WHERE layer = ? AND source = ? AND target = ?", con,
-                    params=(layer, source, target))
+    try:
+        p = pd.read_sql("SELECT * FROM entry_cohort WHERE source = ? AND target = ?",
+                        con, params=(source, target))
+    except Exception:
+        p = pd.DataFrame(columns=["player_id", "class_source", "class_target",
+                                  "raw_position", "season_tgt"])
     con.close()
     p["group"] = p.raw_position.map(sp.POSITION_GROUP)
     if exclude_player is not None:
         p = p[p.player_id.astype(str) != str(exclude_player)]
-    out = dict(n=0, n_direction=len(p), basis="not enough data", window=None,
-               rows=p.iloc[0:0])
+    out = dict(n=0, n_direction=int(p.player_id.nunique()), n_direction_rows=len(p),
+               basis="not enough data", window=None, wide=False, rows=p.iloc[0:0])
     for window in (COMP_WINDOW, 2 * COMP_WINDOW):
-        near = p[(p.class_source - float(score)).abs() <= window]
+        near = _one_per_player(p[(p.class_source - float(score)).abs() <= window], score)
         same = near[near.group == position_group] if position_group else near.iloc[0:0]
         if len(same) >= COMP_MIN:
             rows, basis = same, f"same position group ({position_group})"
@@ -206,11 +223,10 @@ def comparables(score, source, target, position_group=None, exclude_player=None,
         else:
             continue
         q = rows.class_target.quantile([.1, .25, .5, .75, .9])
-        return dict(n=len(rows), n_direction=len(p), basis=basis, window=window,
+        return dict(out, n=len(rows), basis=basis, window=window,
+                    wide=len(rows) >= COMP_WIDE_MIN,
                     q10=float(q[.1]), q25=float(q[.25]), median=float(q[.5]),
-                    q75=float(q[.75]), q90=float(q[.9]),
-                    rows=rows.assign(gap=(rows.class_source - float(score)).abs())
-                             .sort_values("gap"))
+                    q75=float(q[.75]), q90=float(q[.9]), rows=rows.sort_values("gap"))
     return out
 
 
@@ -265,36 +281,33 @@ def _ladder_row(source, target, layer=None):
 
 
 def _forecast_note(source_score, ladder, forecast):
-    """Why the forecast sits inside the translation, in one sentence.
+    """Why the forecast and the translation differ, described rather than explained.
 
-    Without it the two numbers read as the model contradicting the measured shift. It
-    does not: part of any rating well away from 50 is luck and a kind draw, and the
-    share that is skill is what carries over. The stronger the rating, the more of it
-    gets given back.
+    It used to say the gap is luck being handed back and "only the skill travels". The
+    seventh review was right that this was asserted, not shown. What is observed is that
+    ratings far from average have tended to come back toward the middle after a move.
     """
     gap = ladder - forecast
     if abs(gap) < 2.0:
-        return ("The forecast and the translation land in the same place here, which is "
-                "what happens for a player rated near the middle — there is little luck "
-                "in an average season to give back.")
+        return ("The forecast and the translation land close together here, as they tend "
+                "to for ratings near the middle.")
     n = round(abs(gap))
     return (f"The forecast sits {n} point{'' if n == 1 else 's'} "
-            f"{'below' if gap > 0 else 'above'} the translation. That is regression "
-            f"toward the mean, not a disagreement: a rating of {source_score:.0f} is "
-            f"part skill and part a good run, and only the skill travels. The further a "
-            f"rating sits from average, the more of it is handed back — which is why a "
-            f"75 does not become a 75 anywhere.")
+            f"{'below' if gap > 0 else 'above'} the translation. Ratings far from average "
+            f"have tended to come back toward the middle after a move; the forecast "
+            f"builds that in and the translation does not.")
 
 
 def _interpretation(shift_points, source, target):
+    """What players making this move have done, not a claim about the leagues."""
+    t = COMP_NAME[target]
     if shift_points <= -5:
-        return f"Expect a clear drop moving to {COMP_NAME[target]} - a stronger pool."
+        return f"Players making this move have rated clearly lower in {t} the next season."
     if shift_points < -1.5:
-        return f"Expect a modest drop in {COMP_NAME[target]}."
+        return f"Players making this move have rated somewhat lower in {t} the next season."
     if shift_points <= 1.5:
-        return (f"Broadly like-for-like between {COMP_NAME[source]} and "
-                f"{COMP_NAME[target]}.")
-    return (f"Expect a modest lift in {COMP_NAME[target]} - a slightly weaker pool.")
+        return f"Players making this move have rated about the same in {t} the next season."
+    return f"Players making this move have rated higher in {t} the next season."
 
 
 def translate(score, source, target, raw_position=None, position_group=None,

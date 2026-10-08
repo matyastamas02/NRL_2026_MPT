@@ -86,3 +86,11 @@ def test_comparables_follow_the_fixed_rule():
 def test_comparables_say_so_when_there_are_too_few():
     c = pt.comparables(2, "QLD", "SL")
     assert c["n"] == 0 and c["basis"] == "not enough data"
+
+
+def test_the_card_counts_each_player_once_and_reads_entrants():
+    c = pt.comparables(60, "NRL", "SL", position_group="Middles")
+    assert not c["rows"].player_id.duplicated().any()
+    assert c["n"] == c["rows"].player_id.nunique() >= pt.COMP_MIN
+    assert c["wide"] == (c["n"] >= pt.COMP_WIDE_MIN)
+    assert set(c["rows"].transition_type) <= {"first", "returning"}
