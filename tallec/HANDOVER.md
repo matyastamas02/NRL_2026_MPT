@@ -69,6 +69,12 @@ Where the results stand (source and date with each, so they can be re-derived):
   fixtures, +1.13 [+0.62, +1.63] on Super League over 497. Measured on the actual
   line-up, so an upper bound until team lists exist.
 - Verdict: good for an internal or beta demo; not yet a validated recruitment ranking.
+- **Moves into Super League are forecast by a straight line** since 2026-10-08
+  (`predict_translation.LINE_TARGETS`): `target ~ source` per direction, fitted on the
+  shipped `translation_pairs_v3`, because the conditional model was no more accurate
+  than it there, including on less noisy targets (`noise_floor.py`: floor about 10
+  points against an 18-point error; SL stayers forecast from their own previous season
+  at 16.4). Every other direction still uses the model; `score_model` is always reported.
 
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against

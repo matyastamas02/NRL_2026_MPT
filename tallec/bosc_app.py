@@ -820,15 +820,21 @@ elif page == "🔄 Comparison":
                   f"{p.get('position') or 'Unknown'}"
                   + (f", {p['age']:.0f}y" if pd.notna(p.get("age")) else ""))
 
+        if res.get("forecast_method") == "straight line":
+            how = (f"For moves into {COMP_NAME[tgt]} it is a straight line fitted to "
+                   f"{res['line']['n']} earlier moves from {COMP_NAME[src]}. In the "
+                   f"2023–2025 backtest, a model that also uses position, age, minutes "
+                   f"and matches played was no more accurate than this line on moves "
+                   f"into Super League, so the line is shown.")
+        else:
+            how = ("It takes his position, age, minutes and matches played into "
+                   "account.")
         st.caption(
             "**The forecast is the number to use.** It answers *what will he do here "
-            "next season* and takes his position, age, minutes and matches played into "
-            "account. **His level translated** answers a different question — *what has "
-            "a player of his standard historically scored over there* — and is a true "
-            "statement about the two competitions, but a poor forecast of one man. "
-            "Until September 2026 this page led with the translation; a rolling test "
-            "over 1,140 moves showed the forecast beats it in every season and for every "
-            "kind of player, so they have swapped places.")
+            f"next season*. {how} **His level translated** answers a different "
+            "question — *what has a player of his standard historically scored over "
+            "there* — and is a true statement about the two competitions, but a poor "
+            "forecast of one man.")
         if res.get("forecast_note"):
             st.caption(res["forecast_note"])
         st.caption(f"{res['interpretation']} Based on **{res['n_obs']} observed player "

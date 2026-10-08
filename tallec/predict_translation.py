@@ -122,6 +122,38 @@ LAYER_PAIRS = {
 POS_GROUP = _PKL.get("position_group", {})
 
 
+# Moves into these competitions are forecast by a straight line, target ~ source, fitted
+# per direction on the same pairs the shipped model was fitted on (translation_pairs_v3).
+# In the 2023-2025 rolling backtest the conditional model was no more accurate than that
+# line for the 90 moves into Super League (MAE 17.98 against 17.72, difference -1.56 to
+# +1.06), and the two stayed indistinguishable on less noisy targets (noise_floor.py).
+# The line is as accurate and is explained by two numbers. Decided 2026-10-08.
+LINE_TARGETS = ("SL",)
+MIN_LINE_PAIRS = 25          # the backtest's threshold for a direction's own line
+# the deployed app holds only the copy build_app_db.py makes; the pairs are in both
+_DB_READ = DB if os.path.exists(DB) else os.path.join(BASE, "tallec_app.db")
+_LINES = {}
+
+
+def _line(source, target, layer):
+    """Slope, intercept and residual SD of target ~ source for one direction, or None."""
+    key = (source, target, layer)
+    if key not in _LINES:
+        con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
+        p = pd.read_sql("SELECT class_source, class_target FROM translation_pairs_v3 "
+                        "WHERE layer = ? AND source = ? AND target = ?", con,
+                        params=(layer, source, target))
+        con.close()
+        if len(p) < MIN_LINE_PAIRS:
+            _LINES[key] = None
+        else:
+            slope, icept = np.polyfit(p.class_source, p.class_target, 1)
+            resid = p.class_target - (slope * p.class_source + icept)
+            _LINES[key] = dict(slope=float(slope), intercept=float(icept), n=len(p),
+                               resid_sd=float(np.sqrt((resid ** 2).sum() / (len(p) - 2))))
+    return _LINES[key]
+
+
 def available_pairs():
     """Competition pairs with a measured shift, most-sampled first."""
     col = "shift_pts" if VERSION == 3 else "shift"
@@ -254,25 +286,37 @@ def translate(score, source, target, raw_position=None, position_group=None,
     rmse = float(lay["rmse"])
     used = used[0]
 
+    line = _line(source, target, layer) if target in LINE_TARGETS else None
+    if line is not None:
+        forecast = float(np.clip(line["slope"] * float(score) + line["intercept"],
+                                 0.0, 100.0))
+        band_sd, method = line["resid_sd"], "straight line"
+        note = (f"; forecast from a straight line fitted to {line['n']} earlier moves "
+                f"from {COMP_NAME[source]} into {COMP_NAME[target]}")
+    else:
+        forecast, band_sd, method = score_model, rmse, "conditional model"
+        note = "; forecast from the conditional model"
+
     # The forecast is the headline. The ladder stays beside it and the gap between them
     # is regression toward the mean — not a disagreement, which is how it reads unless
     # somebody says so, hence `regression_points` and the sentence that explains it.
+    # `score_model` is always the conditional model's number, whichever one is shown.
     return {"source": source, "target": target, "score_source": float(score),
-            "score_target": score_model,
-            "score_forecast": score_model, "score_ladder": score_ladder,
+            "score_target": forecast,
+            "score_forecast": forecast, "score_ladder": score_ladder,
             "score_model": score_model,
-            "shift_points": float(score_model - score),
+            "shift_points": float(forecast - score),
             "ladder_shift_points": float(shift_pts),
-            "regression_points": float(score_ladder - score_model),
+            "regression_points": float(score_ladder - forecast),
             # two uncertainties, kept apart on purpose: how well the AVERAGE shift for
             # this pair is known, and how well ONE player's outcome can be predicted
             "avg_band_points": float(1.96 * se),
-            "band_points": float(1.96 * rmse),
-            "se_points": se, "rmse_points": rmse, "n_obs": n_obs, "layer": layer,
-            "basis": basis + "; forecast from the conditional model",
+            "band_points": float(1.96 * band_sd),
+            "se_points": se, "rmse_points": band_sd, "n_obs": n_obs, "layer": layer,
+            "basis": basis + note, "forecast_method": method, "line": line,
             "headline": "forecast", "inputs_used": used, "model_version": 3,
             "interpretation": _interpretation(shift_pts, source, target),
-            "forecast_note": _forecast_note(score, score_ladder, score_model)}
+            "forecast_note": _forecast_note(score, score_ladder, forecast)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
