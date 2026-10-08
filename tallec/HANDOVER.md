@@ -70,11 +70,34 @@ Where the results stand (source and date with each, so they can be re-derived):
   line-up, so an upper bound until the teams named before each round exist.
 - Verdict: good for an internal or beta demo; not yet a validated recruitment ranking.
 - **Moves into Super League are forecast by a straight line** since 2026-10-08
-  (`predict_translation.LINE_TARGETS`): `target ~ source` per direction, fitted on the
-  shipped `translation_pairs_v3`, because the conditional model was no more accurate
-  than it there, including on less noisy targets (`noise_floor.py`: floor about 10
-  points against an 18-point error; SL stayers forecast from their own previous season
-  at 16.4). Every other direction still uses the model; `score_model` is always reported.
+  (`predict_translation.LINE_TARGETS`), as a provisional default: `target ~ source` per
+  direction from 25 pairs, otherwise the line over every next-season pair -- the rule the
+  backtest scored, where 38 of the 90 forecasts into SL used the pooled line. Fitted on
+  the shipped `translation_pairs_v3`. No clear difference from the model (17.72 against
+  17.98, −1.56 to +1.06), which is not equivalence. Other directions and horizons keep
+  the model; `score_model` is always reported.
+- **Noise** (`noise_floor.py`): under a simplified repeat-measurement model the SL target
+  rating varies by about 10 points. A sensitivity figure, **not** a floor under any
+  forecast, and MAEs do not subtract: the earlier "10 noise + 8 real" reading was wrong
+  (the sixth review; independent normal parts would make the other part about 15). The
+  "noise removed" RMSE comparison proves nothing, since it subtracts the same amount from
+  both sides. The SL stayers' 16.4 is a reference, not a ceiling.
+- **Candidates** (`retest_r6.py`, specified before running; supersedes the
+  `team_role_trend.py` table): one entry cohort for fitting and scoring, the app's line
+  rule, a joint fit, the first club seen in the target season, and `has_history` as its
+  own baseline because most of the trend's earlier +0.50 came from whether a trend
+  existed. Into SL: has_history +0.85 [+0.20, +1.54], all three origins; nothing clear
+  on top of it. All moves: incumbents at the new club +0.53 [+0.12, +0.92]. The
+  cohort-trained line is weaker than the shipped one (18.77 against 17.72), so these
+  figures compare only with each other. Exploratory: found on the same 90 moves.
+- **Comparison card** (`predict_translation.comparables`): every translation shows
+  earlier movers in the same direction within 7.5 rating points (same position group if
+  eight remain, window doubled once, else "not enough data").
+- **The translation page read the v2 ladder** until 2026-10-08: eight directions and
+  shifts on the retired scale. It now reads the v3 next-season ladder. Five of its six
+  direction pairs carry opposite signs; Queensland Cup and Super League do not.
+- **Starts rule**: exact 99.98% where it decides (10 of 54,808 match-sheet rows differ),
+  84% fallback; validated on NRL 2020 only, unvalidated on NRL 2021-26.
 
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
@@ -121,8 +144,12 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 
 ### Ours, not started
 
-8. **Translation Evidence Card** — per direction, the straight line and conformal bands.
-9. **2026 as exploratory data**; 2027 stays the confirmatory holdout.
+8. **The 2026 test, fixed in advance** (`retest_r6.py` as it stands): has_history for
+   moves into SL and incumbents across all directions, beside the line and the model,
+   same cohort and line rule. Do not retune on 2026; 2027 stays the confirmatory holdout.
+9. **A season-by-season shortlist test** for the arrival model, against a minutes
+   baseline whose direction is learned from the training window (the sixth review showed
+   reversing raw minutes would beat the model on NRL→QLD).
 10. **Established-role output and a Super-League-target shortlist validation.**
 11. **Rating reliability and a measurement-error model.**
 12. **Sensitivity of the arrival model's 0.35 pooling.**

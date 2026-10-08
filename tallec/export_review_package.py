@@ -56,6 +56,7 @@ CODE_CORE = [
     "predict_translation.py",      # what the app actually calls: the line into SL
     "noise_floor.py",              # how much of the error is noise in the target
     "team_role_trend.py",          # team context, expected role and trend, tested
+    "retest_r6.py",                # the narrow re-test on one cohort, history baseline
     "position_metrics.py",         # the client's per-position metric set
     "metric_spec.py",
     "runtime.py",                  # guarded writes, config hashing
@@ -88,7 +89,8 @@ ROOT_DIR = os.path.join(BASE, "review_package")
 ROOT_FILES = ("00_START_HERE.md", "PROMPT.md", "reproduce.py")
 # analyses re-run for the package: script, the data folder it writes, the results file
 ANALYSES = (("noise_floor.py", "data/noise_floor", "results/noise_floor.txt"),
-            ("team_role_trend.py", "data/team_role_trend", "results/team_role_trend.txt"))
+            ("team_role_trend.py", "data/team_role_trend", "results/team_role_trend.txt"),
+            ("retest_r6.py", "data/retest_r6", "results/retest_r6.txt"))
 
 
 def sha(path):
