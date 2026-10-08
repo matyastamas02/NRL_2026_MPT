@@ -3,6 +3,26 @@
 BOSC — Player Intelligence Dashboard for Rugby League Recruitment
 MVP: Search, Benchmarks, Comparison, Trends tabs.
 """
+# A push swaps the files under a running app, and Python keeps the modules it has
+# already imported. The new bosc_app.py then imported `comparables` from the old
+# predict_translation still in memory, and the live app stopped with an ImportError
+# until a reboot. So the app's own modules are reloaded, dependencies first, whenever
+# their file has changed since they were loaded.
+import importlib as _importlib
+import os as _os
+import sys as _sys
+
+_APP_DIR = _os.path.dirname(_os.path.abspath(__file__))
+for _name in ("sp_schema", "metric_spec", "translation_features", "runtime",
+              "player_rating_engine", "predict_translation"):
+    _mod = _sys.modules.get(_name)
+    _file = getattr(_mod, "__file__", None)
+    if _file and _os.path.dirname(_os.path.abspath(_file)) == _APP_DIR:
+        _stamp = _os.path.getmtime(_file)
+        if getattr(_mod, "_loaded_mtime", None) != _stamp:
+            _mod = _importlib.reload(_mod)
+        _mod._loaded_mtime = _stamp
+
 import metric_spec as ms
 import sp_schema as sp
 import streamlit as st
