@@ -369,7 +369,15 @@ def main():
         print("rolling backtest frames (slow) ...")
         fits = rolling_frames(out, [int(x) for x in a.origins.split(",")])
     if a.skip_analyses:
-        print("analyses: not re-run")
+        print("analyses: not re-run; listing what is already exported")
+        for _, data_dir, result in ANALYSES:
+            for rel in [result] + [f"{data_dir}/{f}" for f in sorted(
+                    os.listdir(os.path.join(out, data_dir)))
+                    if os.path.isdir(os.path.join(out, data_dir))]:
+                path = os.path.join(out, rel)
+                if os.path.exists(path):
+                    data.append((rel, sum(1 for _ in io.open(path, encoding="utf-8")) - 1
+                                 if rel.endswith(".csv") else os.path.getsize(path)))
     else:
         print("analyses behind the status note ...")
         data += analyses(out)
