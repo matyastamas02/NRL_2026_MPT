@@ -2,7 +2,7 @@
 <style>
   /* Status note for the client: one column of prose, set-off panels only where a
      thing is a separate object (the app link, a result table, the asks). Tokens are
-     the August note's own, so the three TALLEC documents read as one set. */
+     the earlier notes' own, so the three TALLEC documents read as one set. */
   :root {
     --ground:      #EEF1F5;
     --surface:     #FFFFFF;
@@ -181,11 +181,11 @@
 <div class="wrap">
 
 <header>
-  <p class="kicker">TALLEC · Status · 7 October 2026</p>
+  <p class="kicker">TALLEC · Status</p>
   <h1>What is live</h1>
-  <p class="lede">Where the project stands after the September reviews: what changed, what
-  the numbers now say about players moving between competitions, and what is still waiting
-  on data from you.</p>
+  <p class="lede">Where the project stands: what changed, what the numbers say about
+  players moving between competitions, what was tested to improve the forecast, and what
+  is still waiting on data from you.</p>
 </header>
 
 <div class="rule"></div>
@@ -196,10 +196,10 @@
     <p class="url"><a href="https://bosc-tallec.streamlit.app">bosc-tallec.streamlit.app</a></p>
     <p>If it shows a "this app has gone to sleep" page, click through. It takes a minute or
     two to wake.</p>
-    <p><strong>It was down from 29 September until today.</strong> I took the database out
-    of the public code repository at the end of September, and the app lost it with it.
-    It now runs on a copy without the raw export columns, which it never used, and it says
-    plainly if its data is ever missing again instead of showing an error.</p>
+    <p><strong>It was briefly unavailable</strong> after the database was taken out of
+    the public code repository. It now runs on a copy without the raw export columns, which
+    it never used, and it says plainly if its data is ever missing again instead of showing
+    an error.</p>
     <p><strong>Start here:</strong> pick a league in the top-left selector and open
     <em>Benchmarks</em>. On a player's profile, the help icon next to Form and Class
     explains the scale in one sentence.</p>
@@ -214,21 +214,21 @@
 </section>
 
 <section>
-  <h2>What changed since August</h2>
-  <p class="sub">The main changes since the 25 August note.</p>
+  <h2>What changed</h2>
+  <p class="sub">The main changes since the last note.</p>
 
   <div class="rows">
     <div class="row">
       <span class="chip live">now live</span>
       <div>
         <div class="t">A new scale: the peer score</div>
-        <p>Since 22 September a rating of 50 is the median of the players doing the same job
-        in the same competition and season. It is not a percentile, and an NRL 60 is not a
+        <p>A rating of 50 is now the median of the players doing the same job in the same
+        competition and season. It is not a percentile, and an NRL 60 is not a
         Super League 60; the Translation page moves a rating between competitions.</p>
-        <p><strong>Every rating, ladder step or translation figure from before 22 September
-        is on the old scale. Please do not reuse any of them.</strong> That includes the two
-        August documents, <em>Reading the Numbers</em> and <em>Four Leagues, One Scale</em>,
-        which now carry a notice saying so.</p>
+        <p><strong>Every rating, ladder step or translation figure you received before this
+        note is on the old scale. Please do not reuse any of them.</strong> That includes the
+        two earlier documents, <em>Reading the Numbers</em> and <em>Four Leagues, One
+        Scale</em>, which now carry a notice saying so.</p>
       </div>
     </div>
     <div class="row">
@@ -247,7 +247,7 @@
         <div class="t">Middles and Edge, and your position sheet</div>
         <p>Props and locks are rated together as Middles and the second row on its own as
         Edge, as Leeds asked. The Position page shows the volume and rate metrics from your
-        31 August sheet, and says for each competition and season which ones the data
+        position sheet, and says for each competition and season which ones the data
         cannot support.</p>
       </div>
     </div>
@@ -280,6 +280,76 @@
   off than the line: NRL into the NSW Cup, Queensland Cup into the NSW Cup, and Queensland
   Cup into Super League. In the other four the two cannot be told apart.</p>
 
+  <h3>How much of that error can be removed at all</h3>
+  <p>A season's rating is itself measured with noise: it is an average over a limited
+  number of matches. Simulating that noise through the rating formula puts a floor of
+  about 10 points under any forecast. Even a forecaster who knew each player's true level
+  would miss by that much on average, so roughly 8 of the 18 points are real differences
+  between what a player's record suggested and what he then did.</p>
+  <p>The verdict does not depend on that noise. Scored only on players with 16 or more
+  Super League matches, or with the noise removed mathematically, the model and the line
+  remain indistinguishable. For comparison, Super League players who stayed are forecast
+  from their own previous Super League season at about 16 points, so even a player's own
+  record in the league leaves most of those 8 points unexplained: what changes between two
+  seasons is not in the ratings.</p>
+
+  <h3>What was tested to close the gap</h3>
+  <p>Each candidate was added to the straight line as a correction, fitted on earlier
+  moves and scored on the same out-of-sample moves. The figures are points closer than the
+  line on average, with 95% ranges; a negative number means the correction made the
+  forecast worse.</p>
+
+  <div class="panel">
+    <div class="panel-head">Line plus one correction · against the line alone</div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Added to the line</th><th class="num">Into Super League (90)</th>
+          <th class="num">All moves (441)</th></tr></thead>
+        <tbody>
+          <tr><td>Trend: change in his rating over his last two seasons</td>
+            <td class="num">+0.50 (−0.03 to +1.03)</td><td class="num">−0.03 (−0.30 to +0.22)</td></tr>
+          <tr><td>Share of source matches he started</td>
+            <td class="num">−0.30 (−0.56 to −0.02)</td><td class="num">+0.05 (−0.07 to +0.17)</td></tr>
+          <tr><td>Old team's points margin</td>
+            <td class="num">+0.03 (−0.08 to +0.13)</td><td class="num">+0.00 (−0.05 to +0.05)</td></tr>
+          <tr><td>New club's points margin, season before he joined</td>
+            <td class="num">−0.06 (−0.59 to +0.47)</td><td class="num">−0.08 (−0.31 to +0.14)</td></tr>
+          <tr><td>Old team's xLadder expected points</td>
+            <td class="num">+0.04 (−0.11 to +0.19)</td><td class="num">+0.00 (−0.06 to +0.07)</td></tr>
+          <tr><td>New club's xLadder expected points</td>
+            <td class="num">−0.48 (−0.84 to −0.12)</td><td class="num">−0.12 (−0.28 to +0.04)</td></tr>
+          <tr><td>Role: strength of the new club's players in his position</td>
+            <td class="num">+0.06 (−0.68 to +0.79)</td><td class="num">+0.31 (−0.12 to +0.73)</td></tr>
+          <tr><td>Role: minutes freed up in his position at the new club*</td>
+            <td class="num">+0.08 (−0.13 to +0.31)</td><td class="num">−0.17 (−0.31 to −0.04)</td></tr>
+          <tr><td>All of the above except the one marked *</td>
+            <td class="num">−0.11 (−1.04 to +0.82)</td><td class="num">+0.16 (−0.34 to +0.67)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p><strong>None of them clearly improves the forecast.</strong> The closest is the trend
+  for moves into Super League, about half a point with a range that only just reaches
+  zero.</p>
+  <p>How to read this, and where it stops:</p>
+  <ul>
+    <li>Twenty comparisons were made, so one or two will look clear by chance. The three
+    results whose whole range is negative are the correction fitting noise in the earlier
+    moves, not a real effect.</li>
+    <li>Role is measured indirectly, from who played for the new club. Who the club actually
+    planned to play is not in the data.</li>
+    <li>* Minutes freed up uses the season being forecast to see who left, so it would not
+    be fully known at signing, and an injured incumbent looks like a departure.</li>
+    <li>xLadder figures exist only for the NRL and Super League, and only from 2022, which
+    covers about a third to a half of the moves.</li>
+    <li>Starts for NRL players are rebuilt from interchange records, because that export
+    has no match-sheet positions. The rule is exact wherever it decides, about three rows
+    in four, and right 84% of the time on the rest.</li>
+    <li>With 90 moves into Super League, an improvement smaller than about a point cannot
+    be shown either way.</li>
+  </ul>
+
   <h3>What follows from this</h3>
   <ul>
     <li><strong>The app now forecasts moves into Super League with the straight
@@ -287,7 +357,8 @@
     explained by two numbers: from the NRL, for example, the forecast is 0.37 × the NRL
     rating + 43.</li>
     <li><strong>A better translation needs new information</strong>, above all the role a
-    player is expected to have at his new club.</li>
+    player is expected to have at his new club. The versions of it that can be built from
+    appearances did not capture it.</li>
     <li><strong>The 2026 season adds roughly one more year of moves into Super
     League</strong>, about 30, which narrows the uncertainty only moderately.</li>
   </ul>
@@ -302,10 +373,9 @@
   signing that worked from one that did not.</p>
 
   <h3>Does the player layer help the match model</h3>
-  <p>Re-run today on the current database. Over fixtures the model had not seen, adding the
-  player layer cuts margin error by 0.24 points in the NRL (95% range +0.05 to +0.44, 752
-  fixtures) and by 1.13 points in Super League (+0.62 to +1.63, 497 fixtures). Both are
-  real. Both use the line-up that actually played, which is only known afterwards, so they
+  <p>Over fixtures the model had not seen, adding the player layer cuts margin error by 0.24 points in the NRL (95% range +0.05 to +0.44, 752
+  fixtures) and by 1.13 points in Super League (+0.62 to +1.63, 497 fixtures). Both ranges
+  exclude zero. Both use the line-up that actually played, which is only known afterwards, so they
   are an upper bound until team lists exist.</p>
 
   <div class="note warn">
@@ -322,15 +392,21 @@
   <ol class="ask">
     <li><b>The 2026 season</b>
     NSW Cup and Queensland Cup 2026, and the NRL 2026 export with the position joined row by
-    row, the way the Super League master came. As you decided in August, everything is fitted
+    row, the way the Super League master came. As you decided, everything is fitted
     only through 2025, so 2026 becomes the first test of what the ratings and the translation
     projected.
-    <p>One change to that plan, from the fifth review: the method has been revised several
-    times while 2026 was partly visible, so I will treat 2026 as an exploratory test and keep
-    2027 as the clean confirmatory one. On arrival the position column gets the same checks
-    the first Super League file failed: about 46 minutes for props and 78 for wingers, a
-    roughly thirty-fold spread in passes per minute, about 1.5 positions per player, and no
-    more position values than rows.</p></li>
+    <p>Because the method was developed while part of 2026 was already in the data, 2026
+    will serve as an exploratory test and 2027 as the clean confirmatory one. On arrival the
+    position column gets the checks every position file gets: about 46 minutes for props and
+    78 for wingers, a roughly thirty-fold spread in passes per minute, about 1.5 positions
+    per player, and no more position values than rows.</p></li>
+
+    <li><b>Team lists and squads, even typed by hand</b>
+    A list of names per club per round, and each club's squad at the start of the season.
+    It is now the one input that could still improve the translation: the versions of a
+    player's expected role that can be built from appearances added nothing measurable. It
+    is also what turns the match-model result above from an upper bound into something
+    usable during the week.</li>
 
     <li><b>Super League set restarts</b>
     The column is empty on every Super League row, while all three Australian competitions
@@ -348,10 +424,6 @@
     the lock's line-break assists per receipt for one slot. It currently uses hit-up metres.
     Please confirm, and confirm that "Edge" is the name you want for the second row.</li>
 
-    <li><b>Team lists, even typed by hand</b>
-    A list of names per club per round. It is what turns the match-model result above from
-    an upper bound into something usable during the week.</li>
-
     <li><b>The metric dictionary</b>
     All 341 rows are still marked for review. If your position sheet has replaced it, say so
     and I will retire it.</li>
@@ -365,16 +437,33 @@
 
 <section>
   <h2>What comes next on my side</h2>
-  <p class="sub">Started once the 2026 data is in, in this order.</p>
+  <p class="sub">In this order.</p>
 
   <div class="rows">
     <div class="row">
       <span class="chip later">next</span>
       <div>
+        <div class="t">The trend, tested on 2026 as defined here</div>
+        <p>The one candidate with a hint of signal for moves into Super League goes into the
+        2026 test exactly as defined above, without retuning. If it holds there, it goes
+        into the forecast.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip later">next</span>
+      <div>
+        <div class="t">Expected role from real squad data</div>
+        <p>Once team lists and squads are in, whether the role a club plans for a player
+        explains what the line misses.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip later">next</span>
+      <div>
         <div class="t">A translation evidence card per direction</div>
-        <p>For each move, such as NSW Cup into Super League, the straight line next to the
-        model and an honest band for an individual player, so a reader sees how much
-        evidence sits behind that one pathway.</p>
+        <p>For each move, such as NSW Cup into Super League, the line or model in use, the
+        band for an individual player and the number of moves behind it, so a reader sees
+        how much evidence sits behind that one pathway.</p>
       </div>
     </div>
     <div class="row">
@@ -397,10 +486,9 @@
 </section>
 
 <footer>
-  <p>The translation and arrival figures come from the rolling backtest and arrival reports
-  produced on 29 September; the match-model figures were re-run on 7 October. All of them
-  come from the database the app now runs, unchanged since the 22 September rebuild and
-  checked against the recorded table hashes today.</p>
+  <p>Every figure on this page comes from an out-of-sample test on the database the app
+  runs, checked against that database's recorded table hashes. The script that produces
+  each one is in the project repository, so any of them can be re-run.</p>
 </footer>
 
 </div>
