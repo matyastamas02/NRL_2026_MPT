@@ -141,7 +141,8 @@ def main():
         for i in range(4000):
             idx = np.concatenate([at[q] for q in rng.choice(uniq, uniq.size, replace=True)])
             bs[i] = true(se_l.iloc[idx]) - true(se_m.iloc[idx])
-        print(f"noise removed (RMSE against the true season level): model {true(se_m):.2f}, "
+        print(f"noise subtracted (an assumption-dependent sensitivity figure, not an error "
+              f"against observed true ability): model {true(se_m):.2f}, "
               f"line {true(se_l):.2f}, line - model {true(se_l) - true(se_m):+.2f} "
               f"[{np.percentile(bs, 2.5):+.2f}, {np.percentile(bs, 97.5):+.2f}]")
 

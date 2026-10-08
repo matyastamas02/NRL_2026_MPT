@@ -82,17 +82,22 @@ Where the results stand (source and date with each, so they can be re-derived):
   (the sixth review; independent normal parts would make the other part about 15). The
   "noise removed" RMSE comparison proves nothing, since it subtracts the same amount from
   both sides. The SL stayers' 16.4 is a reference, not a ceiling.
-- **Candidates** (`retest_r6.py`, specified before running; supersedes the
-  `team_role_trend.py` table): one entry cohort for fitting and scoring, the app's line
-  rule, a joint fit, the first club seen in the target season, and `has_history` as its
-  own baseline because most of the trend's earlier +0.50 came from whether a trend
-  existed. Into SL: has_history +0.85 [+0.20, +1.54], all three origins; nothing clear
-  on top of it. All moves: incumbents at the new club +0.53 [+0.12, +0.92]. The
-  cohort-trained line is weaker than the shipped one (18.77 against 17.72), so these
-  figures compare only with each other. Exploratory: found on the same 90 moves.
-- **Comparison card** (`predict_translation.comparables`): every translation shows
-  earlier movers in the same direction within 7.5 rating points (same position group if
-  eight remain, window doubled once, else "not enough data").
+- **The 2026 test** (`frozen_2026.py`, `FROZEN_2026_SPEC.md`, `frozen_2026_manifest.json`):
+  H1 only -- the shipped line (S0) against the same line plus `rated_source_prev_year`
+  (S1), fitted on the same next-season pairs with the correct fallback, scored on 2026
+  entrants into SL alone; positive only if delta >= 1.0 and the lower bound > 0, with 25
+  entrants and five per history group, otherwise undecided. A season after 2025 is
+  refused unless the manifest's hashes match. Historical context (discovery data, not a
+  test): 2023 +1.86 [-1.46, +4.93] on 23 entrants (below the minimum), 2024 -0.03,
+  2025 -0.05. `retest_r6.py`'s +0.85 came largely from its fallback, which was fitted on
+  the small directions only (the seventh review); it is superseded. The indicator
+  partly measures evidence behind the source rating and data coverage
+  (`prev_year_covered`), not experience.
+- **Comparison card** (`predict_translation.comparables`, table `entry_cohort` from
+  `build_entry_cohort.py`): earlier first/returning entrants in the same direction,
+  one case per player, eight distinct players minimum, 10-90% only from twenty, above the
+  line forecast. Rated entrants only. It read `translation_pairs_v3` until the seventh
+  review showed those are not entrants.
 - **The translation page read the v2 ladder** until 2026-10-08: eight directions and
   shifts on the retired scale. It now reads the v3 next-season ladder. Five of its six
   direction pairs carry opposite signs; Queensland Cup and Super League do not.
@@ -144,9 +149,9 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 
 ### Ours, not started
 
-8. **The 2026 test, fixed in advance** (`retest_r6.py` as it stands): has_history for
-   moves into SL and incumbents across all directions, beside the line and the model,
-   same cohort and line rule. Do not retune on 2026; 2027 stays the confirmatory holdout.
+8. **Run the 2026 test once the season's data are in**: `python frozen_2026.py
+   --eval-season 2026` against the committed manifest, unchanged. Do not retune on 2026;
+   freeze a separate 2027 specification before any 2027 result is seen.
 9. **A season-by-season shortlist test** for the arrival model, against a minutes
    baseline whose direction is learned from the training window (the sixth review showed
    reversing raw minutes would beat the model on NRL→QLD).

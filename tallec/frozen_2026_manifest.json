@@ -1,0 +1,39 @@
+{
+ "fingerprint": {
+  "constants": {
+   "ALPHA": 1.0,
+   "DELTA_MIN": 1.0,
+   "FREEZE_SEASON": 2025,
+   "MIN_ENTRANTS": 25,
+   "MIN_PAIRS": 25,
+   "MIN_PER_HISTORY_GROUP": 5,
+   "N_BOOT": 4000,
+   "SEED": 0
+  },
+  "environment": {
+   "numpy": "2.5.3",
+   "pandas": "2.3.3",
+   "python": "3.14.8",
+   "sklearn": "1.7.2"
+  },
+  "files": {
+   "FROZEN_2026_SPEC.md": "1f2fe2da35a7999d60bec9d9352de08478d5cf659c00fac89af42aaace3da134",
+   "aging.py": "ddf05f99d61578af83d14e8807addb5bbea9baa9a03fb78d9d52c3ed117f0e04",
+   "config.json": "e6b46f71d173ae0a92b4adef4e89dd2e099640554b83e3cbc583f4c1b4216c6d",
+   "fit_translation_v3.py": "3fb0e8f2f034a1172520aa8ab812bd6d563129e3e30cf96993a639d64fe10a23",
+   "frozen_2026.py": "f867d046a42851f100016be201abfeeed3f314918f5dfde609671d8194523449",
+   "player_rating_engine.py": "be864805a3ac7a9f76d99caba4dd2103779c9d90fe665383f6d36a7cc31558d1",
+   "rating_history.py": "88e061125db52f38d8aa4258247e1ea6434ea4b49fdaa96fbb70fe06ec727a17",
+   "rolling_backtest.py": "37a4c92fff45cbd597f56d5672a5bae5b2ff429f5f90e5c6038f3405c13d9c19",
+   "sp_schema.py": "93a53d62543a5cc2f0924b3f16ec0fd77e65fd39df4ef191fd3d003a801d9486",
+   "transition_events.py": "3614169783344f142aad7f26db1456be536b68bf4e4feb3b62d1020815b899b5",
+   "translation_features.py": "61405e830bb6b8e86335aa4aeccf011b5667e4427773ce2ab847d1edd4a1fb38"
+  },
+  "inputs": {
+   "player_match_stats": "fdf7d136f3a428a8f081d8a46b60cad2e30c44f31a45d875ead4e0bbc2550552",
+   "player_match_stats_through": 2025,
+   "players_dob": "176c16ea6ce2aad1786f44f2cdb5fd055a83a168f09fff5a7f15810022bdc3b4"
+  }
+ },
+ "spec": "FROZEN_2026_SPEC.md"
+}

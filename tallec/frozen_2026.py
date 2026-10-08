@@ -252,7 +252,11 @@ def _frame_sha(df):
 def fingerprint(con, through=FREEZE_SEASON):
     files = {f: _sha(os.path.join(BASE, f)) for f in FROZEN_FILES if os.path.exists(os.path.join(BASE, f))}
     pms = pd.read_sql("SELECT * FROM player_match_stats WHERE season <= ?", con, params=(through,))
+    # only the players the through-2025 data contain: the registry grows with every 2026
+    # import, and a new player must not break the freeze
     players = pd.read_sql("SELECT player_id, dob FROM players", con)
+    players = players[sp.normalize_player_id(players.player_id).isin(
+        set(sp.normalize_player_id(pms.player_id)))]
     import sklearn
     return dict(files=files,
                 inputs={"player_match_stats_through": through,
