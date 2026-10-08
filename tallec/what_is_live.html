@@ -263,22 +263,26 @@
   <h2>What the numbers say now</h2>
   <p class="sub">Moves into Super League first, then every other direction.</p>
 
-  <p>Each season from 2023 to 2025 was forecast using only what was known before it, then
-  scored against what the players actually did. The figures are points of rating error
-  saved, with 95% intervals; a positive number means the model was closer.</p>
+  <p>For each of the 90 players who moved into Super League between 2023 and 2025, the
+  model predicted his rating for the season he moved, using only what was known before
+  that season, and the prediction was compared with the rating he actually earned. On the
+  0–100 scale its predictions were 18 points off on average.</p>
+  <p>Each row sets that against a simpler way of guessing: how many points closer the model
+  was on average, the 95% range of that figure, and whether the range excludes zero. A
+  negative number means the simpler guess was closer.</p>
 
   <div class="panel">
     <div class="panel-head">Moves into Super League · 90 players · 2023–2025</div>
     <div class="scroll">
       <table>
-        <thead><tr><th>The model against</th><th class="num">Error saved</th>
-          <th class="num">95% interval</th><th>Clear of zero</th></tr></thead>
+        <thead><tr><th>Compared with</th><th class="num">Model closer by</th>
+          <th class="num">95% range</th><th>Excludes zero</th></tr></thead>
         <tbody>
           <tr><td>Carrying his Australian rating across unchanged</td><td class="num">+7.79</td>
             <td class="num">+4.21 to +11.40</td><td class="yes">yes</td></tr>
-          <tr><td>Assuming every arrival is average</td><td class="num">+2.66</td>
+          <tr><td>Assuming every arrival is average (50)</td><td class="num">+2.66</td>
             <td class="num">+0.16 to +5.12</td><td class="yes">yes</td></tr>
-          <tr><td>A two-parameter straight line for this direction</td><td class="num">−0.26</td>
+          <tr><td>A straight line fitted to earlier moves into Super League</td><td class="num">−0.26</td>
             <td class="num">−1.56 to +1.06</td><td class="no">no</td></tr>
         </tbody>
       </table>
@@ -293,16 +297,16 @@
 
   <h3>The other directions</h3>
   <p>The same backtest forecasts 441 moves in all. Pooled, the model beats assuming every
-  arrival is average by 1.16 points (interval +0.13 to +2.20). Nine directions have enough
+  arrival is average by 1.16 points (95% range +0.13 to +2.20). Nine directions have enough
   moves to be scored on their own, and against the straight line the model is ahead in six
-  of them on point estimates. The interval clears zero in five: ahead for NRL into the Queensland Cup and
+  of them on point estimates. The 95% range excludes zero in five: ahead for NRL into the Queensland Cup and
   NSW Cup into the Queensland Cup, behind for NRL into the NSW Cup, Queensland Cup into the
   NSW Cup, and Queensland Cup into Super League.</p>
 
   <h3>Who arrives at all</h3>
   <p>A separate model asks the step before: of all the players at a given level, which ones
   turn up in another competition the next season. Across twelve directions it beats minutes
-  played alone clearly in four. Into Super League it does so by +0.168 AUC (interval +0.093
+  played alone clearly in four. Into Super League it does so by +0.168 AUC (95% range +0.093
   to +0.247), and the top tenth of its list holds 31% of the players who actually
   arrived. Use it to order a shortlist, not to put a probability next
   to a name: it ranks arrivals, and without contract or registration data it cannot tell a
@@ -310,7 +314,7 @@
 
   <h3>Does the player layer help the match model</h3>
   <p>Re-run today on the current database. Over fixtures the model had not seen, adding the
-  player layer cuts margin error by 0.24 points in the NRL (interval +0.05 to +0.44, 752
+  player layer cuts margin error by 0.24 points in the NRL (95% range +0.05 to +0.44, 752
   fixtures) and by 1.13 points in Super League (+0.62 to +1.63, 497 fixtures). Both are
   real. Both use the line-up that actually played, which is only known afterwards, so they
   are an upper bound until team lists exist.</p>
