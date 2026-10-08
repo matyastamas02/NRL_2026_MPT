@@ -261,47 +261,21 @@
 
 <section>
   <h2>What the numbers say now</h2>
-  <p class="sub">Moves into Super League first, then every other direction.</p>
+  <p class="sub">Each season from 2023 to 2025 was forecast from what was known before it
+  and scored against what the players actually did, on the 0–100 scale.</p>
 
-  <p>For each of the 90 players who moved into Super League between 2023 and 2025, the
-  model predicted his rating for the season he moved, using only what was known before
-  that season, and the prediction was compared with the rating he actually earned. On the
-  0–100 scale its predictions were 18 points off on average.</p>
-  <p>Each row sets that against a simpler way of guessing: how many points closer the model
-  was on average, the 95% range of that figure, and whether the range excludes zero. A
-  negative number means the simpler guess was closer.</p>
+  <p><strong>For the 90 players who moved into Super League, the translation model is no
+  more accurate than a straight line fitted to earlier moves into Super League: both miss
+  a player's rating by about 18 points on average</strong> (17.98 for the model, 17.72 for
+  the line; the difference has a 95% range of −1.56 to +1.06).</p>
 
-  <div class="panel">
-    <div class="panel-head">Moves into Super League · 90 players · 2023–2025</div>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Compared with</th><th class="num">Model closer by</th>
-          <th class="num">95% range</th><th>Excludes zero</th></tr></thead>
-        <tbody>
-          <tr><td>Carrying his Australian rating across unchanged</td><td class="num">+7.79</td>
-            <td class="num">+4.21 to +11.40</td><td class="yes">yes</td></tr>
-          <tr><td>Assuming every arrival is average (50)</td><td class="num">+2.66</td>
-            <td class="num">+0.16 to +5.12</td><td class="yes">yes</td></tr>
-          <tr><td>A straight line fitted to earlier moves into Super League</td><td class="num">−0.26</td>
-            <td class="num">−1.56 to +1.06</td><td class="no">no</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <p>The correction is large and certain: carrying an Australian number into Super League
-  unchanged is the worst thing that can be done with it. The model also beats assuming
-  every arrival is average. What it cannot yet show is that its conditioning on position,
-  age and workload beats a simple straight line, so the claim it supports is a calibrated
-  correction, not a ranking of recruits.</p>
-
-  <h3>The other directions</h3>
-  <p>The same backtest forecasts 441 moves in all. Pooled, the model beats assuming every
-  arrival is average by 1.16 points (95% range +0.13 to +2.20). Nine directions have enough
-  moves to be scored on their own, and against the straight line the model is ahead in six
-  of them on point estimates. The 95% range excludes zero in five: ahead for NRL into the Queensland Cup and
-  NSW Cup into the Queensland Cup, behind for NRL into the NSW Cup, Queensland Cup into the
-  NSW Cup, and Queensland Cup into Super League.</p>
+  <h3>Where the model adds something</h3>
+  <p>Of the nine directions with enough moves to be scored on their own, the model is
+  clearly closer than the straight line in two: <strong>NRL into the Queensland
+  Cup</strong>, by 1.96 points (95% range +0.75 to +3.29), and <strong>NSW Cup into the
+  Queensland Cup</strong>, by 1.47 points (+0.58 to +2.42). In three it is clearly further
+  off than the line: NRL into the NSW Cup, Queensland Cup into the NSW Cup, and Queensland
+  Cup into Super League. In the other four the two cannot be told apart.</p>
 
   <h3>Who arrives at all</h3>
   <p>A separate model asks the step before: of all the players at a given level, which ones
