@@ -1,191 +1,166 @@
-# TALLEC / BOSC — package for the sixth independent review
+# TALLEC / BOSC — package for the seventh independent review
 
-This round has a narrow job. The project now makes a specific set of claims to its
-client in a status note (`docs/what_is_live.html`). They are listed below as C1–C14,
-each with the code that computes it and the section of `reproduce.py` that recomputes it
-from `data/` alone. The review is of those claims, judged against what the project is
-for. Read this file first; it saves re-deriving context from sixty files.
+The sixth review checked fourteen claims the project made to its client and found ten
+of them overstated, unsupported or wrong. Everything it found was checked and acted on.
+This round asks for three narrower things:
+
+1. **Did the response fix what the sixth review found?** `RESPONSE_TO_R6.md` lists every
+   finding with what was done and where.
+2. **Is the 2026 test ready to freeze?** `code/retest_r6.py` is the specification the
+   project proposes to run unchanged on the 2026 season. Once 2026 data arrives, any
+   change to it is tuning, so this is the last point at which it can be corrected
+   cleanly.
+3. **Is the comparison card a sound demo deliverable?** It is what the sixth review
+   proposed showing a club instead of, or beside, a point forecast, and it is now built.
+
+The status note's current claims (N1–N13 below) are also open to the same four-level
+verdict as last round. Read this file first.
 
 ---
 
 ## 1. What the project is for
 
-From the client's scope of work (quoted, not paraphrased, where it matters):
+From the client's scope of work, quoted where it matters:
 
 - **A prototype.** "Build a working prototype of TALLEC … The priority is to prove the
-  concept rather than build a finished commercial product." It supports two separate
-  applications: **BOSC**, "recruitment and player intelligence platform (for
-  demonstration to Leeds Rhinos)", and **GIGOT v2**, an internal match model "completely
-  separate from the Leeds project".
-- **BOSC, the part the claims are about:**
-  - "benchmarking by competition, season and position, based on score of 0-100 when 50
-    is average";
-  - "Class Rating (since start of database), Form Rating (3 & 5 game rolling averages)
-    and Divergence Rating (How far is Form from Class as % over or under)";
-  - "Develop Competition Translation models to estimate player performance across
-    competitions. **This is the key modelling task for Leeds as they want to estimate
-    how a player in NRL or NSW Cup will go in SL.**";
-  - "Support multiple positional ratings for the same player (e.g. centre and wing)";
-  - a simple Streamlit prototype with search, profile and ratings.
-- **GIGOT v2:** team form and class plus player form and class, a Contribution Rating
-  ("Player stats as a % of Team Stats, so we can track Expected Contribution based on
-  Team List"), back-tested, with winner probabilities, margins and confidence.
-- **Technical principles:** raw data stored permanently, derived metrics reproducible
-  from raw, configurable rating formulae, every calculation version-controlled.
+  concept rather than build a finished commercial product." Two separate applications:
+  **BOSC**, "recruitment and player intelligence platform (for demonstration to Leeds
+  Rhinos)", and **GIGOT v2**, an internal match model "completely separate from the Leeds
+  project".
+- **BOSC:** "benchmarking by competition, season and position, based on score of 0-100
+  when 50 is average"; "Class Rating (since start of database), Form Rating (3 & 5 game
+  rolling averages) and Divergence Rating (How far is Form from Class as % over or
+  under)"; "Develop Competition Translation models to estimate player performance across
+  competitions. **This is the key modelling task for Leeds as they want to estimate how
+  a player in NRL or NSW Cup will go in SL.**"; "Support multiple positional ratings for
+  the same player"; a simple Streamlit prototype.
+- **Technical principles:** raw data stored permanently, derived metrics reproducible,
+  configurable formulae, every calculation version-controlled.
 
-Who reads the claims: the client (Mike), who will demonstrate BOSC to Leeds Rhinos, a
-Super League club that recruits into Super League from the NRL, the NSW Cup and the
-Queensland Cup. The note is decision support for that demo, not a research paper.
+The reader of the status note is the client, who will demonstrate BOSC to Leeds Rhinos, a
+Super League club recruiting from the NRL, the NSW Cup and the Queensland Cup.
 
-## 2. The system in brief
+## 2. The system, as it stands now
 
-- **Ratings** (`player_rating_engine.py`). A per-match composite of rate statistics,
-  z-scored within competition × season × position group, averaged per player, shrunk by
-  B = τ²/(τ² + σ²/n), published as a **peer score**: 100·Φ((z − group median)/τ), so 50
-  is the median of his position group in that competition and season. Not a percentile,
-  and not comparable across competitions without translation.
-- **Translation.** Three answers to "what will he do in competition T next season":
-  - the **ladder**, the mean shift observed for movers in each direction
-    (`translation_ladder_v3`);
-  - the **conditional model**, a Ridge regression on source rating, position group and
-    direction (`fit_translation_v3.py`);
-  - the **straight line** `target ~ source`, fitted per direction on the same pairs,
-    which is the bar the model has to clear (`rolling_backtest.straight_lines`).
-  **Since this round, the app forecasts every move into Super League with that line**
-  (`predict_translation.LINE_TARGETS`); other directions still use the model.
-- **Arrival** (`arrival_model.py`): of the players at a level, who turns up in another
-  competition next season.
-- **GIGOT player layer** (`gigot_v2.py`): pre-match player ratings aggregated over the
-  line-up, added to the match model.
+- **Ratings** (`player_rating_engine.py`): a per-match composite of rate statistics,
+  shrunk by B = τ²/(τ² + σ²/n), published as a **peer score** 100·Φ((z − group
+  median)/τ). 50 is the median of his position group in that competition and season.
+- **Translation into Super League** (`predict_translation.py`): since last round, a
+  **straight line** `target ~ source` per source competition, fitted on the next-season
+  pairs in `translation_pairs_v3`, as a provisional default. Below 25 pairs a direction
+  uses the line fitted on every next-season pair, the rule the backtest scored. Other
+  directions and horizons use the conditional model (Ridge on source rating, direction and
+  position group).
+- **The comparison card** (`predict_translation.comparables`, shown on the app's
+  translation page): earlier movers in the same direction, next season, source rating
+  within 7.5 points; the same position group if that leaves at least eight, otherwise any
+  position, and the card says which; the window doubled once if there are still fewer than
+  eight; otherwise "not enough data". The player himself is excluded. It shows the count,
+  the median, the middle half, the 10–90% range and the list. Every pair is a mover who
+  played at least three matches in the new competition, and the card says so.
+- **Arrival** (`arrival_model.py`) and the **GIGOT player layer** (`gigot_v2.py`) are
+  unchanged since last round; only their wording in the note changed.
 
-## 3. What changed since the fifth review
+## 3. What changed since the sixth review
 
-Methodology:
+All of it is in `RESPONSE_TO_R6.md`. In brief: the note was reworded throughout; the
+app's captions now state the model's actual inputs and call the band a historical range;
+the app's line fallback matches the backtest's; the translation page reads the current
+ladder (it was reading a superseded one); the candidates were re-tested on one cohort with
+a history baseline and a joint fit (`retest_r6.py`); the comparison card was built; and
+the app reloads its own modules when a push replaces them.
 
-1. Every report now treats the client's direction as **into Super League**.
-2. The conditional model was found no better than the per-direction line into Super
-   League, so **the app now uses the line there**.
-3. **Noise floor** (`noise_floor.py`): how much of the 18-point error is measurement
-   noise in a single season's target rating.
-4. **Less noisy targets**: the model against the line on players with 16+/20+ target
-   matches, and with the simulated noise removed from the squared errors.
-5. **Team context, expected role and trend** (`team_role_trend.py`), each tested as a
-   correction to the line, including **starts rebuilt from interchange counts** for NRL
-   seasons whose export has no match-sheet positions.
-6. The status note was rewritten. In particular, it no longer leads with the model
-   beating two baselines nobody would use (carrying a rating across unchanged, and
-   predicting 50 for everyone); it states the comparison with the line.
+## 4. The status note's current claims
 
-Engineering only, no effect on any figure: the deployed app reads a copy of the database
-without `player_match_raw`, and a cache bug that kept a replaced database file open was
-fixed.
-
-## 4. The claims under review
-
-C1–C9 can be recomputed from `data/` with `python reproduce.py`. C10–C11 are
-inferences from them. C12–C13 need the database or the xLadder match masters, which are
-not in the package; their code and reports are.
-
-| | Claim, as the note states it | Computed in | Recompute |
+| | Claim, as the note now states it | Computed in | Recompute |
 | --- | --- | --- | --- |
-| C1 | For the 90 moves into Super League the conditional model is no more accurate than a straight line fitted to earlier moves into Super League: both miss by about 18 points (17.98 and 17.72 MAE; difference −1.56 to +1.06) | `rolling_backtest.py` | §C1 |
-| C2 | Of the nine directions with enough moves, the model is clearly closer than the line in two, NRL→QLD (+1.96, +0.75 to +3.29) and NSW→QLD (+1.47, +0.58 to +2.42); clearly further off in three, NRL→NSW, QLD→NSW and QLD→SL; indistinguishable in four | `rolling_backtest.beats_the_simple_thing` | §C2 |
-| C3 | The app forecasts moves into Super League with one line per source competition; it is as accurate as the model and is explained by two numbers (from the NRL, 0.37 × rating + 43) | `predict_translation.py` | §C3 |
-| C4 | A season's rating carries measurement noise that puts a floor of about 10 points under any forecast, so roughly 8 of the 18 points are real differences between a player's record and what he then did | `noise_floor.py` | §C4 |
-| C5 | The verdict does not depend on that noise: on players with 16+ Super League matches, or with the noise removed, model and line remain indistinguishable | `noise_floor.py` | §C5 |
-| C6 | The noise model, σ²/n with σ² from a within-season variance decomposition, is about the right size (split-half ratio 0.92) | `noise_floor.py` | §C6 |
-| C7 | Super League players who stayed are forecast from their own previous season at about 16 points, so even a player's own record in the league leaves most of those 8 points unexplained: "what changes between two seasons is not in the ratings" | `noise_floor.py` | §C7 |
-| C8 | None of trend, starts share, old/new team points margin, old/new team xLadder expected points, or two proxies for the role at the new club clearly improves the line; the closest is the trend into Super League, +0.50 (−0.03 to +1.03) | `team_role_trend.py` | §C8 |
-| C9 | Starts for NRL players are rebuilt from interchange records; the rule is exact wherever it decides, about three rows in four, and right 84% of the time on the rest | `team_role_trend.py` | §C9 |
-| C10 | A better translation needs new information, above all the role a player is expected to have at his new club; the versions of it that can be built from appearances did not capture it | inference from C4–C8 | — |
-| C11 | The 2026 season adds roughly one more year of moves into Super League, about 30, which narrows the uncertainty only moderately | 90 moves over three origins | — |
-| C12 | The arrival model beats minutes played alone clearly in four of twelve directions; into Super League by +0.168 AUC (+0.093 to +0.247), with 31% of actual arrivals in the top tenth of its list | `arrival_model.py`, `docs/ARRIVAL_REPORT.md` | not exported |
-| C13 | The player layer cuts match-model margin error by 0.24 points in the NRL (+0.05 to +0.44, 752 fixtures) and 1.13 in Super League (+0.62 to +1.63, 497), an upper bound because it uses the line-up that actually played | `gigot_v2.py` | needs masters |
-| C14 | Good enough for an internal or beta demo; not yet a validated recruitment ranking | judgement | — |
+| N1 | On 90 moves into Super League no clear accuracy advantage for the conditional model over a straight line (17.98 and 17.72 MAE; difference −1.56 to +1.06); "that does not show the two are equally good"; 38 of the 90 used the pooled line; the app's own Queensland Cup line has not been tested | `rolling_backtest.py` | §C1, §R2 |
+| N2 | In exploratory, unadjusted comparisons across nine directions, two favour the model (NRL→QLD +1.96, NSW→QLD +1.47), three favour the line, four cannot be told apart | `rolling_backtest.py` | §C2 |
+| N3 | Under a simplified repeat-measurement model the target rating varies by about 10 points; "not a floor that no forecast can beat"; among players with 16+ SL matches still no clear difference; stayers' own-previous-season line misses by about 16, as a reference | `noise_floor.py` | §C4, §C5, §C7 |
+| N4 | Re-test (specified before running): whether the player had a rated season in the source the year before improves forecasts into SL, +0.85 (+0.20 to +1.54), in each of three seasons; nothing clear on top of it into SL; across all moves the strength of the new club's incumbents in his position helps, +0.53 (+0.12 to +0.92); the re-test's line is weaker than the shipped one (18.77 against 17.72) | `retest_r6.py` | §R1 |
+| N5 | Starts rebuilt from interchange records agree with match sheets 99.98% where the rule decides, 84% on the rest; not checked on NRL after 2020 | `team_role_trend.py` | §C9 |
+| N6 | The app uses the line into SL as a provisional default, one per source competition, with the pooled fallback; from the NRL, 0.37 × rating + 43 | `predict_translation.py` | §C3, §R2 |
+| N7 | Every forecast comes with the players who made the same move before, showing how widely outcomes spread | `predict_translation.comparables` | §R3 |
+| N8 | Dated squad and intended-role information is the most promising next test; not established as necessary or sufficient | inference | — |
+| N9 | The 2026 season adds about 30 moves into SL, narrowing the uncertainty by roughly 13% | √(90/120) | — |
+| N10 | Arrival: against a fixed minutes ranking, clearly better in four of twelve directions; into SL, pooled 2023–25, +0.168 AUC (+0.093 to +0.247); top tenth holds 28 of the 90 rated arrivals; single-season shortlist untested | `arrival_model.py`, `docs/ARRIVAL_REPORT.md` | not exported |
+| N11 | GIGOT: a retrospective test with actual participants and minutes improved an ELO+home baseline by 0.24 (NRL, 752 fixtures) and 1.13 (SL, 497); pre-kick-off gains untested | `gigot_v2.py` | needs masters |
+| N12 | Good enough for an internal or beta demo; not a validated recruitment ranking | judgement | — |
+| N13 | On the translation page: five of six direction pairs in the next-season ladder carry opposite signs; Queensland Cup ↔ Super League does not | `bosc_app.py`, ladder | §R4 |
 
-The printed output each analysis produced for this package is in `results/`.
+## 5. The 2026 test as proposed
 
-## 5. What is in the package
+`code/retest_r6.py`, unchanged, run with `LANDING` extended to 2026 and `ORIGINS` to
+include 2026:
+
+- **Cohort.** The explicit entry cohort (`transition_events.py` through
+  `rolling_backtest.moves_into`), each landing season built from what was known before
+  it. Fit on cohort moves landing before the forecast season, score on those landing in
+  it.
+- **Baseline.** A straight line, own line per direction from 25 training moves, else the
+  line over all training moves, plus `has_history` (rated in the same source competition
+  the season before, n ≥ 3).
+- **Hypotheses.** H1, moves into Super League: line + `has_history` beats the line.
+  H2, all moves: adding the strength of the new club's incumbents in his position group
+  (minutes-weighted rating the season before) beats line + `has_history`.
+- **Fit.** OLS on the line terms; ridge α = 1.0 on each standardised candidate and its
+  missing flag. The new club is the first club he is seen playing for in the target
+  season.
+- **Measure.** Paired difference in MAE, bootstrap over players, 4,000 draws.
+
+What is **not** yet fixed, and is part of what this round should advise on: what counts
+as success (a threshold, an interval rule, or both), whether 2026 alone or 2026 pooled
+with 2023–25 is the test, what to do if the 2026 cohort into Super League is much smaller
+than 30, and how NRL 2026 positions (expected from the client with match sheets) enter.
+
+## 6. What is in the package
 
 ```
 00_START_HERE.md      this file
+RESPONSE_TO_R6.md     every sixth-review finding, what was done, where, what is open
 PROMPT.md             the review brief
-reproduce.py          recomputes C1-C9 from data/ alone - run this first
+reproduce.py          recomputes C1-C9 and R1-R4 from data/ alone - run this first
 MANIFEST.md           every file with row counts and sha256
 
-code/                 the files that carry the methodology
-code_context/         ingest, reporting, the app - read only if a trail leads there
-docs/                 reports, specs, the handover, and what_is_live.html (the claims)
+code/                 the methodology, including retest_r6.py
+code_context/         ingest, reporting, the app
+docs/                 reports, the handover, what_is_live.html (the status note)
 tests/                the current test suite
-results/              printed output of noise_floor.py and team_role_trend.py
+results/              printed output of noise_floor.py, team_role_trend.py, retest_r6.py
 data/                 everything needed to recompute without the database
 ```
 
-| file | use it to |
-| --- | --- |
-| `data/rolling_eval_{2023,2024,2025}.csv` | C1, C2: one row per move landing in that season, with the source rating as known beforehand, every prediction (`model`, `line_direction`, `projected`, …), the outcome `class_target` and the cohort |
-| `data/rolling_train_{2023,2024,2025}.csv` | refit the model and the lines on exactly what they were trained on |
-| `data/translation_pairs_v3.csv` | C3: the pairs the shipped model and the app's lines are fitted on |
-| `data/noise_floor/movers_floor.csv` | C4, C5: the 90 moves with each target's n, B, σ², τ², centre and posterior level |
-| `data/noise_floor/split_half.csv` | C6: odd/even half-season means for every SL player-season with 6+ matches |
-| `data/noise_floor/stayers.csv` | C7: SL players who stayed, with their walk-forward line forecast |
-| `data/team_role_trend/train_{origin}.csv`, `eval.csv` | C8: the features for every training pair and evaluated move, the line, and each correction's forecast |
-| `data/team_role_trend/team_margin.csv`, `xladder_eppg.csv` | the two team-strength measures by competition, season and team |
-| `data/team_role_trend/starts_rule_check.csv.gz` | C9: every match-sheet row with the interchange counts, the rule's call and the sheet's truth |
-| `data/player_match_stats.csv.gz`, `data/player_season_ratings.csv`, `data/players.csv` … | rebuild ratings from the feed |
+New this round: `data/retest_r6/retest_cohort.csv` (the cohort with every candidate,
+names and dates of birth removed) and `retest_scored.csv` (the forecasts of every
+specification), and `results/retest_r6.txt`. The rest is as last round, and the C1–C9
+sections of `reproduce.py` still recompute the figures N1–N6 rest on.
 
-The data are Stats Perform rows supplied under a client agreement, including dates of
-birth. They are here for this review only.
+The data are Stats Perform rows supplied under a client agreement; other files still
+carry dates of birth. They are here for this review only.
 
-## 6. Known weak points, stated up front
+## 7. Known weak points, stated up front
 
-New this round:
+- **The history effect was found on the same 90 moves it is reported on**, in an analysis
+  run because the sixth review pointed at it, with fourteen comparisons in the re-test.
+  It is a hypothesis for 2026, not a finding.
+- **The re-test's line is weaker than the shipped line** (18.77 against 17.72 into Super
+  League), because the entry cohort it trains on is smaller than the pair set. Gains in
+  the re-test are against that weaker line.
+- **The app still trains its line on the pair set**, not the cohort, so the object being
+  shipped and the object being re-tested differ.
+- **The pooled fallback** mixes every direction into one line, and the app's own
+  Queensland Cup line was never tested at 25+ pairs.
+- **Ridge α = 1.0** was fixed, not tuned. `has_history` depends on the n ≥ 3 rating rule.
+- **The comparison card** shows only movers with three or more matches in the new
+  competition, so it cannot show how often a move failed; the 7.5-point window and the
+  eight-player minimum were chosen, not derived; at the edges of the rating range the
+  window doubles and the comparables are less similar.
+- Carried over: small samples, three origins, selection into who moves, no squad,
+  contract or registration data, 2026 exploratory and 2027 confirmatory, fit frozen at
+  2025.
 
-- **Samples.** 90 moves into Super League over three origins; 441 entry moves overall
-  from 362 players. With 90, an improvement smaller than about one point cannot be shown
-  either way.
-- **Two different constructions.** The model and lines are fitted on
-  `translation_pairs_v3`-style pairs (`fit_translation_v3.build_pairs`); they are scored
-  on the explicit entry cohort (`transition_events.py`). The two do not select players
-  the same way.
-- **The line's band** in the app is 1.96 × its in-sample residual SD on 32–107 pairs per
-  direction, not an out-of-sample error.
-- **Noise floor assumptions.** σ² comes from a one-way variance decomposition within the
-  target season, so within-season form swings count as noise and the "true level" is a
-  season average. The noise is simulated as normal on the composite scale and pushed
-  through the engine's nonlinear map, with the true level placed at the shrunk posterior
-  mean (at the unshrunk mean instead it reads 9.5). The noise-removed comparison is in
-  RMSE, not MAE, and assumes the noise is independent of the predictions.
-- **The stayers reference is not a ceiling.** It is a walk-forward straight line on the
-  previous season, on a different cohort. The project owner has already pointed out that
-  it lacks information about how a player develops between seasons; judge whether C7
-  still says too much.
-- **The feature tests.** Each correction is a linear model of the line's residuals with
-  coefficients shared across all directions, fitted on the training pairs of each
-  origin, with standardised values, a missing flag per feature and an intercept. Twenty
-  comparisons are reported. Role is proxied from appearances: (a) the minutes-weighted
-  rating of the new club's incumbents in his position group the season before, (b) the
-  share of their minutes played by men who do not appear for the club in the target
-  season, which is **look-ahead**. The new club itself is read from the target season,
-  on the argument that it is known at signing. xLadder figures exist only for the NRL and
-  Super League from 2022 (33–50% of moves), and their stored win probabilities may be
-  in-sample for the seasons the xLadder model was trained on. Team margins are derived
-  from player points; against the xLadder masters (not in the package) they agree at
-  r = 0.997 for the NRL and within 1.1 points per game for Super League 2022–25.
-- **The starts rule** is validated on competitions with match sheets and then applied
-  to NRL 2021–26, where there is none.
+## 8. Conventions
 
-Carried over, see `docs/HANDOVER.md`: selection into the ladder; cumulative source
-against season-only target; a constant-ability variance decomposition; no squad,
-contract or registration data; 2026 is exploratory and 2027 the first confirmatory
-holdout; the fit is frozen at 2025.
-
-## 7. Conventions
-
-- **Freeze.** `config.json → evaluation.freeze_season = 2025`. Nothing is fitted past it.
-- **Position groups.** Fullback, Winger, Centre, Halves, Hooker, Middles (prop + lock),
-  Edge (second row), Bench. `sp_schema.POSITION_GROUP` is the only mapping.
-- **Two outcomes.** `class_target` is the shrunk season rating the app would publish;
-  `class_target_raw` the same season unshrunk on the same scale.
-- **Sign of a comparison.** "A − B" in absolute error, so a positive number means B was
-  closer. In `reproduce.py`, `boot(d, "line_direction", "model")` positive = model closer.
+As last round: the freeze at 2025; eight position groups with `sp_schema.POSITION_GROUP`
+the only mapping; `class_target` the published (shrunk) season rating; a comparison "A −
+B" in absolute error, so positive means B was closer.

@@ -222,6 +222,8 @@ print("\nshare of evaluated moves with each candidate present:")
 print(cov.to_string())
 if OUT:
     os.makedirs(OUT, exist_ok=True)
-    d.to_csv(os.path.join(OUT, "retest_scored.csv"), index=False)
-    C.to_csv(os.path.join(OUT, "retest_cohort.csv"), index=False)
+    # names and dates of birth are not needed to check anything here
+    drop = ["name", "dob"]
+    d.drop(columns=drop, errors="ignore").to_csv(os.path.join(OUT, "retest_scored.csv"), index=False)
+    C.drop(columns=drop, errors="ignore").to_csv(os.path.join(OUT, "retest_cohort.csv"), index=False)
 con.close()

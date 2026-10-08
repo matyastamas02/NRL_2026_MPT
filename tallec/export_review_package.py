@@ -86,7 +86,7 @@ TESTS_DIR = "tests"
 # the hand-written files at the package root live here, so they are versioned with the
 # code they describe instead of only inside a zip
 ROOT_DIR = os.path.join(BASE, "review_package")
-ROOT_FILES = ("00_START_HERE.md", "PROMPT.md", "reproduce.py")
+ROOT_FILES = ("00_START_HERE.md", "RESPONSE_TO_R6.md", "PROMPT.md", "reproduce.py")
 # analyses re-run for the package: script, the data folder it writes, the results file
 ANALYSES = (("noise_floor.py", "data/noise_floor", "results/noise_floor.txt"),
             ("team_role_trend.py", "data/team_role_trend", "results/team_role_trend.txt"),
@@ -330,7 +330,7 @@ def manifest(out, fits, data, code):
     # the hand-written root files are hashed too, so the manifest covers the whole
     # package rather than only the generated parts
     root = [(f, os.path.getsize(os.path.join(out, f)))
-            for f in ("00_START_HERE.md", "PROMPT.md", "reproduce.py")
+            for f in ROOT_FILES
             if os.path.exists(os.path.join(out, f))]
     lines += ["", "## Files", "", "| file | rows/bytes | sha256 (16) |",
               "| --- | --- | --- |"]

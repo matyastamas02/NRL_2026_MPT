@@ -2,110 +2,97 @@
 
 ---
 
-You are the sixth independent reviewer of a working sports-analytics prototype. Five
-reviews have run before you and the faults they found have been fixed; this round is
-different. The project now makes a specific set of claims to its client, and I want them
-checked against the evidence and judged against what the project is for.
+You are the seventh independent reviewer of a sports-analytics prototype. The sixth
+review found that ten of the fourteen claims the project made to its client went beyond
+the evidence; every finding was checked and acted on. This round is narrower and has a
+deadline built into it: a test specification has to be frozen before the next season's
+data arrives.
 
-**Read `00_START_HERE.md` first.** Section 1 is the project's goals, quoted from the
-client's scope of work. Section 4 lists the claims, C1–C14, with the code behind each.
-Section 6 lists the weaknesses we already know about; confirming one with a sharper
-argument is useful, presenting it as a discovery is not.
-
-Then run `python reproduce.py` (pandas and numpy only, reads `data/`). It recomputes
-C1–C9. If any number disagrees with `docs/what_is_live.html` or `results/`, report that
-first.
+**Read `00_START_HERE.md` first**, then `RESPONSE_TO_R6.md`. Run `python reproduce.py`
+(pandas and numpy only, reads `data/`); it recomputes C1–C9 from last round and R1–R4
+from this one, and prints the figure each is checked against. Report any disagreement
+before anything else.
 
 ---
 
-## Part A — is each claim true?
+## Part A — did the response fix what the sixth review found?
 
-For every claim C1–C14, give one verdict:
+For every row of `RESPONSE_TO_R6.md`, say whether the action is **adequate**,
+**partial** (say what is missing) or **inadequate**, and whether anything the response
+says it did is not actually true in the code or the note. Look in particular at:
 
-- **Supported** — the evidence shows it, and the wording does not go beyond it;
-- **Supported but overstated** — true in substance, but the wording claims more than the
-  evidence carries; give the wording you would use;
-- **Not supported** — the evidence does not show it;
-- **Wrong** — the evidence shows something else.
+- the note's new wording against the sixth review's proposed wording, where they differ;
+- `predict_translation._line`: does the app's fallback now match what the backtest
+  scored, and is anything left inconsistent between them;
+- the rows marked open: is leaving each one open acceptable for a client demo?
 
-Say why in a sentence or two, and how I can check you. Look hardest at these, because
-they are new and nobody outside the project has examined them:
+## Part B — is the 2026 test ready to freeze?
 
-1. **The noise floor** (`noise_floor.py`, C4–C6). Is simulating σ²/n noise through the
-   engine's shrinkage and Φ map, with the true level at the posterior mean, a valid way
-   to bound the error of any forecast? Is σ² from a within-season one-way decomposition
-   the right noise, given that it counts within-season form as noise? Does the
-   split-half ratio of 0.92 actually validate it?
-2. **The less noisy comparisons** (C5). Is subtracting the simulated noise variance from
-   each squared error a valid estimate of error against the true level? Does
-   restricting to players with many matches introduce a selection that matters here?
-3. **The stayers reference** (C7). The project owner has already objected that a
-   forecast from a player's own previous season also lacks information about how he
-   develops between seasons, so it is not a ceiling. Does the note's sentence "what
-   changes between two seasons is not in the ratings" survive that objection?
-4. **The feature tests** (`team_role_trend.py`, C8–C10). Is a shared-coefficient linear
-   correction to the line's residuals a fair test of team context, role and trend, or
-   could the null result be an artefact of the design: coefficients shared across
-   directions, training pairs built differently from the evaluation cohort, missing-value
-   handling, twenty comparisons, power? Is any feature leaking information from the
-   season being forecast beyond the one labelled look-ahead? Are the role proxies a
-   reasonable reading of "expected role", or a different quantity?
-5. **The starts rule** (C9). Validated on match-sheet competitions, applied to NRL
-   2021–26 where no sheet exists. Is that transfer safe?
-6. **The switch to the line** (C3). Given C1 and C2, is forecasting moves into Super
-   League with a two-parameter line the right call? Is its band — 1.96 × the in-sample
-   residual SD, about ±40 points — honest, and is that how it should be shown?
+Section 5 of `00_START_HERE.md` and `code/retest_r6.py`. Treat it as a pre-registration
+and review it as one:
 
-## Part B — do the claims serve the project's goals?
+1. **Design.** Is anything in the re-test leaking information from the season being
+   forecast — `has_history`, the first club seen in the target season, the incumbents'
+   ratings, the cohort itself? Is a joint fit with OLS line terms and a fixed ridge on the
+   candidate the right specification? Is `has_history` measuring what its name says, or
+   something else (for example the amount of evidence behind the source rating)?
+2. **The two hypotheses.** H1 (`has_history`, into Super League) was found on the same 90
+   moves it is reported on. H2 (incumbents, all moves) is a secondary result. Are these
+   the right things to carry forward, and is anything that should be tested missing?
+3. **What to fix before the data arrives.** Propose, concretely, the frozen version:
+   the primary endpoint, what counts as success (a threshold, an interval rule, or both),
+   whether 2026 is tested alone or pooled, the minimum cohort size below which the result
+   is declared undecided, how multiplicity is handled, and how NRL 2026 match-sheet
+   positions, expected from the client, enter without changing the specification. A few
+   lines that could be committed as-is are the most useful answer.
+4. **The weaker line.** The re-test's cohort-trained line is less accurate than the
+   shipped pair-trained line (18.77 against 17.72 MAE into Super League). Should the
+   frozen test use the shipped construction, the cohort construction, or both, and what
+   does each choice mean for interpreting a gain?
 
-Answer as an advisor who has read the evidence, not only as an auditor.
+## Part C — is the comparison card a sound demo deliverable?
 
-1. **Does the note represent the evidence fairly for its reader?** The client will use
-   it to demonstrate the product to a Super League club. What is overstated,
-   understated, or missing? What would a club analyst reject on first reading?
-2. **The scope calls translation "the key modelling task for Leeds".** The best
-   evidenced translation into Super League is now a two-parameter line whose individual
-   band is about as wide as the whole spread of ratings. What is a defensible deliverable
-   for the demo: a band, a tier, a probability of reaching a regular role, a comparison
-   set of similar past movers, something else? Argue for one.
-3. **What would most plausibly close the roughly 8 points above the noise floor**, using
-   data the client could realistically obtain: the teams named before each round, Super
-   League squads and squad numbers at the start of the season (the data hold every
-   actual line-up but nothing known beforehand), signing and contract dates,
-   Championship data, scouts' priors. How would you
-   test it with about 90 moves into Super League a year, and what should be fixed in
-   advance for 2026 (exploratory) and 2027 (confirmatory)?
-4. **Scope items that are not met or are at risk.** Check the build against section 1
-   of `00_START_HERE.md`. Examples to verify, not conclusions: the scope asks for Form
-   over "3 & 5 game rolling averages" and the engine uses five; it defines Divergence as
-   "% over or under" and the engine reports Form minus Class on the composite scale; it
-   asks for "multiple positional ratings for the same player", which the handover lists
-   as not built. Say which gaps matter for a demo and which do not.
+`predict_translation.comparables` and the translation page in `code_context/bosc_app.py`.
+`reproduce.py` §R3 reimplements its rule. Judge:
+
+1. **The rule:** same direction, next season, within 7.5 rating points, same position
+   group when eight remain, window doubled once, otherwise "not enough data", the player
+   excluded. Is it defensible, and what would you change before a club sees it?
+2. **What it hides.** Only movers with three or more matches in the new competition are
+   included. The card says so in a sentence. Is that enough, or does the card need a
+   denominator — how many moved and did not reach three matches — before it can be shown?
+3. **Presentation.** Median, middle half and 10–90% range with the list of names. What
+   would a club analyst misread? Should the line forecast stay beside it, below it, or go?
+
+## Part D — the note's current claims
+
+For N1–N13 in `00_START_HERE.md` §4, give the same verdicts as last round:
+**Supported**, **Supported but overstated** (with the wording you would use), **Not
+supported**, or **Wrong**, with a one-line reason and how to check.
 
 ---
 
-## Constraints to respect
+## Constraints
 
-- **2027 is the first clean confirmatory holdout.** Everything fitted now is exploratory
-  until then; say where a recommendation needs a specification fixed in advance.
-- **Samples.** 90 moves into Super League over three origins; 441 entry moves in all.
-- **No squad, contract or registration data** today; the client may be able to get some.
-- **A prototype on a commercial timetable**, not a research programme. If something
-  takes months, say so plainly.
-- The data are licensed Stats Perform rows supplied under a client agreement; use them
-  only for this review.
+- **2026 is exploratory, 2027 confirmatory.** Nothing may be tuned on 2027.
+- **Samples:** about 30 moves into Super League a season; 90 over 2023–25; 441 entry
+  moves in all.
+- **No squad, contract or registration data yet**; the client has been asked for named
+  teams, squads with squad numbers, signing dates and, if possible, a role band recorded
+  at signing.
+- **A prototype on a commercial timetable.** Say plainly if something takes months.
+- The data are licensed Stats Perform rows; use them only for this review.
 
 ## What I want back
 
-1. **A table of C1–C14** with your verdict, a one-line reason, and for anything not
-   "Supported" the wording you would put in the note instead.
-2. **Problems ranked by how much they change a decision**, each with file, function or
-   line, and how I can check you are right.
-3. **Recommended next steps**, in order, with what each buys and what it costs. Be
-   willing to recommend stopping or descoping.
-4. **What you would tell the client this week**, in two or three sentences a club would
-   understand, using only what is evidenced.
-5. **What you could not assess**, and what you would need to.
+1. **Part A table:** each row of `RESPONSE_TO_R6.md` with adequate / partial /
+   inadequate and a one-line reason.
+2. **The frozen 2026 specification**, as text that could be committed, plus anything in
+   `retest_r6.py` that must change before freezing.
+3. **The card:** keep, change (how), or hold back from the demo.
+4. **Part D table** of N1–N13.
+5. **Anything that should stop the client seeing the note** in its current form.
+6. **What you could not assess.**
 
-Where a judgement is arguable, give both sides and then commit to one. Do not pad: if
-the right answer to a question is short, a short answer is the one I want.
+Where a judgement is arguable, give both sides and commit to one. If the right answer is
+short, give the short answer.
