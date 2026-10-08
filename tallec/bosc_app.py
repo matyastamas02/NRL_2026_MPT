@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 from pathlib import Path
-from predict_translation import translate, available_pairs, COMP_NAME
+from predict_translation import translate, available_pairs, comparables, COMP_NAME
 from sp_schema import POSITION_GROUP
 import runtime
 
@@ -280,7 +280,15 @@ def load_player_meta(comp):
 
 @st.cache_data
 def load_ladder():
-    return pd.read_sql("SELECT * FROM translation_ladder ORDER BY n DESC", con)
+    """The ladder the forecasts use: v3, next-season horizon, on the peer-score scale.
+
+    This read the v2 `translation_ladder` table until the sixth review round, which
+    offered only eight directions (nothing but Super League from the NRL) and printed
+    shifts on the scale retired in September.
+    """
+    from predict_translation import LADDER, LAYER_NEXT_SEASON
+    lad = LADDER[LADDER.layer == LAYER_NEXT_SEASON]
+    return lad.sort_values("n", ascending=False).reset_index(drop=True)
 
 @st.cache_data
 def load_round_composites(comp):
@@ -820,15 +828,22 @@ elif page == "🔄 Comparison":
                   f"{p.get('position') or 'Unknown'}"
                   + (f", {p['age']:.0f}y" if pd.notna(p.get("age")) else ""))
 
+        # what the conditional model actually uses: config.json -> translation.
+        # model_features (rating, direction, position group); age, minutes and matches
+        # were removed after an ablation and must not be claimed here
         if res.get("forecast_method") == "straight line":
+            fitted_on = (f"{res['line']['n']} earlier moves from {COMP_NAME[src]}"
+                         if res["line"]["basis"] == "direction" else
+                         f"{res['line']['n']} earlier moves between all competitions, "
+                         f"because too few have gone from {COMP_NAME[src]}")
             how = (f"For moves into {COMP_NAME[tgt]} it is a straight line fitted to "
-                   f"{res['line']['n']} earlier moves from {COMP_NAME[src]}. In the "
-                   f"2023–2025 backtest, a model that also uses position, age, minutes "
-                   f"and matches played was no more accurate than this line on moves "
-                   f"into Super League, so the line is shown.")
+                   f"{fitted_on}. In the 2023–2025 backtest the conditional model, "
+                   f"which also uses the player's position group, showed no clear "
+                   f"advantage over this line on moves into Super League, so the "
+                   f"simpler line is used.")
         else:
-            how = ("It takes his position, age, minutes and matches played into "
-                   "account.")
+            how = ("It uses his rating, the direction of the move and his position "
+                   "group.")
         st.caption(
             "**The forecast is the number to use.** It answers *what will he do here "
             f"next season*. {how} **His level translated** answers a different "
@@ -846,13 +861,46 @@ elif page == "🔄 Comparison":
                   f"{res['ladder_shift_points']:+.1f} pts",
                   delta=f"±{res['avg_band_points']:.1f} at 95%", delta_color="off")
         u2.metric("This individual player", f"{res['score_target']:.0f} pts",
-                  delta=f"±{res['band_points']:.1f} at 95%", delta_color="off")
+                  delta=f"±{res['band_points']:.1f} historical range", delta_color="off")
         st.caption("The average level difference between two competitions is measured "
-                   "tightly. **One player's** outcome is not: the individual band is "
-                   "about as wide as the whole spread of player ratings, because how a "
-                   "specific player adapts is mostly not predictable from his numbers. "
-                   "Use the forecast to set expectations, and the band to remember how "
+                   "tightly. **One player's** outcome is not: the individual range is "
+                   "about as wide as the whole spread of player ratings. It is 1.96 "
+                   "times the spread of past errors for this kind of move — a guide to "
+                   "how widely outcomes have varied, not a calibrated 95% promise. Use "
+                   "the forecast to set expectations, and the range to remember how "
                    "little anyone can promise about one signing.")
+
+        # the comparison card: real outcomes of earlier movers like this one, chosen by
+        # the rule fixed in predict_translation.comparables, not by hand
+        st.divider()
+        st.write(f"**Players who made this move before**")
+        cmp_ = comparables(p["class_score"], src, tgt,
+                           position_group=sp.POSITION_GROUP.get(p.get("position")),
+                           exclude_player=p.get("player_id"))
+        if cmp_["n"] == 0:
+            st.info(f"Not enough earlier moves from {COMP_NAME[src]} into "
+                    f"{COMP_NAME[tgt]} near a rating of {p['class_score']:.0f} to compare "
+                    f"with ({cmp_['n_direction']} moves in this direction in all).")
+        else:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Comparable moves", f"{cmp_['n']}")
+            c2.metric(f"Median in {COMP_NAME[tgt]}", f"{cmp_['median']:.0f}")
+            c3.metric("Middle half", f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f}")
+            c4.metric("Most of them (10–90%)", f"{cmp_['q10']:.0f}–{cmp_['q90']:.0f}")
+            st.caption(
+                f"Players who moved from {COMP_NAME[src]} into {COMP_NAME[tgt]} the next "
+                f"season with a rating within ±{cmp_['window']:g} of "
+                f"{p['class_score']:.0f}, {cmp_['basis']}; {cmp_['n_direction']} moves "
+                f"in this direction in all. Only movers who played at least three "
+                f"matches in {COMP_NAME[tgt]} are included, so players who moved and "
+                f"barely played are not in this list. The forecast above is a single "
+                f"line through moves like these; this shows how far apart their real "
+                f"outcomes were.")
+            show = cmp_["rows"][["name", "season_tgt", "raw_position", "class_source",
+                                 "class_target", "n_tgt"]].copy()
+            show.columns = ["Player", "Moved for", "Position", f"Rating in {src}",
+                            f"Rating in {tgt}", f"Matches in {tgt}"]
+            st.dataframe(show.round(0), width="stretch", hide_index=True)
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")
@@ -871,14 +919,23 @@ elif page == "🔄 Comparison":
     st.write("**The measured ladder** — mean within-player shift, in rating points")
     lad = ladder.copy()
     lad["Move"] = lad.source.map(COMP_NAME) + " → " + lad.target.map(COMP_NAME)
-    lad["Shift (pts)"] = lad.pts_0_100.round(1)
-    lad["± 95%"] = (1.96 * lad.se / 0.25 * 9.6).round(1)
+    lad["Shift (pts)"] = lad.shift_pts.round(1)
+    lad["± 95%"] = (1.96 * lad.se_pts).round(1)
     view = lad[["Move", "n", "Shift (pts)", "± 95%"]].rename(columns={"n": "Moves observed"})
     st.dataframe(view, width="stretch", hide_index=True)
-    st.caption("A positive shift means the player rates **higher** in the destination, "
-               "i.e. it is the weaker pool. Both directions of a pair are listed "
-               "separately and should carry opposite signs — they do, which is the "
-               "main internal check on the whole ladder.")
+    # the sign check is computed, not asserted: a sentence saying "they do" stood here
+    # while one pair did not
+    by = {(r.source, r.target): r for r in ladder.itertuples()}
+    both_ways = [(a, b) for (a, b) in by if (b, a) in by and a < b]
+    odd = [f"{COMP_NAME[a]} ↔ {COMP_NAME[b]}" for a, b in both_ways
+           if by[(a, b)].shift_pts * by[(b, a)].shift_pts >= 0]
+    st.caption("A positive shift means the player rates **higher** in the destination "
+               "the next season, i.e. it is the weaker pool. Both directions of a pair "
+               "are listed separately and should carry opposite signs, which is the main "
+               f"internal check on the ladder: {len(both_ways) - len(odd)} of "
+               f"{len(both_ways)} pairs do"
+               + (f"; {', '.join(odd)} does not, so read that pair with care."
+                  if odd else "."))
 
 # ─── PAGE: Squad & Contribution (GIGOT) ────────────────────────────────
 elif page == "🏉 Squad (GIGOT)":

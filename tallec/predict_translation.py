@@ -130,28 +130,88 @@ POS_GROUP = _PKL.get("position_group", {})
 # The line is as accurate and is explained by two numbers. Decided 2026-10-08.
 LINE_TARGETS = ("SL",)
 MIN_LINE_PAIRS = 25          # the backtest's threshold for a direction's own line
+# Only the next-season horizon was backtested, so only it gets a line. The fallback is
+# the backtest's own: a direction with fewer than MIN_LINE_PAIRS pairs uses the line
+# pooled over every next-season pair, which is what was scored in 38 of the 90
+# historical forecasts into Super League. Any other horizon keeps the model.
+LINE_LAYERS = ("B_next_season",)
 # the deployed app holds only the copy build_app_db.py makes; the pairs are in both
 _DB_READ = DB if os.path.exists(DB) else os.path.join(BASE, "tallec_app.db")
 _LINES = {}
 
 
+def _fit_line(p, basis):
+    slope, icept = np.polyfit(p.class_source, p.class_target, 1)
+    resid = p.class_target - (slope * p.class_source + icept)
+    return dict(slope=float(slope), intercept=float(icept), n=len(p), basis=basis,
+                resid_sd=float(np.sqrt((resid ** 2).sum() / (len(p) - 2))))
+
+
 def _line(source, target, layer):
-    """Slope, intercept and residual SD of target ~ source for one direction, or None."""
+    """target ~ source for one direction, its pooled fallback, or None.
+
+    `basis` says which: "direction" when the direction has MIN_LINE_PAIRS pairs of its
+    own, "pooled" when the line is fitted on every pair of the layer instead.
+    """
     key = (source, target, layer)
     if key not in _LINES:
-        con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
-        p = pd.read_sql("SELECT class_source, class_target FROM translation_pairs_v3 "
-                        "WHERE layer = ? AND source = ? AND target = ?", con,
-                        params=(layer, source, target))
-        con.close()
-        if len(p) < MIN_LINE_PAIRS:
+        if layer not in LINE_LAYERS:
             _LINES[key] = None
-        else:
-            slope, icept = np.polyfit(p.class_source, p.class_target, 1)
-            resid = p.class_target - (slope * p.class_source + icept)
-            _LINES[key] = dict(slope=float(slope), intercept=float(icept), n=len(p),
-                               resid_sd=float(np.sqrt((resid ** 2).sum() / (len(p) - 2))))
+            return None
+        con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
+        p = pd.read_sql("SELECT source, target, class_source, class_target "
+                        "FROM translation_pairs_v3 WHERE layer = ?", con, params=(layer,))
+        con.close()
+        own = p[(p.source == source) & (p.target == target)]
+        _LINES[key] = (_fit_line(own, "direction") if len(own) >= MIN_LINE_PAIRS
+                       else _fit_line(p, "pooled") if len(p) >= MIN_LINE_PAIRS else None)
     return _LINES[key]
+
+
+# ── comparable past moves ─────────────────────────────────────────────────────
+# What the sixth review proposed showing beside, or instead of, a point forecast: the
+# real outcomes of earlier players who made the same move from a similar rating. The
+# rule is fixed here, before anyone looks at a particular player: same direction, next
+# season, source rating within COMP_WINDOW points; the same position group when that
+# still leaves COMP_MIN moves, otherwise any position, and the card says which; the
+# window doubles once if there are still too few; below that, "not enough data". The
+# player himself is left out. Every pair is a mover who played at least three matches
+# in the new competition, so players who moved and barely played are not represented.
+COMP_WINDOW = 7.5
+COMP_MIN = 8
+
+
+def comparables(score, source, target, position_group=None, exclude_player=None,
+                layer=LAYER_NEXT_SEASON):
+    """Earlier movers like this one, their outcomes and the rule that chose them."""
+    import sp_schema as sp
+    con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
+    p = pd.read_sql("SELECT player_id, name, season_src, season_tgt, class_source, "
+                    "class_target, raw_position, n_tgt FROM translation_pairs_v3 "
+                    "WHERE layer = ? AND source = ? AND target = ?", con,
+                    params=(layer, source, target))
+    con.close()
+    p["group"] = p.raw_position.map(sp.POSITION_GROUP)
+    if exclude_player is not None:
+        p = p[p.player_id.astype(str) != str(exclude_player)]
+    out = dict(n=0, n_direction=len(p), basis="not enough data", window=None,
+               rows=p.iloc[0:0])
+    for window in (COMP_WINDOW, 2 * COMP_WINDOW):
+        near = p[(p.class_source - float(score)).abs() <= window]
+        same = near[near.group == position_group] if position_group else near.iloc[0:0]
+        if len(same) >= COMP_MIN:
+            rows, basis = same, f"same position group ({position_group})"
+        elif len(near) >= COMP_MIN:
+            rows, basis = near, "any position"
+        else:
+            continue
+        q = rows.class_target.quantile([.1, .25, .5, .75, .9])
+        return dict(n=len(rows), n_direction=len(p), basis=basis, window=window,
+                    q10=float(q[.1]), q25=float(q[.25]), median=float(q[.5]),
+                    q75=float(q[.75]), q90=float(q[.9]),
+                    rows=rows.assign(gap=(rows.class_source - float(score)).abs())
+                             .sort_values("gap"))
+    return out
 
 
 def available_pairs():
@@ -292,7 +352,8 @@ def translate(score, source, target, raw_position=None, position_group=None,
                                  0.0, 100.0))
         band_sd, method = line["resid_sd"], "straight line"
         note = (f"; forecast from a straight line fitted to {line['n']} earlier moves "
-                f"from {COMP_NAME[source]} into {COMP_NAME[target]}")
+                + (f"from {COMP_NAME[source]} into {COMP_NAME[target]}"
+                   if line["basis"] == "direction" else "between all competitions"))
     else:
         forecast, band_sd, method = score_model, rmse, "conditional model"
         note = "; forecast from the conditional model"
