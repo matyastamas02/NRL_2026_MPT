@@ -67,7 +67,7 @@ Where the results stand (source and date with each, so they can be re-derived):
 - **Player layer in the match model** (`gigot_v2.py`, re-run 2026-10-07 after the
   2026-09-22 rebuild): +0.24 MAE [+0.05, +0.44] on the NRL over 752 walk-forward
   fixtures, +1.13 [+0.62, +1.63] on Super League over 497. Measured on the actual
-  line-up, so an upper bound until team lists exist.
+  line-up, so an upper bound until the teams named before each round exist.
 - Verdict: good for an internal or beta demo; not yet a validated recruitment ranking.
 - **Moves into Super League are forecast by a straight line** since 2026-10-08
   (`predict_translation.LINE_TARGETS`): `target ~ source` per direction, fitted on the
@@ -102,7 +102,17 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 4. **Middles: hit-up metres or line-break assists**, and confirmation of the name
    "Edge". Folding Lock into Middles dropped the lock block's LBA-per-receipt slot
    (`metric_spec.LOCK_BLOCK_RETIRED`).
-5. **Team lists**, even typed by hand — a list of names per club per round.
+5. **Named teams and Super League squad numbers.** Every match's actual line-up is
+   already in the data, and so are mid-season club changes within the four
+   competitions (5.5% of SL player-seasons show two clubs) and players moving between
+   the NRL and a Cup. What is missing is what was known beforehand: the team named
+   before each round (the match model needs it during the week; the backtest uses the
+   actual line-up and is an upper bound), and each SL club's squad and squad numbers at
+   the start of the season, the closest record of the role a club planned for a
+   signing. Players on the books who never appear (injured, dropped, or loaned outside
+   the four competitions, e.g. to the Championship) are invisible, which is why the
+   look-ahead "vacated minutes" proxy cannot tell an injury from a departure. Squad
+   numbers are public; 12 clubs × ~30 players × 3 seasons could be typed by hand.
 6. **Metric dictionary** — all 341 rows still at `Decision=Review`; Mike's position
    specification may have superseded it, which Mike should confirm.
 7. **The Ben Talty row** — reassigned as instructed, which gives Ben Talty a round-20
@@ -116,8 +126,10 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 10. **Established-role output and a Super-League-target shortlist validation.**
 11. **Rating reliability and a measurement-error model.**
 12. **Sensitivity of the arrival model's 0.35 pooling.**
-13. **The real team-list backtest** — needs item 5; the single question that would most
-    change what can be claimed about the match model.
+13. **The named-team backtest** — needs item 5; the single question that would most
+    change what can be claimed about the match model. **Expected role from squad
+    numbers** — also needs item 5; the one untested candidate for closing the
+    translation's gap above the noise floor.
 14. **Refresh *Reading the Numbers*** on the peer-score scale, or retire it. The status
     note currently points readers to the app's own explanation instead.
 15. **Position-specific ratings.** A player who covers several positions gets one rating

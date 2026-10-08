@@ -69,8 +69,10 @@ Answer as an advisor who has read the evidence, not only as an auditor.
    for the demo: a band, a tier, a probability of reaching a regular role, a comparison
    set of similar past movers, something else? Argue for one.
 3. **What would most plausibly close the roughly 8 points above the noise floor**, using
-   data the client could realistically obtain: team lists, squads at the start of the
-   season, signing and contract dates, Championship data, scouts' priors. How would you
+   data the client could realistically obtain: the teams named before each round, Super
+   League squads and squad numbers at the start of the season (the data hold every
+   actual line-up but nothing known beforehand), signing and contract dates,
+   Championship data, scouts' priors. How would you
    test it with about 90 moves into Super League a year, and what should be fixed in
    advance for 2026 (exploratory) and 2027 (confirmatory)?
 4. **Scope items that are not met or are at risk.** Check the build against section 1

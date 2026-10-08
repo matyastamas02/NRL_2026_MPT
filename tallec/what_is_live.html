@@ -376,7 +376,7 @@
   <p>Over fixtures the model had not seen, adding the player layer cuts margin error by 0.24 points in the NRL (95% range +0.05 to +0.44, 752
   fixtures) and by 1.13 points in Super League (+0.62 to +1.63, 497 fixtures). Both ranges
   exclude zero. Both use the line-up that actually played, which is only known afterwards, so they
-  are an upper bound until team lists exist.</p>
+  are an upper bound until the teams named before each round are available.</p>
 
   <div class="note warn">
     <span class="lbl">Where that leaves it</span>
@@ -401,12 +401,13 @@
     78 for wingers, a roughly thirty-fold spread in passes per minute, about 1.5 positions
     per player, and no more position values than rows.</p></li>
 
-    <li><b>Team lists and squads, even typed by hand</b>
-    A list of names per club per round, and each club's squad at the start of the season.
-    It is now the one input that could still improve the translation: the versions of a
-    player's expected role that can be built from appearances added nothing measurable. It
-    is also what turns the match-model result above from an upper bound into something
-    usable during the week.</li>
+    <li><b>Named teams and Super League squad numbers</b>
+    We already have every match's actual line-up. What is missing is what was known
+    beforehand: the team named before each round, which the match model needs during the
+    week, and each Super League club's squad and squad numbers at the start of the season,
+    which is the closest record of the role a club planned for a new signing. The proxies
+    for that role built from appearances added nothing measurable, partly because they
+    cannot tell an injured or loaned player from one who left.</li>
 
     <li><b>Super League set restarts</b>
     The column is empty on every Super League row, while all three Australian competitions
@@ -452,9 +453,9 @@
     <div class="row">
       <span class="chip later">next</span>
       <div>
-        <div class="t">Expected role from real squad data</div>
-        <p>Once team lists and squads are in, whether the role a club plans for a player
-        explains what the line misses.</p>
+        <div class="t">Expected role from squad numbers</div>
+        <p>Once the Super League squads and squad numbers are in, whether the role a club
+        planned for a player explains what the line misses.</p>
       </div>
     </div>
     <div class="row">
