@@ -13,7 +13,9 @@ the engine's own formula: a season mean with variance sigma^2/n, shrunk by B, ma
 or more matches in 2023-2025 tests whether sigma^2/n is the right size for that noise.
 As a reference rather than a floor, it also scores Super League players who stayed,
 forecast from their own previous Super League season through a straight line fitted
-walk-forward.
+walk-forward. Last, it compares the model with the straight line on less noisy targets:
+movers with 16 or 20+ target matches, and all 90 with the simulated noise variance
+subtracted from each squared error.
 
 Read-only: opens tallec.db read-only and writes nothing unless given an output folder.
 
@@ -103,7 +105,7 @@ print(f"n_tgt equals backtest n_target: {bool((m.n_tgt == m.n_target).all())}")
 print(f"target reproduced for {len(m) - miss}/{len(m)} movers, max |diff| {gap:.6f}")
 
 # ── 3. Monte Carlo floor per mover ─────────────────────────────────────────────
-fl_pub, fl_raw = [], []
+fl_pub, fl_raw, nv_pub = [], [], []
 for r in m.itertuples():
     tau = math.sqrt(r.tau2)
     e = RNG.normal(0.0, math.sqrt(r.sigma2 / r.n_tgt), DRAWS)
@@ -112,10 +114,11 @@ for r in m.itertuples():
     y0 = g(np.array([r.mu + B * (T - r.mu)]), r.scale_centre, tau)[0]
     ys = g(r.mu + B * (T + e - r.mu), r.scale_centre, tau)
     fl_pub.append(float(np.abs(ys - y0).mean()))
+    nv_pub.append(float(((ys - y0) ** 2).mean()))
     yr0 = g(np.array([T]), r.scale_centre, tau)[0]
     yrs = g(T + e, r.scale_centre, tau)
     fl_raw.append(float(np.abs(yrs - yr0).mean()))
-m["floor_published"], m["floor_raw"] = fl_pub, fl_raw
+m["floor_published"], m["floor_raw"], m["noise_var"] = fl_pub, fl_raw, nv_pub
 
 # sensitivity: locate the true level at the unshrunk mean instead
 fl_alt = []
@@ -180,6 +183,46 @@ print(f"\nSL stayers, own previous SL season through a straight line: "
       f"{len(st)} player-seasons, MAE {float((st.class_score - st.pred).abs().mean()):.2f}; "
       f"with no more target matches than the movers' upper quartile ({len(st_small)}): "
       f"{float((st_small.class_score - st_small.pred).abs().mean()):.2f}")
+
+# ── 5. the model against the line on less noisy targets ───────────────────────
+# Noise in the target is the same for both predictors, so it does not move their
+# difference in expectation; it widens the interval. Two ways to take it out, neither of
+# which touches 2026: score only movers with many target matches, and subtract the
+# simulated noise variance from each predictor's squared error on all 90.
+def mae_line_model(g):
+    b = rb.boot(g, "line_direction", "model")
+    e = lambda c: float((g.class_target - g[c]).abs().mean())
+    return e("model"), e("line_direction"), b
+
+
+print("\nmodel against the straight line, positive = model closer:")
+for label, sub in (("all 90, season-only target", m),
+                   ("16+ target matches", m[m.n_tgt >= 16]),
+                   ("20+ target matches", m[m.n_tgt >= 20])):
+    mm, ml, b = mae_line_model(sub)
+    print(f"  {label:28s} n={len(sub):3d}  floor {sub.floor_published.mean():5.2f}  "
+          f"MAE model {mm:5.2f}  line {ml:5.2f}  diff {b[0]:+.2f} [{b[1]:+.2f}, {b[2]:+.2f}]")
+
+se_m = (m.class_target - m.model) ** 2
+se_l = (m.class_target - m.line_direction) ** 2
+nv = float(m.noise_var.mean())
+true_rmse = lambda se: math.sqrt(max(float(se.mean()) - nv, 0.0))
+diff = (se_l - se_m).values
+pids = m.player_id.values
+uniq = pd.unique(pids)
+at = {q: np.where(pids == q)[0] for q in uniq}
+bs = np.empty(4000)
+rng = np.random.default_rng(0)
+for i in range(4000):
+    pick = rng.choice(uniq, uniq.size, replace=True)
+    idx = np.concatenate([at[q] for q in pick])
+    bs[i] = true_rmse(se_l.iloc[idx]) - true_rmse(se_m.iloc[idx])
+print(f"  noise removed, all 90 (RMSE against the true season level): "
+      f"model {true_rmse(se_m):.2f}  line {true_rmse(se_l):.2f}  "
+      f"diff {true_rmse(se_l) - true_rmse(se_m):+.2f} "
+      f"[{np.percentile(bs, 2.5):+.2f}, {np.percentile(bs, 97.5):+.2f}]  "
+      f"(observed RMSE model {math.sqrt(se_m.mean()):.2f}, line {math.sqrt(se_l.mean()):.2f}; "
+      f"noise SD {math.sqrt(nv):.2f})")
 
 if OUT:
     os.makedirs(OUT, exist_ok=True)
