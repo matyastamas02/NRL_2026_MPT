@@ -207,7 +207,7 @@
 
   <div class="strip">
     <div class="cell"><b>4</b><span>competitions</span></div>
-    <div class="cell"><b>122,359</b><span>player-match records</span></div>
+    <div class="cell"><b>137,584</b><span>player-match records</span></div>
     <div class="cell"><b>1,835</b><span>players rated, as of the end of 2025</span></div>
     <div class="cell"><b>441</b><span>moves between competitions forecast out of sample</span></div>
   </div>
@@ -249,6 +249,16 @@
         Edge, as Leeds asked. The Position page shows the volume and rate metrics from your
         position sheet, and says for each competition and season which ones the data
         cannot support.</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="chip live">now live</span>
+      <div>
+        <div class="t">The 2026 season is in</div>
+        <p>All four competitions, every round through the grand finals, with each player's
+        position from the match sheet. Ratings are still fitted only through 2025, as you
+        decided, so 2026 is what they are tested on. The 2026 Super League rows carry set restarts
+        conceded. The Ben Talty round-20 Capras row is left out, as you said.</p>
       </div>
     </div>
     <div class="row">
@@ -343,20 +353,25 @@
   matches started and the strength of the new club's players in his position were also
   tried; none showed a consistent improvement.</p>
 
-  <h3>The 2026 test, fixed in advance</h3>
-  <p>One comparison decides it: the app's line against the same line with the indicator,
-  on 2026 entrants into Super League from the NRL, the NSW Cup and the Queensland Cup,
-  scored on 2026 alone. It counts as a positive exploratory signal only if the indicator
-  is at least one rating point closer on average and the 95% range stays above zero. With
-  fewer than 25 entrants, or fewer than five on either side of the indicator, the result
-  is undecided. Everything else is reported as description only. A confirmation would need
-  2027, under its own specification fixed before any 2027 result is seen.</p>
+  <h3>The 2026 test</h3>
+  <p>The comparison was fixed before any 2026 result was processed: the app's line against
+  the same line with the indicator, on 2026 entrants into Super League from the NRL, the NSW
+  Cup and the Queensland Cup, scored on 2026 alone. The indicator needed to be at least one
+  rating point closer on average, with the 95% range above zero.</p>
+  <p><strong>42 players entered Super League in 2026 and were rated, 9 without a rated
+  previous source season and 33 with one. The line missed their 2026 rating by 16.59 points
+  on average, and 16.73 with the indicator.</strong> The difference is −0.14 (95% range
+  −1.34 to +0.99), so a one-point gain from the indicator is not supported and the line
+  stays as it is. Each of the 42 forecasts used its own direction's line. Because part of
+  2026 was already in the data while the method was developed, this is an exploratory
+  result. 2027 is the confirmatory season, under its own specification fixed before any
+  2027 result is seen.</p>
   <p>How to read the rest of this section:</p>
   <ul>
     <li>Starts for NRL players are rebuilt from interchange records, because that export
     has no match-sheet positions. Where the rule decides, it agrees with the match sheets of
-    the other seasons 99.98% of the time, and 84% on the rest. It has not been checked on
-    NRL seasons after 2020.</li>
+    the other seasons 99.98% of the time, and 84% on the rest. On the NRL 2026 match sheets
+    it is right on every row where it decides, 74% of them, and on 87% of the rest.</li>
     <li>Role was measured from who played for the new club, not from what the club
     planned.</li>
   </ul>
@@ -373,10 +388,6 @@
     <li><strong>Dated squad and intended-role information is the most promising next
     test.</strong> We have not established that it is necessary or sufficient to improve
     the translation.</li>
-    <li><strong>If 2026 supplies about 30 comparable entrants into Super League</strong>,
-    adding them to the historical sample could narrow its sampling uncertainty by roughly
-    13% under similar conditions. That would not be an independent confirmation, which is
-    why the 2026 test is scored on 2026 alone.</li>
   </ul>
 
   <h3>Who arrives at all</h3>
@@ -408,43 +419,24 @@
   <p class="sub">In order of how much each would change.</p>
 
   <ol class="ask">
-    <li><b>The 2026 season</b>
-    NSW Cup and Queensland Cup 2026, and the NRL 2026 export with the position joined row by
-    row, the way the Super League master came. As you decided, everything is fitted
-    only through 2025, so 2026 becomes the first test of what the ratings and the translation
-    projected.
-    <p>Because the method was developed while part of 2026 was already in the data, 2026
-    will serve as an exploratory test and 2027 as the clean confirmatory one. On arrival the
-    position column gets the checks every position file gets: about 46 minutes for props and
-    78 for wingers, a roughly thirty-fold spread in passes per minute, about 1.5 positions
-    per player, and no more position values than rows.</p></li>
-
     <li><b>Named teams, Super League squads and signing dates</b>
     We already have every match's actual line-up. What is missing is what was known
     beforehand: the team named before each round, which the match model needs during the
     week; each Super League club's squad and squad numbers at the start of the season; and
     the date each signing was registered. Squad numbers are only a rough guide to the role a
     club planned, so if a club can give a simple role band for its signings at the time of
-    signing (starter, rotation, depth), that would be better still.</li>
+    signing (starter, rotation, depth), that would be better still. For Super League team
+    lists, whatever your contact can collect is enough to start.</li>
 
-    <li><b>Super League set restarts</b>
-    The column is empty on every Super League row, while all three Australian competitions
-    have it. Six-again is played in Super League, so this is a gap in the extract. Without it,
-    discipline cannot be compared between a Super League forward and an NRL one. Worth asking
-    Stats Perform for.</li>
+    <li><b>One re-export for the kicking and discipline columns</b>
+    <code>Try Assist - Kick</code> and <code>Kick - Forced Dropout</code> are not in the 2026
+    export either, for any competition. Try assists minus passing try assists does not
+    recover the kick ones, since it goes negative on some rows. If these are pulled again for
+    every season, Super League set restarts conceded for 2021–2025 could come in the same
+    pull: the 2026 rows have them, the earlier Super League seasons are still empty, so until
+    then discipline compares across hemispheres for 2026 only.</li>
 
-    <li><b>Two columns from your sheet that the extract does not have</b>
-    <code>Try Assist - Kick</code> and <code>Kick - Forced Dropout</code>. The feed has try
-    assists and tries from kicks, and the dropout taken rather than the kick that forced it,
-    which are not the same things. A fuller export may carry both.</li>
-
-    <li><b>Middles: hit-up metres or line-break assists?</b>
-    Folding locks into Middles meant choosing between the prop's hit-up metres per run and
-    the lock's line-break assists per receipt for one slot. It currently uses hit-up metres.
-    Please confirm, and confirm that "Edge" is the name you want for the second row.</li>
-
-    <li><b>Three scope points to agree</b>
-    Form is calculated over the last five matches; the scope asks for three and five.
+    <li><b>Two scope points to agree</b>
     Divergence is shown as the difference between Form and Class on the underlying scale;
     the scope asks for a percentage, which is not meaningful on a peer score because the
     scale has no true zero. Separate ratings for each position a player covers are not
@@ -454,10 +446,6 @@
     All 341 rows are still marked for review. If your position sheet has replaced it, say so
     and I will retire it.</li>
 
-    <li><b>One row to confirm</b>
-    The Ben Talty reassignment, done as you instructed, produces a round-20 appearance for
-    the Capras, while every other Queensland Cup 2025 row for the player is Burleigh
-    Bears. Is that what you intended?</li>
   </ol>
 </section>
 
@@ -469,11 +457,9 @@
     <div class="row">
       <span class="chip later">next</span>
       <div>
-        <div class="t">The 2026 test, fixed in advance</div>
-        <p>The comparison described above, run unchanged on the 2026 season once its data
-        are in, with the decision rule fixed now. The other variants are reported as
-        description only. 2027 is the confirmatory season and gets its own specification
-        before any of its results are seen.</p>
+        <div class="t">The 2027 specification</div>
+        <p>The confirmatory test, fitted through 2026 and fixed before any 2027 result is
+        seen, including anything 2026 suggested.</p>
       </div>
     </div>
     <div class="row">

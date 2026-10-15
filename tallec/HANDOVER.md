@@ -121,16 +121,25 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 
 ### Waiting on Mike
 
-1. **2026 data** — NSW Cup and Queensland Cup 2026, and NRL 2026 with match-sheet
-   positions. Promised for early October. Run the position checks in §4 on arrival.
-2. **Super League set restarts** — NULL on every row (`metric_spec.DATA_REQUESTS`
-   DATA-1). Without it discipline cannot be compared across hemispheres.
-3. **`Try Assist - Kick` and `Kick - Forced Dropout`** — named in Mike's spec, absent from
-   the extract (DATA-2).
-4. **Middles: hit-up metres or line-break assists**, and confirmation of the name
-   "Edge". Folding Lock into Middles dropped the lock block's LBA-per-receipt slot
-   (`metric_spec.LOCK_BLOCK_RETIRED`).
-5. **Named teams and Super League squad numbers.** Every match's actual line-up is
+1. **Done: 2026 data.** `2026_Player_Data_Tamas.xlsx` (sheets NRL, SL, Q Cup, NSW Cup),
+   every round through the grand finals, with a match-sheet `Position` on all but a few
+   dozen rows. Imported with `weekly_update.py` (data_imports 40–43); it replaced the
+   earlier partial NRL R1–20 and SL R1–19 rows, whose new players had slug IDs. Position
+   checks pass (props 45–49 min, wingers 78, ten values). The starts rule on NRL 2026
+   match sheets: decides 74% of rows at 100%, 40+ minutes gets 87% of the rest.
+   `weekly_update.py` now keeps a registry date of birth once set (the string `min` let a
+   reformatted or `0000-00-00` date replace it, which would have broken the freeze).
+2. **Super League set restarts** — present on the 2026 SL rows, still NULL on SL
+   2021–25 (DATA-1). Mike: everyone should have it, so the earlier SL export lacks it.
+3. **`Try Assist - Kick` and `Kick - Forced Dropout`** — not in the 2026 export either
+   (DATA-2). `Try Assists − Pass Outcome - Try Assist` is not a substitute (negative on
+   some rows). Mike may re-export them for all players; ask for SL set restarts
+   2021–25 in the same pull.
+4. **Done: Middles use hit-up metres** — Mike confirmed ("ignore assists"), which is
+   what `metric_spec` already does. "Edge" was not commented on; it stays.
+5. **Named teams and Super League squad numbers.** Mike: SL does not publish team
+   sheets (may start next year); he knows someone who collects them, else a slower
+   workaround. Every match's actual line-up is
    already in the data, and so are mid-season club changes within the four
    competitions (5.5% of SL player-seasons show two clubs) and players moving between
    the NRL and a Cup. What is missing is what was known beforehand: the team named
@@ -143,15 +152,19 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
    numbers are public; 12 clubs × ~30 players × 3 seasons could be typed by hand.
 6. **Metric dictionary** — all 341 rows still at `Decision=Review`; Mike's position
    specification may have superseded it, which Mike should confirm.
-7. **The Ben Talty row** — reassigned as instructed, which gives Ben Talty a round-20
-   Capras appearance while every other Queensland Cup 2025 row for the player is Burleigh
-   Bears.
+7. **Done: the Ben Talty row** — Mike: he played only for Burleigh. The QLD 2025 R20
+   Capras row is removed (data_imports 44, recorded in `excluded_rows`); Burleigh played
+   Redcliffe that round and the Capras had 18 rows. Ratings rebuilt; only QLD moved.
 
 ### Ours, not started
 
-8. **Run the 2026 test once the season's data are in**: `python frozen_2026.py
-   --eval-season 2026` against the committed manifest, unchanged. Do not retune on 2026;
-   freeze a separate 2027 specification before any 2027 result is seen.
+8. **Done: the 2026 test** — `FROZEN_2026_RESULT.md`. 42 SL entrants, S0 16.59 vs S1
+   16.73, Δ −0.14 [−1.34, +0.99]: a one-point gain is not supported; the line stays.
+   Next: freeze the 2027 specification (trained through 2026) before any 2027 result.
+   Before that freeze, clean what the 2026 freeze kept fixed: mixed DOB formats in
+   `players` (dd/mm/yyyy from the old SL 2026 feed), a few `0000-00-00` and one
+   disagreeing DOB (Salesi Foketi), and two likely re-issued IDs (Floyd Aubrey QLD
+   70057/72468, Daniel O'Donnell NSW 67489/55028).
 9. **A season-by-season shortlist test** for the arrival model, against a minutes
    baseline whose direction is learned from the training window (the sixth review showed
    reversing raw minutes would beat the model on NRL→QLD).
@@ -167,8 +180,8 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 15. **Position-specific ratings.** A player who covers several positions gets one rating
     against his most common one; the scope asks for "multiple positional ratings for the
     same player (e.g. centre and wing)". Not built.
-16. **Two scope definitions to settle with Mike.** Form uses a five-match window
-    (`config.json`); the scope asks for "3 & 5 game rolling averages". Divergence is Form
+16. **One scope definition to settle with Mike.** Form: settled, five matches only (Mike:
+    three is too noisy), as `config.json` already has. Divergence is Form
     minus Class on the composite scale; the scope defines it as "% over or under".
 
 ### Commercial (the owner's, not the code's)

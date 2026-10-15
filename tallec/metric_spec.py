@@ -198,9 +198,10 @@ RESOLVED = {
 # asking Stats Perform for, since neither is a limitation of the sport.
 DATA_REQUESTS = {
     "DATA-1": (
-        "Set restarts conceded for Super League. NULL on every row of the extract, "
-        "present throughout the three Australian competitions. Without it, discipline "
-        "cannot be compared between a Super League forward and an NRL one."),
+        "Set restarts conceded for Super League 2021-2025. NULL on every row of those "
+        "seasons; the 2026 export and all three Australian competitions have it. Until "
+        "the earlier seasons are re-exported, discipline compares a Super League forward "
+        "with an NRL one for 2026 only."),
     "DATA-2": (
         "Two columns Mike named that this extract does not contain: 'Try Assist - "
         "Kick' (KTA, for the CV formula) and 'Kick - Forced Dropout' (FDO). The feed "

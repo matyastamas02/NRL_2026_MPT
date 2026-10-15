@@ -1,28 +1,21 @@
 {
-  "generated_at": "2026-09-24T10:01:03+00:00",
-  "code_commit": "8b89807",
+  "generated_at": "2026-10-15T09:37:40+00:00",
+  "code_commit": "9626e98",
   "code_clean": false,
   "uncommitted_paths": [
-    "ABLATION_REPORT.md",
-    "ARRIVAL_REPORT.md",
-    "POINT0_REPORT.md",
-    "VARIANCE_BIAS_REPORT.md",
-    "ablate_translation.py",
-    "arrival_model.py",
-    "config.json",
-    "predict_translation.py",
-    "sp_schema.py",
-    "tallec_audit.db",
-    "tests/test_arrival_model.py",
-    "tests/test_recency_and_aging.py",
-    "variance_bias.py"
+    "tallec/tallec_app.db",
+    "tallec/weekly_update.py",
+    ".DS_Store",
+    ".agents/",
+    ".claude/",
+    "tallec/frozen_2026_run/"
   ],
   "config_hash_canonical": "ab97bd7b51fb",
   "freeze_season": 2025,
   "input": {
     "table": "player_match_stats",
-    "rows": 122359,
-    "sha256": "6a3cf3a71b2870d1"
+    "rows": 137584,
+    "sha256": "7af4d2b3657ccc3a"
   },
   "artefacts": {
     "translation_model_v3.pkl": {
@@ -41,21 +34,21 @@
       "sha256": "e6b46f71d173ae0a"
     },
     "v1_holdout_record.json": {
-      "sha256": "82998d427aa99a7e"
+      "sha256": "9c02259b77e7f7cf"
     }
   },
   "tables": {
     "player_ratings": {
       "rows": 1835,
-      "sha256": "e9f7b4e0490544c0"
+      "sha256": "4e6e611f4f7b07bb"
     },
     "player_contribution": {
-      "rows": 22879,
-      "sha256": "fdafe3f0d651d3af"
+      "rows": 22878,
+      "sha256": "5e5cbab7e6aea8d7"
     },
     "player_contribution_rating": {
       "rows": 1869,
-      "sha256": "b80b9e013a666987"
+      "sha256": "c78b73f9d425f2c8"
     },
     "translation_ladder_v3": {
       "rows": 36,

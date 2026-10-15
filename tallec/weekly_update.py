@@ -296,6 +296,12 @@ def main():
                       "position FROM player_match_stats", con)
     dob = pd.read_sql('SELECT player_id, min("Date of Birth") dob FROM player_match_raw '
                       'WHERE "Date of Birth" IS NOT NULL GROUP BY player_id', con)
+    # A date of birth already in the registry stays: a later feed writing it in another
+    # format, or a placeholder 0000-00-00, would otherwise replace it through the string
+    # min above, and the frozen 2026 test fingerprints these dates. New players take the
+    # feed's date; corrections to an existing one are made explicitly, not by an import.
+    kept = pd.read_sql("SELECT player_id, dob FROM players WHERE dob IS NOT NULL", con)
+    dob = pd.concat([kept, dob[~dob.player_id.isin(kept.player_id)]], ignore_index=True)
     players = (pms.groupby("player_id").agg(
         name=("player", "first"),
         comps=("competition", lambda x: "; ".join(sorted(set(x)))),
