@@ -192,7 +192,12 @@ def load_all_players(comp):
            r.class_percentile, r."group" AS peer_group,
            (SELECT COUNT(*) FROM player_match_stats s
              WHERE s.player_id = r.player_id AND s.competition = r.competition
-               AND s.season <= r.season) AS n_matches
+               AND s.season <= r.season) AS n_matches,
+           -- minutes on the same rows as n_matches: the registry's total_minutes spans
+           -- every competition and season, 2026 included, so the two would not agree
+           (SELECT COALESCE(SUM(s.minutes), 0) FROM player_match_stats s
+             WHERE s.player_id = r.player_id AND s.competition = r.competition
+               AND s.season <= r.season) AS n_minutes
     FROM player_ratings r
     JOIN players p ON p.player_id = r.player_id
     WHERE r.competition = ? AND r.season = ?
@@ -386,7 +391,7 @@ if page == "🔍 Search":
             st.metric("Position", player.get("positions", "Unknown") or "Unknown")
             st.metric("Matches played", int(player["n_matches"]))
         with col3:
-            st.metric("Minutes Played", int(player["total_minutes"]))
+            st.metric("Minutes played", int(player["n_minutes"]))
 
         st.divider()
 
@@ -682,8 +687,8 @@ elif page == "📊 Benchmarks":
 
         with tab_dist:
             st.write("**Form vs Class** — where a player sits now against his own level")
-            sc = pool[["name", "form_score", "class_score", "total_minutes"]].copy()
-            sc["Minutes"] = sc["total_minutes"].fillna(0)
+            sc = pool[["name", "form_score", "class_score", "n_minutes"]].copy()
+            sc["Minutes"] = sc["n_minutes"].fillna(0)
             st.scatter_chart(sc, x="class_score", y="form_score", size="Minutes",
                              height=400)
             st.caption("Above the diagonal means current form is running ahead of "
