@@ -132,6 +132,27 @@ rolling 2023–2026):
   competition-relative; from 2025 they are position-relative. Anything that compares a
   QLD rating with a threshold must take both from the same table.
 
+**The methods programme after the 2026 test** (`METHODS_SUMMARY.md` has every result):
+- **Mike's SL history workbooks** (2021–26; `ingest_sl_history.py --write` →
+  `sl_teamsheets`, `sl_match_lines`): the 21-man squads, the matchday 17 by shirt, the
+  handicap, the total line and the weather for every match. Rerun it when Mike sends a
+  new season.
+- **Nothing on these data beats the line by much.** Gradient boosting comes closest,
+  +0.54 [+0.04, +1.02] across directions, and is a 2027 candidate. What does hold up:
+  - the competition gaps, with NRL–SL at 13–16 points by every method;
+  - the effect of moving into SL, about +10, heterogeneous by profile;
+  - the named-team GIGOT gain, +0.93 with the named 17;
+  - the model carrying information beyond the betting line.
+- Most scripts read the exploration's cache: set `POST2026_CACHE` to a pickle path, and
+  `explore_post2026.py` writes it on its first run.
+- **Trap: the SL master's 2026 rows reuse eight team codes for other clubs** (C/CF,
+  HF/HFC, LS/LH, WA/WFT). `team_map.solve` maps codes once for all seasons and gets 2026
+  wrong; `gigot_sl_named.season_maps` maps them per season. The master's ELO continues by
+  code, so those eight clubs began 2026 on the paired club's 2025 rating. This is an
+  xLadder issue and has not been fixed (the xLadder files are read-only here); the owner
+  should decide.
+- **`tallec_app.db` is now 56 MB**, above GitHub's 50 MB warning; the hard limit is 100 MB.
+
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
 15.69 in training, which suggested an in-sample column. The same column now scores
