@@ -33,3 +33,34 @@ Gap = half the difference of the two directions' shifts, as in `MATCHING_REPORT.
 | NSW–QLD | 99 / 73 | +3.2 | [-8.0, +14.8] | [-13.2, +19.7] | [-4.9, +13.3] |
 | NSW–SL | 36 / 14 | +11.1 | [+5.0, +17.1] | [-6.0, +30.7] | [+0.8, +14.2] |
 | QLD–SL | 32 / 19 | +3.9 | [-5.2, +15.2] | [-12.6, +24.9] | [-7.7, +10.5] |
+
+## The threshold and the shrinkage
+
+Observation rates (movers / matched stayers) and the gap bounds for each outcome setting. Same matching throughout (caliper 1.5).
+
+| Pair | Setting | Observed, a→b | Observed, b→a | Gap, observed only | Lee bounds | 95% for the bounds |
+|---|---|---|---|---|---|---|
+| NRL–NSW | 3+ matches, shrunk (main) | 54% / 90% | 55% / 66% | +6.2 | [-6.7, +18.8] | [-11.9, +24.4] |
+| NRL–NSW | 1+ match, shrunk | 100% / 92% | 89% / 70% | +5.3 | [-0.2, +11.2] | [-4.0, +14.4] |
+| NRL–NSW | 3+ matches, unshrunk | 54% / 90% | 55% / 66% | +7.1 | [-7.3, +21.6] | [-14.2, +28.1] |
+| NRL–NSW | 1+ match, unshrunk | 100% / 92% | 89% / 70% | +6.0 | [-1.7, +14.3] | [-6.8, +19.2] |
+| NRL–QLD | 3+ matches, shrunk (main) | 56% / 90% | 48% / 83% | +3.6 | [-13.1, +20.7] | [-20.0, +27.8] |
+| NRL–QLD | 1+ match, shrunk | 100% / 90% | 92% / 85% | +5.6 | [+2.1, +9.5] | [-3.1, +15.3] |
+| NRL–QLD | 3+ matches, unshrunk | 56% / 90% | 48% / 83% | +3.5 | [-15.7, +23.3] | [-23.7, +31.8] |
+| NRL–QLD | 1+ match, unshrunk | 100% / 90% | 92% / 85% | +8.2 | [+4.3, +13.6] | [-3.0, +21.2] |
+| NRL–SL | 3+ matches, shrunk (main) | 98% / 80% | 86% / 89% | +14.5 | [+10.3, +19.6] | [+4.0, +27.2] |
+| NRL–SL | 1+ match, shrunk | 100% / 83% | 100% / 91% | +12.9 | [+7.8, +18.8] | [+2.5, +25.2] |
+| NRL–SL | 3+ matches, unshrunk | 98% / 80% | 86% / 89% | +16.3 | [+11.6, +22.3] | [+3.7, +31.8] |
+| NRL–SL | 1+ match, unshrunk | 100% / 83% | 100% / 91% | +13.3 | [+7.7, +21.1] | [+0.2, +29.2] |
+| NSW–QLD | 3+ matches, shrunk (main) | 95% / 54% | 89% / 80% | +3.2 | [-8.0, +14.8] | [-13.2, +19.7] |
+| NSW–QLD | 1+ match, shrunk | 99% / 59% | 100% / 85% | +3.3 | [-8.1, +15.4] | [-13.2, +19.8] |
+| NSW–QLD | 3+ matches, unshrunk | 95% / 54% | 89% / 80% | +3.6 | [-9.9, +17.9] | [-16.6, +23.6] |
+| NSW–QLD | 1+ match, unshrunk | 99% / 59% | 100% / 85% | +4.5 | [-9.7, +19.9] | [-16.5, +25.5] |
+| NSW–SL | 3+ matches, shrunk (main) | 94% / 67% | 93% / 88% | +11.1 | [+5.0, +17.1] | [-6.0, +30.7] |
+| NSW–SL | 1+ match, shrunk | 100% / 69% | 100% / 88% | +9.8 | [+1.4, +17.7] | [-6.3, +30.4] |
+| NSW–SL | 3+ matches, unshrunk | 94% / 67% | 93% / 88% | +11.7 | [+4.7, +18.9] | [-8.5, +34.3] |
+| NSW–SL | 1+ match, unshrunk | 100% / 69% | 100% / 88% | +9.7 | [-0.2, +19.4] | [-9.8, +34.0] |
+| QLD–SL | 3+ matches, shrunk (main) | 100% / 76% | 89% / 68% | +3.9 | [-5.2, +15.2] | [-12.6, +24.9] |
+| QLD–SL | 1+ match, shrunk | 100% / 77% | 100% / 74% | +3.0 | [-6.8, +14.7] | [-14.0, +23.5] |
+| QLD–SL | 3+ matches, unshrunk | 100% / 76% | 89% / 68% | +3.0 | [-7.5, +16.6] | [-16.7, +27.8] |
+| QLD–SL | 1+ match, unshrunk | 100% / 77% | 100% / 74% | +2.7 | [-9.1, +17.2] | [-18.0, +27.0] |

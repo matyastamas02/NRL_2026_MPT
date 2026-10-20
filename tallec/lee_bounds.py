@@ -28,6 +28,13 @@ Mahalanobis on the season-before profile, K nearest with replacement inside the
 caliper; each mover's stayers carry weight 1/K_i. Intervals: 500 resamples of movers
 per direction, the 2.5th percentile of the lower bound to the 97.5th of the upper.
 
+Outcome settings. The main run is the matching report's outcome: the shrunk season
+rating, observed at 3+ ratable matches. Lowering the bar to 1+ match makes most of the
+missing players observable, but a shrunk rating on one or two matches is pulled hard
+toward the middle of the pool, which would drag every shift toward zero; so the 1+ runs
+are also repeated on the unshrunk rating (`raw_score`, same scale, same centre), which is
+noisier and not pulled. All four are reported.
+
     python lee_bounds.py      # writes LEE_BOUNDS_REPORT.md and matching/lee_*.csv
 """
 import os
@@ -46,20 +53,33 @@ N_BOOT, SEED = 500, 0
 LAST = 2026
 
 
-def movers_at_risk(D):
+SETTINGS = [(3, "class_score", "3+ matches, shrunk (main)"),
+            (1, "class_score", "1+ match, shrunk"),
+            (3, "raw_score", "3+ matches, unshrunk"),
+            (1, "raw_score", "1+ match, unshrunk")]
+
+
+def outcome(D, rows, min_n, col):
+    s = D["sea_any"]
+    s = s[s.n_games >= min_n][["player_id", "comp", "season", col]].rename(
+        columns={"comp": "target", "season": "season_tgt", col: "y"})
+    return rows.merge(s, on=["player_id", "target", "season_tgt"], how="left")
+
+
+def movers_at_risk(D, min_n=3, col="class_score"):
     m = D["ev"][["player_id", "source", "target", "season", "transition_type"]].rename(
         columns={"season": "season_tgt"})
     m["season_src"] = m.season_tgt - 1
     m["comp"] = m.source
     m = mm.covariates(D, m)
-    m = mm.outcome(D, m, "target", "season_tgt", "y")
+    m = outcome(D, m, min_n, col)
     m = m[m.y_prev.notna() & m.cls.notna()].reset_index(drop=True)
     m["obs"] = m.y.notna()
     m["pair"] = m.source + "->" + m.target
     return m
 
 
-def stayers_at_risk(D, movers):
+def stayers_at_risk(D, movers, min_n=3, col="class_score"):
     p = D["primary"].rename(columns={"season": "season_src", "primary": "comp"})
     p = p[p.season_src < LAST]
     p = mm.covariates(D, p)
@@ -69,7 +89,7 @@ def stayers_at_risk(D, movers):
     # stayed: seen only in his competition next season, or nowhere at all
     p["stayed"] = [(not isinstance(s, set)) or s == {c} for s, c in zip(nxt, p.comp)]
     p = p[p.stayed]
-    p = mm.outcome(D, p.assign(target=p.comp), "target", "season_tgt", "y")
+    p = outcome(D, p.assign(target=p.comp), min_n, col)
     bad = set(zip(movers.player_id, movers.season_tgt))
     p = p[[k not in bad for k in zip(p.player_id, p.season_tgt)]].reset_index(drop=True)
     p["obs"] = p.y.notna()
@@ -116,12 +136,13 @@ def direction(g, S, J, rng=None):
     return bounds(yt, ot, S.y.values[cj], S.obs.values[cj], wc)
 
 
-def run(caliper=mm.CALIPER):
-    con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
-    D = mm.load(con)
-    con.close()
-    M = movers_at_risk(D)
-    S = stayers_at_risk(D, M)
+def run(caliper=mm.CALIPER, min_n=3, col="class_score", D=None):
+    if D is None:
+        con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
+        D = mm.load(con)
+        con.close()
+    M = movers_at_risk(D, min_n, col)
+    S = stayers_at_risk(D, M, min_n, col)
     J, _ = mm.match(M, S, caliper=caliper)
     keep = np.array([len(j) > 0 for j in J])
     dropped = int((~keep).sum())
@@ -155,7 +176,30 @@ def run(caliper=mm.CALIPER):
     return T, pd.DataFrame(P), M, S, dropped
 
 
-def report(T, P, M, S, dropped, T3, P3):
+def settings_section(results):
+    """Pair gaps and observation rates under every outcome setting."""
+    L = ["## The threshold and the shrinkage", "",
+         "Observation rates (movers / matched stayers) and the gap bounds for each outcome "
+         "setting. Same matching throughout (caliper 1.5).", "",
+         "| Pair | Setting | Observed, a→b | Observed, b→a | Gap, observed only | "
+         "Lee bounds | 95% for the bounds |", "|---|---|---|---|---|---|---|"]
+    for pair in ("NRL–NSW", "NRL–QLD", "NRL–SL", "NSW–QLD", "NSW–SL", "QLD–SL"):
+        a, b = pair.split("–")
+        for label, (T, P) in results.items():
+            t = T.set_index("pair")
+            p = P.set_index(["a", "b"])
+            if (a, b) not in p.index:
+                continue
+            r = p.loc[(a, b)]
+            f, rv = t.loc[f"{a}->{b}"], t.loc[f"{b}->{a}"]
+            L.append(f"| {pair} | {label} | {f.q_movers:.0%} / {f.q_stayers:.0%} | "
+                     f"{rv.q_movers:.0%} / {rv.q_stayers:.0%} | {r.gap:+.1f} | "
+                     f"[{r.lo:+.1f}, {r.hi:+.1f}] | [{r.ci_lo:+.1f}, {r.ci_hi:+.1f}] |")
+    L.append("")
+    return L
+
+
+def report(T, P, M, S, dropped, T3, P3, results=None):
     os.makedirs(mm.OUT, exist_ok=True)
     T.to_csv(os.path.join(mm.OUT, "lee_directions.csv"), index=False)
     P.to_csv(os.path.join(mm.OUT, "lee_pairs.csv"), index=False)
@@ -188,12 +232,21 @@ def report(T, P, M, S, dropped, T3, P3):
         L.append(f"| {r.a}–{r.b} | {r.n} | {r.gap:+.1f} | [{r.lo:+.1f}, {r.hi:+.1f}] | "
                  f"[{r.ci_lo:+.1f}, {r.ci_hi:+.1f}] | [{q.lo:+.1f}, {q.hi:+.1f}] |")
     L.append("")
+    if results:
+        L += settings_section(results)
     open(REPORT, "w", encoding="utf-8").write("\n".join(L))
     print("\n".join(L))
 
 
 if __name__ == "__main__":
-    T, P, M, S, dropped = run()
-    T3, P3, *_ = run(3.0)
-    report(T, P, M, S, dropped, T3, P3)
+    con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
+    D = mm.load(con)
+    con.close()
+    T, P, M, S, dropped = run(D=D)
+    T3, P3, *_ = run(3.0, D=D)
+    results = {"3+ matches, shrunk (main)": (T, P)}
+    for min_n, col, label in SETTINGS[1:]:
+        Tx, Px, *_ = run(min_n=min_n, col=col, D=D)
+        results[label] = (Tx, Px)
+    report(T, P, M, S, dropped, T3, P3, results)
     sys.exit(0)

@@ -67,6 +67,7 @@ def load(con):
     cum, sea, ext = rh.all_competitions(rb.DB, through=THROUGH)
     for d in (cum, sea, ext):
         d["player_id"] = sp.normalize_player_id(d.player_id)
+    sea_any = sea                      # every season-only rating, 1+ ratable match
     sea = sea[sea.n_games >= rb.MIN_GAMES]
     pm = pd.read_sql("SELECT player_id, competition comp, season, minutes "
                      "FROM player_match_stats", con)
@@ -86,7 +87,8 @@ def load(con):
     ev = te.build(con, through=THROUGH)
     ev["player_id"] = sp.normalize_player_id(ev.player_id)
     ev = ev[ev.arrived.astype(bool) & ev.transition_type.isin(rb.ENTRY_TYPES)]
-    return dict(cum=cum, sea=sea, ext=ext, primary=primary, comps_in=comps_in,
+    return dict(cum=cum, sea=sea, sea_any=sea_any, ext=ext, primary=primary,
+                comps_in=comps_in,
                 starts=starts, dob=dob, ev=ev)
 
 
