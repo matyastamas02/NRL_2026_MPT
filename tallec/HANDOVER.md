@@ -104,6 +104,34 @@ Where the results stand (source and date with each, so they can be re-derived):
 - **Starts rule**: exact 99.98% where it decides (10 of 54,808 match-sheet rows differ),
   84% fallback; validated on NRL 2020 only, unvalidated on NRL 2021-26.
 
+**After the 2026 test** (`explore_post2026.py`, `POST2026_EXPLORE.md`, exploratory,
+rolling 2023–2026):
+- **Component translation** (each of the nine rates shrunk and translated on its own) is
+  not established: +0.55 [−0.30, +1.41] into SL, +0.03 on 2026. A 2027 candidate at
+  most. **Empirical-Bayes pooling** of direction lines is worse (−0.25); the hard
+  25-pair switch stays.
+- **Ranges.** The old ±1.96 SD band covered 100% into SL at 87 points wide. The
+  Comparison page now shows the line's residual-quantile ranges, 50% and 80%. In the
+  test they covered 50% and 83% into SL, and 48% and 80% across all directions
+  (`predict_translation.RANGE_Q`). The conditional model's directions use the model's
+  own in-sample residuals; that variant was not backtested. The card's middle half held
+  only 37% (41% across all directions), and its caption now says so.
+- **Decision outputs** (`build_decision_tables.py` → `player_season_starts`,
+  `decision_calibration`, `top_third_thresholds`, `bench_evidence`; rerun it after any
+  data change, then `build_app_db.py`).
+  - P(top third of the target competition | forecast) is a logistic fit on the 1,512
+    next-season pairs. In the test, a top-third-by-forecast shortlist hit 64% against a
+    48% base.
+  - The rating does not predict who starts (AUC 0.43–0.47 into SL); the source start
+    share does (0.64).
+  - The page shows the player's starts and, when he started fewer than half his
+    matches, the bench evidence for the target: into SL, 39% of 31 bench entrants
+    became starters against 52% of 100, landing 2021–25.
+- **Trap: the Queensland Cup's rating basis depends on the data cut-off.** Through
+  2022–2024 its position coverage is under 90%, so the ratings are
+  competition-relative; from 2025 they are position-relative. Anything that compares a
+  QLD rating with a threshold must take both from the same table.
+
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
 15.69 in training, which suggested an in-sample column. The same column now scores
@@ -278,6 +306,7 @@ cd ~/Downloads/NRL_2026_MPT/tallec
 ../.venv/bin/python weekly_update.py --file "SL26 Players.csv" --competition SL --season 2026 --dry-run
 ../.venv/bin/python weekly_update.py --file ... --competition SL --season 2026   # for real
 ../.venv/bin/python regenerate_full.py     # ratings + contribution, all competitions
+../.venv/bin/python build_decision_tables.py --write   # starts, top-third calibration
 ../.venv/bin/python build_app_db.py        # refresh the copy the live app reads
 ../.venv/bin/python fit_translation_v3.py  # the ladder and the translation model
 ../.venv/bin/python gigot_v2.py            # the match-model evaluation (read-only)

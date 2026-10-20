@@ -24,7 +24,8 @@ import pandas as pd
 import numpy as np
 import sqlite3
 from pathlib import Path
-from predict_translation import translate, available_pairs, comparables, COMP_NAME
+from predict_translation import (translate, available_pairs, comparables, COMP_NAME,
+                                 top_third, start_record, bench_evidence)
 from sp_schema import POSITION_GROUP
 import runtime
 
@@ -853,7 +854,7 @@ elif page == "🔄 Comparison":
             cols = st.columns(4 if cmp_["wide"] else 3)
             cols[0].metric("Comparable players", f"{cmp_['n']}")
             cols[1].metric(f"Their median in {COMP_NAME[tgt]}", f"{cmp_['median']:.0f}")
-            cols[2].metric("Middle half", f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f}")
+            cols[2].metric("Middle half of them", f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f}")
             if cmp_["wide"]:
                 cols[3].metric("Most of them (10–90%)",
                                f"{cmp_['q10']:.0f}–{cmp_['q90']:.0f}")
@@ -864,7 +865,10 @@ elif page == "🔄 Comparison":
                 f"{cmp_['n_direction']} rated entrants in this direction in all. The "
                 f"rating before the move is his Class in {COMP_NAME[src]}; the rating "
                 f"after it is his rating for the season he moved. These ranges describe "
-                f"what these players did, not a forecast interval for this one.")
+                f"what these players did, not a forecast interval for this one: tested on "
+                f"the entrants who came after them, the middle half held 37% of them into "
+                f"Super League and 41% across all directions, not half. The forecast "
+                f"ranges below are the calibrated ones.")
             show = cmp_["rows"][["name", "season_src", "season_tgt", "raw_position",
                                  "class_source", "class_target", "n_target"]].copy()
             show.columns = ["Player", f"Season in {src}", f"Season in {tgt}", "Position",
@@ -909,17 +913,66 @@ elif page == "🔄 Comparison":
         st.caption(f"{res['interpretation']} Based on **{res['n_obs']} observed player "
                    f"moves** between these two competitions.")
 
-        u1, u2 = st.columns(2)
-        u1.metric("Average shift for this pair",
+        # ranges from the quantiles of past errors (predict_translation.RANGE_Q); the
+        # +-1.96 SD band they replace covered 100% of entrants at 87 points wide
+        r50, r80 = res["range50"], res["range80"]
+        u1, u2, u3 = st.columns(3)
+        u1.metric("Likely range (50%)", f"{r50[0]:.0f}–{r50[1]:.0f}")
+        u2.metric("Wider range (80%)", f"{r80[0]:.0f}–{r80[1]:.0f}")
+        u3.metric("Average shift for this pair",
                   f"{res['ladder_shift_points']:+.1f} pts",
                   delta=f"±{res['avg_band_points']:.1f} at 95%", delta_color="off")
-        u2.metric("This individual player", f"{res['score_target']:.0f} pts",
-                  delta=f"±{res['band_points']:.1f} historical range", delta_color="off")
-        st.caption("The average shift for a pair of competitions is known within the "
-                   "range shown. One player's outcome is not: the individual range is "
-                   "1.96 times the spread of past errors for this kind of move, about as "
-                   "wide as the whole spread of ratings. It is a guide to how widely "
-                   "outcomes have varied, not a calibrated 95% promise.")
+        errs = (f"the line's past errors on its {res['range_n']} moves"
+                if res.get("forecast_method") == "straight line" else
+                f"the conditional model's past errors on the {res['range_n']} moves it was "
+                f"fitted on" + ("" if res["range_basis"] == "direction" else
+                                ", all directions together"))
+        st.caption(f"The forecast plus {errs}. In a rolling test on entrants from 2023 to "
+                   "2026, scored on what was known before each season, the straight "
+                   "line's 50% range held 50% of entrants into Super League and its 80% "
+                   "range 83% (48% and 80% across all directions). The conditional "
+                   "model's ranges were not tested separately. The average shift for the "
+                   "pair is a different quantity: how well the typical move is known, "
+                   "not where one player will land.")
+
+        # ── decision outputs (build_decision_tables.py)
+        tt = top_third(res["score_target"])
+        rec = start_record(p.get("player_id"), src, season_of(src))
+        ev_b = bench_evidence(tgt)
+        if tt or rec:
+            d1, d2 = st.columns(2)
+            if tt:
+                d1.metric(f"Chance of a top-third season in {COMP_NAME[tgt]}",
+                          f"{100 * tt['p']:.0f}%",
+                          delta=f"{100 * tt['base_rate']:.0f}% of earlier moves",
+                          delta_color="off")
+            if rec:
+                d2.metric(f"Started in {COMP_NAME[src]} {season_of(src)}",
+                          f"{int(rec['starts'])} of {int(rec['games'])}",
+                          delta=f"club played {int(rec['team_games'])}", delta_color="off")
+            if tt:
+                st.caption(f"Top third: a season rating among the top third of every rated "
+                           f"player in {COMP_NAME[tgt]} that season. Calibrated on "
+                           f"{tt['n_pairs']:,} earlier next-season moves in all directions, "
+                           f"through {tt['fitted_through']}. In the rolling test, the third "
+                           f"of entrants into Super League with the highest forecast reached "
+                           f"the top third 64% of the time, against 48% of all entrants. "
+                           f"The rating does not tell who will start: that was no better "
+                           f"than chance.")
+            if rec and rec["games"] and rec["starts"] < 0.5 * rec["games"]:
+                msg = (f"**Mostly off the bench in {COMP_NAME[src]}**: {int(rec['starts'])} "
+                       f"starts in {int(rec['games'])} matches. The rating is per minute, "
+                       f"so short stints can carry it.")
+                if ev_b and ev_b["n_bench"] >= 10:
+                    msg += (f" Of {int(ev_b['n_bench'])} earlier entrants into "
+                            f"{COMP_NAME[tgt]} who had mostly come off the bench, "
+                            f"{100 * ev_b['starter_bench']:.0f}% started half or more of "
+                            f"their new club's matches, against "
+                            f"{100 * ev_b['starter_start']:.0f}% of "
+                            f"{int(ev_b['n_start'])} who had been starting "
+                            f"(landing {int(ev_b['landing_from'])}–"
+                            f"{int(ev_b['landing_to'])}).")
+                st.warning(msg)
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")

@@ -144,7 +144,8 @@ def _fit_line(p, basis):
     slope, icept = np.polyfit(p.class_source, p.class_target, 1)
     resid = p.class_target - (slope * p.class_source + icept)
     return dict(slope=float(slope), intercept=float(icept), n=len(p), basis=basis,
-                resid_sd=float(np.sqrt((resid ** 2).sum() / (len(p) - 2))))
+                resid_sd=float(np.sqrt((resid ** 2).sum() / (len(p) - 2))),
+                resid_q=[float(v) for v in np.percentile(resid, RANGE_Q)])
 
 
 def _line(source, target, layer):
@@ -169,6 +170,91 @@ def _line(source, target, layer):
                        if len(own) >= MIN_LINE_PAIRS and own.class_source.std() > 0
                        else _fit_line(p, "pooled") if len(p) >= MIN_LINE_PAIRS else None)
     return _LINES[key]
+
+
+# ── forecast ranges ─────────────────────────────────────────────────────────────
+# The 10th, 25th, 75th and 90th percentiles of the past errors of whatever produced the
+# forecast, added to it: an 80% and a 50% range. They replace forecast +- 1.96 residual
+# SD, which in the rolling 2023-2026 test (explore_post2026.py) covered 100% of entrants
+# into Super League at a mean width of 87 points, wider than almost the whole scale. The
+# quantile ranges of the line covered 83% and 50% there (80% and 48% across all
+# directions). For directions the conditional model forecasts, the errors are the
+# model's own on the pairs it was fitted on; that variant was not backtested.
+RANGE_Q = [10, 25, 75, 90]
+_MODEL_Q = {}
+
+
+def _model_resid_q(source, target, layer):
+    """(quantiles, n, basis) of the conditional model's errors for one direction."""
+    if layer not in _MODEL_Q:
+        con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
+        p = pd.read_sql("SELECT source, target, class_source, class_target, raw_position, "
+                        "age, mins_pg, games_src FROM translation_pairs_v3 WHERE layer = ?",
+                        con, params=(layer,))
+        con.close()
+        lay = _PKL["layers"].get(layer) or next(iter(_PKL["layers"].values()))
+        spec = tf.FeatureSpec.from_dict(lay["spec"])
+        import aging
+        fr = p.assign(position_group=None,
+                      age_delta=[None if pd.isna(a) else float(aging.expected_delta(a))
+                                 for a in p.age])
+        X, _ = spec.transform(fr)
+        X = X[lay["features"]]
+        mult = np.asarray(lay.get("mult", np.ones(len(lay["features"]))), dtype=float)
+        pred = np.clip(lay["model"].predict(lay["scaler"].transform(X) * mult), 0, 100)
+        p["resid"] = p.class_target.values - pred
+        _MODEL_Q[layer] = p
+    p = _MODEL_Q[layer]
+    own = p[(p.source == source) & (p.target == target)]
+    use, basis = (own, "direction") if len(own) >= MIN_LINE_PAIRS else (p, "pooled")
+    return [float(v) for v in np.percentile(use.resid, RANGE_Q)], len(use), basis
+
+
+def _ranges(forecast, q):
+    c = lambda v: float(np.clip(forecast + v, 0.0, 100.0))
+    return (c(q[1]), c(q[2])), (c(q[0]), c(q[3]))
+
+
+# ── decision outputs ──────────────────────────────────────────────────────────────
+# Written by build_decision_tables.py; absent tables mean the page shows nothing rather
+# than a guess.
+def _read(sql, params=()):
+    con = sqlite3.connect(f"file:{_DB_READ}?mode=ro", uri=True)
+    try:
+        return pd.read_sql(sql, con, params=params)
+    except Exception:
+        return pd.DataFrame()
+    finally:
+        con.close()
+
+
+def top_third(forecast):
+    """P(a season rating in the top third of the target competition | the forecast).
+
+    Calibrated on the straight-line forecasts of every next-season pair, which is also
+    what was tested: in the rolling test the third of entrants into Super League with
+    the highest line forecast reached the top third 64% of the time, against 48% of all
+    entrants. Where the page's forecast comes from the conditional model it is applied
+    to that number instead, which was not tested separately."""
+    cal = _read("SELECT * FROM decision_calibration WHERE kind = 'top_third'")
+    if cal.empty or forecast is None:
+        return None
+    c = cal.iloc[0]
+    p = 1.0 / (1.0 + np.exp(-(float(c.intercept) + float(c.slope) * float(forecast))))
+    return dict(p=float(p), n_pairs=int(c.n_pairs), base_rate=float(c.base_rate),
+                fitted_through=int(c.fitted_through))
+
+
+def start_record(player_id, comp, season):
+    """Matches, starts and his club's matches for one player-season, or None."""
+    r = _read("SELECT * FROM player_season_starts WHERE player_id = ? AND comp = ? "
+              "AND season = ?", (str(player_id), comp, int(season)))
+    return None if r.empty else r.iloc[0].to_dict()
+
+
+def bench_evidence(target):
+    r = _read("SELECT * FROM bench_evidence WHERE target = ?", (target,))
+    return None if r.empty else r.iloc[0].to_dict()
 
 
 # ── comparable past entrants ──────────────────────────────────────────────────
@@ -364,11 +450,13 @@ def translate(score, source, target, raw_position=None, position_group=None,
         forecast = float(np.clip(line["slope"] * float(score) + line["intercept"],
                                  0.0, 100.0))
         band_sd, method = line["resid_sd"], "straight line"
+        rq, rn, rbasis = line["resid_q"], line["n"], line["basis"]
         note = (f"; forecast from a straight line fitted to {line['n']} earlier moves "
                 + (f"from {COMP_NAME[source]} into {COMP_NAME[target]}"
                    if line["basis"] == "direction" else "between all competitions"))
     else:
         forecast, band_sd, method = score_model, rmse, "conditional model"
+        rq, rn, rbasis = _model_resid_q(source, target, layer)
         note = "; forecast from the conditional model"
 
     # The forecast is the headline. The ladder stays beside it and the gap between them
@@ -387,6 +475,9 @@ def translate(score, source, target, raw_position=None, position_group=None,
             "avg_band_points": float(1.96 * se),
             "band_points": float(1.96 * band_sd),
             "se_points": se, "rmse_points": band_sd, "n_obs": n_obs, "layer": layer,
+            # the calibrated ranges the page shows; band_points is kept for old callers
+            "range50": _ranges(forecast, rq)[0], "range80": _ranges(forecast, rq)[1],
+            "range_n": rn, "range_basis": rbasis,
             "basis": basis + note, "forecast_method": method, "line": line,
             "headline": "forecast", "inputs_used": used, "model_version": 3,
             "interpretation": _interpretation(shift_pts, source, target),
