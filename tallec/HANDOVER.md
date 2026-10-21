@@ -145,12 +145,16 @@ rolling 2023–2026):
   - the model carrying information beyond the betting line.
 - Most scripts read the exploration's cache: set `POST2026_CACHE` to a pickle path, and
   `explore_post2026.py` writes it on its first run.
-- **Trap: the SL master's 2026 rows reuse eight team codes for other clubs** (C/CF,
-  HF/HFC, LS/LH, WA/WFT). `team_map.solve` maps codes once for all seasons and gets 2026
-  wrong; `gigot_sl_named.season_maps` maps them per season. The master's ELO continues by
-  code, so those eight clubs began 2026 on the paired club's 2025 rating. This is an
-  xLadder issue and has not been fixed (the xLadder files are read-only here); the owner
-  should decide.
+- **The SL master's 2022–2025 rows used eight team codes the other way round** from
+  `SL_NAMES` and the 2026 rows (C/CF, HF/HFC, LS/LH, WA/WFT), so ELO and form carried
+  over to the wrong club in 2026. Fixed in the xLadder code:
+  `xladder_pipeline.fix_sl_team_codes()` relabels the old seasons at load and recomputes
+  ELO (see CLAUDE.md §9). The data are not yet rewritten. `SL_master.xlsx` in the repo
+  still carries the old coding, and a corrected copy is at
+  `~/Downloads/SL_master_code_fixed_20261021.xlsx`, waiting for the owner's approval to
+  replace it. The Google Sheet is corrected by the app's next "Submit & Regenerate". Until
+  the xlsx is replaced, `team_map.solve` (one mapping for all seasons) is still wrong for
+  2026; `gigot_sl_named.season_maps` maps per season and is right either way.
 - **`tallec_app.db` is now 56 MB**, above GitHub's 50 MB warning; the hard limit is 100 MB.
 
 One item from the August handover looks closed by the Super League 2025 repair of

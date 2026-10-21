@@ -288,6 +288,21 @@ Watch for these — they've bitten the project before:
   without ELO until 2026-07-09, when the full SL ELO history was recomputed from
   results (start 2000 flat in 2022, K=27, season regression 0.30). SL 2026 accuracy
   jumped from ~54% to ~71% once train + predict both had clean ELO.
+- **SL 2022–2025 rows used eight team codes the other way round** from `SL_NAMES` and
+  from the 2026 rows: C/CF, HF/HFC, LS/LH, WA/WFT (the 2023 Grand Final, Wigan 10–2
+  Catalans, was stored as `WI` v `C`, and `C` is Castleford in `SL_NAMES`). ELO and the
+  rolling form carry over by code, so those eight clubs began 2026 on the paired
+  club's 2025 rating, and the app showed the wrong club for their 2022–2025 matches.
+  Found 2026-10-20 by matching scores against Stats Perform. Fixed in code:
+  `xladder_pipeline.fix_sl_team_codes()` runs inside `load_data` for SL, relabels the
+  old seasons, swaps the codes inside their Match IDs and recomputes ELO from 2022 by
+  the same rule (2022–2025 ELO identical to what was stored, 2026 ELO moves by up to
+  103 points). It acts only while the old coding is present (`sl_old_coding`: the 2023
+  final stored as `WI` v `C`), so it stops by itself once a corrected master is saved;
+  the next "Submit & Regenerate" writes the corrected master to the Sheet. Effect on
+  the 125 SL 2026 matches in the master: winner 72.0% → 72.8%, margin MAE +0.56
+  [−0.34, +1.50], a correctness fix, not an accuracy one. Tests:
+  `tallec/tests/test_sl_codes.py`.
 
 ---
 

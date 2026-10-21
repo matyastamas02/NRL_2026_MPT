@@ -97,6 +97,86 @@ def update_elos_for_new_matches(new_matches, current_elos, prev_season, K=ELO_K)
     return df, elos
 
 
+# ═══════════════════ SUPER LEAGUE TEAM CODES ══════════════════════════════════
+# The 2022-2025 rows of the SL master were keyed with eight codes the other way round
+# from SL_NAMES and from the 2026 rows: C/CF, HF/HFC, LS/LH and WA/WFT. The 2023 Grand
+# Final, Wigan 10-2 Catalans, is stored as WI v C, and C is Castleford in SL_NAMES. ELO
+# and the rolling form carry over by code, so those eight clubs began 2026 on the paired
+# club's 2025 rating, and every 2022-2025 match of theirs was shown under the other
+# club's name. fix_sl_team_codes() relabels the old seasons, rebuilds their Match IDs
+# and recomputes ELO from 2022 with the same rule (start 2000, K=27, regression 0.30):
+# 2022-2025 ELO comes out identical to what was stored, 2026 moves. It acts only while
+# the old coding is present, so once a corrected master has been saved it does nothing.
+SL_CODE_SWAP = {"C": "CF", "CF": "C", "HF": "HFC", "HFC": "HF",
+                "LS": "LH", "LH": "LS", "WA": "WFT", "WFT": "WA"}
+SL_LAST_OLD_SEASON = 2025
+
+
+def sl_old_coding(df):
+    """True while the 2023 Grand Final is stored as WI v C (C = Catalans there)."""
+    s = pd.to_numeric(df["Season"], errors="coerce")
+    r = pd.to_numeric(df["Round"], errors="coerce")
+    gf = df[(s == 2023) & (r == 30)]
+    return (len(gf) == 1 and str(gf["A Team"].iloc[0]) == "WI"
+            and str(gf["B Team"].iloc[0]) == "C")
+
+
+def recompute_elos(df, order=None):
+    """Every pre-match ELO from the first season, played rows by result; a fixture not
+    yet played takes its teams' latest rating (regressed if it opens a new season).
+    `order` fixes the sequence inside a round (default: Match ID, as the update does)."""
+    df = df.copy()
+    for c in ("A_Points Scored", "B_Points Scored"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    seasons = pd.to_numeric(df["Season"], errors="coerce")
+    played = df["A_Points Scored"].notna() & df["B_Points Scored"].notna()
+    seq = df[played].copy()
+    if order is not None:
+        seq["Match ID"] = order[played].values
+    upd, elos = update_elos_for_new_matches(seq, {}, int(seasons[played].min()))
+    df.loc[upd.index, ["ELO_A", "ELO_B", "Diff ELO"]] = upd[["ELO_A", "ELO_B", "Diff ELO"]].values
+    if (~played).any():
+        last = int(seasons[played].max())
+        future = dict(elos)
+        if seasons[~played].min() > last:
+            for t in future:
+                future[t] += (ELO_MEAN - future[t]) * ELO_REGRESSION
+        for i in df.index[~played]:
+            df.at[i, "ELO_A"] = future.get(df.at[i, "A Team"], ELO_MEAN)
+            df.at[i, "ELO_B"] = future.get(df.at[i, "B Team"], ELO_MEAN)
+        df.loc[~played, "Diff ELO"] = df.loc[~played, "ELO_A"] - df.loc[~played, "ELO_B"]
+    if "ELO_Sum" in df.columns:
+        df["ELO_Sum"] = df["ELO_A"] + df["ELO_B"]
+    if "ELO_Diff_Abs" in df.columns:
+        df["ELO_Diff_Abs"] = df["Diff ELO"].abs()
+    return df
+
+
+def fix_sl_team_codes(df):
+    """Relabel the 2022-2025 rows to SL_NAMES' codes and recompute ELO (see above)."""
+    if not sl_old_coding(df):
+        return df
+    df = df.copy()
+    s = pd.to_numeric(df["Season"], errors="coerce")
+    old = s <= SL_LAST_OLD_SEASON
+    # the ELO update orders each round by Match ID; keep the original order so the
+    # relabelling cannot reorder a round in which a club played twice
+    order = df["Match ID"].astype(str).copy() if "Match ID" in df.columns else None
+    swap = lambda x: SL_CODE_SWAP.get(x, x)
+    df.loc[old, "A Team"] = df.loc[old, "A Team"].astype(str).map(swap)
+    df.loc[old, "B Team"] = df.loc[old, "B Team"].astype(str).map(swap)
+    if "Match ID" in df.columns:
+        # the codes inside the ID are swapped in place, whatever order they are in (the
+        # old IDs do not always list A first); the swap is one-to-one, so IDs stay unique
+        def _mid(m):
+            p = str(m).split("-")
+            if len(p) == 4 and p[0].isdigit() and p[1].isdigit():
+                return "-".join(p[:2] + [swap(p[2]), swap(p[3])])
+            return m
+        df.loc[old, "Match ID"] = df.loc[old, "Match ID"].map(_mid)
+    return recompute_elos(df, order)
+
+
 # ═══════════════════════════ DATA LOADING ════════════════════════════════════
 
 def load_data(path, league):
@@ -104,6 +184,8 @@ def load_data(path, league):
     df["League"] = league.upper()
     if "A_Points Scored" not in df.columns and "A Score" in df.columns:
         df=df.rename(columns={"A Score":"A_Points Scored","B Score":"B_Points Scored"})
+    if league.upper() == "SL":
+        df = fix_sl_team_codes(df)
     if "Home Advantage" in df.columns:
         df["Home_flag"]=df["Home Advantage"].map({"A":1,"B":-1,"neutral":0}).fillna(0)
     else:
