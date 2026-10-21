@@ -71,11 +71,33 @@ ELO_K = 27; ELO_MEAN = 2000; ELO_REGRESSION = 0.30
 
 # ═══════════════════════════════ ELO ══════════════════════════════════════════
 
-def get_current_elos(df):
-    elos = {}
-    for _,r in df.sort_values(["Season","Round","Match ID"]).iterrows():
-        elos[r["A Team"]] = float(r["ELO_A"])
-        elos[r["B Team"]] = float(r["ELO_B"])
+def elo_step(ea, eb, sa, sb, K=ELO_K):
+    """Post-match ratings of A and B from their pre-match ratings and the score."""
+    res=1 if sa>sb else 0.5 if sa==sb else 0
+    exp=1/(1+10**((eb-ea)/400))
+    return ea+K*(res-exp), eb+K*((1-res)-(1-exp))
+
+def get_current_elos(df, K=ELO_K):
+    """Each club's rating as it stands after the master's latest match, on the rule of
+    update_elos_for_new_matches. ELO_A/ELO_B hold PRE-match ratings, so a played row's
+    result is applied on top of them; a fixture not yet played already holds the rating
+    the club takes into it. A club whose last row is in an earlier season than the
+    master's latest gets the season regression it missed (a bye in the opening round).
+    Returning the stored pre-match value instead dropped every club's latest result on
+    each weekly submit."""
+    d = df.sort_values(["Season","Round","Match ID"])
+    seasons = sorted(pd.to_numeric(d["Season"]).unique()); elos = {}; last = {}
+    for _,r in d.iterrows():
+        ea, eb = float(r["ELO_A"]), float(r["ELO_B"])
+        sa = pd.to_numeric(r.get("A_Points Scored"), errors="coerce")
+        sb = pd.to_numeric(r.get("B_Points Scored"), errors="coerce")
+        if pd.notna(sa) and pd.notna(sb):
+            ea, eb = elo_step(ea, eb, sa, sb, K)
+        elos[r["A Team"]] = ea; elos[r["B Team"]] = eb
+        last[r["A Team"]] = last[r["B Team"]] = float(r["Season"])
+    for t in elos:
+        for _ in range(sum(s > last[t] for s in seasons)):
+            elos[t] += (ELO_MEAN - elos[t]) * ELO_REGRESSION
     return elos
 
 def update_elos_for_new_matches(new_matches, current_elos, prev_season, K=ELO_K):
@@ -88,11 +110,8 @@ def update_elos_for_new_matches(new_matches, current_elos, prev_season, K=ELO_K)
             last_s=s
         ea=elos.get(row["A Team"],ELO_MEAN); eb=elos.get(row["B Team"],ELO_MEAN)
         elo_a.append(ea); elo_b.append(eb)
-        sa=row["A_Points Scored"]; sb=row["B_Points Scored"]
-        res=1 if sa>sb else 0.5 if sa==sb else 0
-        exp=1/(1+10**((eb-ea)/400))
-        elos[row["A Team"]]=ea+K*(res-exp)
-        elos[row["B Team"]]=eb+K*((1-res)-(1-exp))
+        elos[row["A Team"]], elos[row["B Team"]] = elo_step(
+            ea, eb, row["A_Points Scored"], row["B_Points Scored"], K)
     df["ELO_A"]=elo_a; df["ELO_B"]=elo_b; df["Diff ELO"]=df["ELO_A"]-df["ELO_B"]
     return df, elos
 

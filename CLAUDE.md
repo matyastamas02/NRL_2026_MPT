@@ -274,6 +274,29 @@ Watch for these — they've bitten the project before:
   (via `update_elos_for_new_matches`), otherwise `Diff ELO` — the model's dominant
   feature (coef ≈ 0.54) — silently becomes 0 and accuracy collapses toward the
   intercept (~52%). This happened on 2026-07-09 and was fixed same day.
+- **Weekly submits froze ELO** (found 2026-10-21). `get_current_elos` returned each
+  club's stored `ELO_A`/`ELO_B` from its latest row. Those are PRE-match ratings, so
+  `append_new_round` (Weekly Input → "Submit & Regenerate") started every round
+  without the previous round's results. Submitted one round at a time, a club's ELO
+  stays at its season-start value all season. The ELO snapshot, "Preview ELO
+  updates" and the 2025→2026 seed (pre-match rating of each club's last 2025 game)
+  had the same flaw. A second defect: a club with a bye in the first submitted round
+  of a season never got the 0.30 regression. In `NRL_master.xlsx`, the NRL R18 and
+  R19 rows (submitted together via Weekly Input) carry 17 frozen club-steps, and the
+  old code reproduces them exactly. SL in the repo is unaffected, because R17–18 were
+  added by a script. Fixed in code: `get_current_elos` now applies the latest
+  played result with the update's own rule (`elo_step`, K=27) and the missed season
+  regression. The stored columns stay PRE-match, and stored 2022–2025 ELO
+  (margin-weighted rule) is untouched. Weekly entry now equals a one-batch
+  recompute. Measured on NRL 2026 (train 2022–25, paired bootstrap, 140 matches):
+  the correct chain against the stored master moves Diff ELO by a mean of 8.1 and a
+  max of 39.3. M3 changes by +0.7 pp [−1.4, +3.6] and M3+ by −0.7 pp [−2.1, 0.0];
+  margin MAE changes by +0.03 and +0.06, both CIs including 0. Even a whole season
+  of frozen weekly submits is not measurably worse: NRL M3 −4.3 pp [−10.7, +2.1],
+  M3+ 0.0 [−5.0, +5.0]; SL +1.6 pp [−4.0, +7.2]; all CIs include 0. So this is a
+  correctness fix, not an accuracy one. The stored
+  R18–R19 rows (and any later Sheet rounds entered the old way) keep the frozen
+  values until a master is rebuilt. Tests: `tallec/tests/test_weekly_elo.py`.
 - **Making the repo PRIVATE breaks Streamlit Cloud deploy.** Streamlit Cloud clones
   the repo on every startup; if the repo is private and the Streamlit GitHub App/OAuth
   connection lacks access, it fails with `🐙 Failed to download the sources ... Make sure

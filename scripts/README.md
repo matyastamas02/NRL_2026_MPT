@@ -24,3 +24,16 @@ What it does:
 
 Upload to the Google Sheet and the repo xlsx files is done separately (gspread,
 chunked `ws.update`) — always take a full sheet backup first.
+
+## `measure_weekly_elo_fix.py`
+
+Measures the 2026-10-21 `get_current_elos` fix (see CLAUDE.md §9, "Weekly submits
+froze ELO"). Replays season 2026 through `append_new_round` one round per submit,
+with the old and the fixed function, then compares each with the stored master:
+M3/M3+ winner accuracy and margin MAE (train 2022–2025, via `run_pipeline`), with
+a paired bootstrap over matches (10,000 draws). It also checks that the old code
+reproduces the stored NRL R18–R19 ELO, and that a weekly replay under the fix equals
+a one-batch recompute. Read-only: it writes only `elo_fix_measure.json` to the
+output folder.
+
+    python scripts/measure_weekly_elo_fix.py <repo_dir> <out_dir>
