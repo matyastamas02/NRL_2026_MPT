@@ -228,20 +228,26 @@ def _read(sql, params=()):
         con.close()
 
 
-def top_third(forecast):
+def top_third(forecast, target=None):
     """P(a season rating in the top third of the target competition | the forecast).
 
-    Calibrated on the straight-line forecasts of every next-season pair, which is also
-    what was tested: in the rolling test the third of entrants into Super League with
-    the highest line forecast reached the top third 64% of the time, against 48% of all
-    entrants. Where the page's forecast comes from the conditional model it is applied
-    to that number instead, which was not tested separately."""
+    A logistic on out-of-sample line forecasts of every next-season pair (each pair
+    forecast from earlier seasons only; `build_decision_tables.py`). The base rate is the
+    target competition's own share of earlier moves that reached its top third. In an
+    exploratory backtest the third of entrants into Super League with the highest line
+    forecast reached the top third 29 times in 45 (64%), against 48% of all entrants.
+    Where the page's forecast comes from the conditional model the curve is applied to
+    that number instead, which was not tested separately."""
     cal = _read("SELECT * FROM decision_calibration WHERE kind = 'top_third'")
     if cal.empty or forecast is None:
         return None
     c = cal.iloc[0]
     p = 1.0 / (1.0 + np.exp(-(float(c.intercept) + float(c.slope) * float(forecast))))
-    return dict(p=float(p), n_pairs=int(c.n_pairs), base_rate=float(c.base_rate),
+    base = _read("SELECT * FROM top_third_base WHERE target = ?", (target,)) \
+        if target else pd.DataFrame()
+    return dict(p=float(p), n_pairs=int(c.n_pairs),
+                base_rate=float(base.base_rate.iloc[0]) if len(base) else float(c.base_rate),
+                base_n=int(base.n_pairs.iloc[0]) if len(base) else int(c.n_pairs),
                 fitted_through=int(c.fitted_through))
 
 

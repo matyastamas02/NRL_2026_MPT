@@ -110,12 +110,24 @@ def report(d, lines, pm):
     fav = fav[fav.handicap < 0]
     fav = fav.assign(res=fav.score_for - fav.score_against + fav.handicap)
     fav = fav[fav.res != 0]
+    one = one[one.total_line.notna()].assign(r=lambda d: d.total - d.total_line)
+    one["r_season"] = one.r - one.groupby("season").r.transform("mean")
     for w in ("dry", "damp", "wet"):
-        x = one[(one.weather == w) & one.total_line.notna()]
-        b = boot_mean(x.total - x.total_line)
+        x = one[one.weather == w]
+        b = boot_mean(x.r)
         f = fav[fav.weather == w]
         L.append(f"| {w} | {len(x)} | {b[0]:+.1f} [{b[1]:+.1f}, {b[2]:+.1f}] | "
                  f"{(f.res > 0).mean():.0%} of {len(f)} |")
+    L += ["", "The same with each season's own average taken out (the line ran 1.6-2.5 "
+          "points high in 2021-23 and about right in 2024-26, and damp and wet matches "
+          "cluster in 2023):", "", "| Weather | Total minus line, season-demeaned [95%] | "
+          "2024-26 only [95%] |", "|---|---|---|"]
+    for w in ("dry", "damp", "wet"):
+        x = one[one.weather == w]
+        b = boot_mean(x.r_season)
+        c = boot_mean(x[x.season >= 2024].r)
+        L.append(f"| {w} | {b[0]:+.1f} [{b[1]:+.1f}, {b[2]:+.1f}] | "
+                 f"{c[0]:+.1f} [{c[1]:+.1f}, {c[2]:+.1f}] ({c[3]}) |")
     j = pm.merge(lines[["season", "round", "team", "weather"]], on=["season", "round", "team"])
     L += ["", "Errors per 80 minutes, every Super League player-match:", "",
           "| Weather | Player-matches | Errors per 80 |", "|---|---|---|"]

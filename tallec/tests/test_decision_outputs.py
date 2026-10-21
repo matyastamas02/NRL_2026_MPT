@@ -45,7 +45,7 @@ def test_the_line_range_is_the_forecast_plus_the_lines_residual_quantiles():
 
 
 def test_the_top_third_probability_rises_with_the_forecast():
-    lo, hi = pt.top_third(40), pt.top_third(75)
+    lo, hi = pt.top_third(40, "SL"), pt.top_third(75, "SL")
     if lo is None:
         pytest.skip("decision_calibration not built")
     assert 0 < lo["p"] < hi["p"] < 1

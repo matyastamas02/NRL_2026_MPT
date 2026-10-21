@@ -85,6 +85,24 @@ def line_fitted(p):
     return out
 
 
+def rolling_line(p, min_train=100):
+    """Each pair's line forecast from the pairs of earlier target seasons only."""
+    out = np.full(len(p), np.nan)
+    for s in sorted(p.season_tgt.unique()):
+        tr = p[p.season_tgt < s]
+        if len(tr) < min_train:
+            continue
+        te = np.flatnonzero((p.season_tgt == s).values)
+        pooled = np.polyfit(tr.class_source, tr.class_target, 1)
+        for pair in p.pair.iloc[te].unique():
+            g = tr[tr.pair == pair]
+            coef = (np.polyfit(g.class_source, g.class_target, 1)
+                    if len(g) >= MIN_LINE_PAIRS and g.class_source.std() > 0 else pooled)
+            idx = te[(p.pair.iloc[te] == pair).values]
+            out[idx] = np.clip(np.polyval(coef, p.class_source.iloc[idx]), 0, 100)
+    return out
+
+
 def calibration(con):
     freeze = pre.FREEZE_SEASON
     p = pd.read_sql("SELECT player_id, source, target, season_tgt, class_source, "
@@ -112,17 +130,27 @@ def calibration(con):
           f"{d.max():.2f} since the pairs were built; labelled on the current ratings")
     p["top3"] = (chk.class_score.values
                  >= thr.reindex(list(zip(p.target, p.season_tgt))).values).astype(int)
-    x = line_fitted(p)
-    mu, sd = x.mean(), x.std()
-    m = LogisticRegression(C=1.0).fit(((x - mu) / sd).reshape(-1, 1), p.top3)
+    # The probability is fitted on forecasts made out of sample: each pair's line from
+    # the pairs of earlier target seasons only, as the app would have forecast it. The
+    # first version used each pair's own in-sample line fit, which overstated the top
+    # end (an independent review measured 0.64 predicted against 0.57 observed in the
+    # top fifth).
+    x = rolling_line(p)
+    ok = ~np.isnan(x)
+    xo, yo = x[ok], p.top3.values[ok]
+    mu, sd = xo.mean(), xo.std()
+    m = LogisticRegression(C=1.0).fit(((xo - mu) / sd).reshape(-1, 1), yo)
     c0, c1 = float(m.intercept_[0]), float(m.coef_[0, 0])
     cal = pd.DataFrame([dict(kind="top_third", intercept=c0 - c1 * mu / sd, slope=c1 / sd,
-                             n_pairs=len(p), base_rate=float(p.top3.mean()),
-                             fitted_through=int(freeze), predictor="line forecast",
+                             n_pairs=int(ok.sum()), base_rate=float(yo.mean()),
+                             fitted_through=int(freeze),
+                             predictor="line forecast, out of sample (earlier seasons only)",
                              label="season rating in the top third of every rated "
                                    "player in the target competition that season")])
+    base = (p.assign(top3=p.top3).groupby("target").top3.agg(["mean", "size"])
+              .rename(columns={"mean": "base_rate", "size": "n_pairs"}).reset_index())
     thresholds = thr.rename("threshold").reset_index()
-    return cal, thresholds
+    return cal, thresholds, base
 
 
 def evidence(con, ps):
@@ -137,7 +165,11 @@ def evidence(con, ps):
     rows = []
     for tgt, g in c.groupby("target"):
         b, s = g[g.bench], g[~g.bench]
+        from scipy.stats import fisher_exact
+        p_val = float(fisher_exact([[int(b.became.sum()), len(b) - int(b.became.sum())],
+                                    [int(s.became.sum()), len(s) - int(s.became.sum())]])[1])
         rows.append(dict(target=tgt, n_bench=len(b), starter_bench=float(b.became.mean()),
+                         p_value=p_val,
                          rating_bench=float(b.class_source.median()), n_start=len(s),
                          starter_start=float(s.became.mean()),
                          rating_start=float(s.class_source.median()),
@@ -152,23 +184,25 @@ def main():
     a = ap.parse_args()
     con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
     ps = season_starts(con)
-    cal, thresholds = calibration(con)
+    cal, thresholds, base = calibration(con)
     ev = evidence(con, ps)
     con.close()
     print(f"player_season_starts: {len(ps):,} rows; starter share "
           f"{ps.starter.mean():.2f}")
     print(cal.T.to_string())
+    print(base.round(3).to_string(index=False))
     print(ev.round(2).to_string(index=False))
     if not a.write:
         return 0
     with runtime.guarded_write("decision_tables",
                                note="player_season_starts, decision_calibration, "
-                                    "bench_evidence, top_third_thresholds"):
+                                    "bench_evidence, top_third_thresholds, top_third_base"):
         w = sqlite3.connect(rb.DB)
         ps.to_sql("player_season_starts", w, if_exists="replace", index=False)
         w.execute("CREATE INDEX IF NOT EXISTS ix_pss ON player_season_starts"
                   "(player_id, comp, season)")
         cal.to_sql("decision_calibration", w, if_exists="replace", index=False)
+        base.to_sql("top_third_base", w, if_exists="replace", index=False)
         thresholds.to_sql("top_third_thresholds", w, if_exists="replace", index=False)
         ev.to_sql("bench_evidence", w, if_exists="replace", index=False)
         w.commit()

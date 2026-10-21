@@ -927,16 +927,17 @@ elif page == "🔄 Comparison":
                 f"the conditional model's past errors on the {res['range_n']} moves it was "
                 f"fitted on" + ("" if res["range_basis"] == "direction" else
                                 ", all directions together"))
-        st.caption(f"The forecast plus {errs}. In a rolling test on entrants from 2023 to "
-                   "2026, scored on what was known before each season, the straight "
-                   "line's 50% range held 50% of entrants into Super League and its 80% "
-                   "range 83% (48% and 80% across all directions). The conditional "
-                   "model's ranges were not tested separately. The average shift for the "
-                   "pair is a different quantity: how well the typical move is known, "
-                   "not where one player will land.")
+        st.caption(f"The forecast plus {errs}. In an exploratory backtest on entrants from "
+                   "2023 to 2026, each season scored on what was known before it, the "
+                   "straight line's 50% range held 50% of entrants into Super League and "
+                   "its 80% range 83% (48% and 80% across all directions); 2027 is the "
+                   "first season none of this has seen. The conditional model's ranges "
+                   "were not tested separately. The average shift for the pair is a "
+                   "different quantity: how well the typical move is known, not where one "
+                   "player will land.")
 
         # ── decision outputs (build_decision_tables.py)
-        tt = top_third(res["score_target"])
+        tt = top_third(res["score_target"], tgt)
         rec = start_record(p.get("player_id"), src, season_of(src))
         ev_b = bench_evidence(tgt)
         if tt or rec:
@@ -944,7 +945,8 @@ elif page == "🔄 Comparison":
             if tt:
                 d1.metric(f"Chance of a top-third season in {COMP_NAME[tgt]}",
                           f"{100 * tt['p']:.0f}%",
-                          delta=f"{100 * tt['base_rate']:.0f}% of earlier moves",
+                          delta=f"{100 * tt['base_rate']:.0f}% of earlier moves into "
+                                f"{COMP_NAME[tgt]}",
                           delta_color="off")
             if rec:
                 d2.metric(f"Started in {COMP_NAME[src]} {season_of(src)}",
@@ -952,13 +954,14 @@ elif page == "🔄 Comparison":
                           delta=f"club played {int(rec['team_games'])}", delta_color="off")
             if tt:
                 st.caption(f"Top third: a season rating among the top third of every rated "
-                           f"player in {COMP_NAME[tgt]} that season. Calibrated on "
-                           f"{tt['n_pairs']:,} earlier next-season moves in all directions, "
-                           f"through {tt['fitted_through']}. In the rolling test, the third "
-                           f"of entrants into Super League with the highest forecast reached "
-                           f"the top third 64% of the time, against 48% of all entrants. "
-                           f"The rating does not tell who will start: that was no better "
-                           f"than chance.")
+                           f"player in {COMP_NAME[tgt]} that season. Calibrated on forecasts "
+                           f"made out of sample for {tt['n_pairs']:,} earlier next-season "
+                           f"moves in all directions, through {tt['fitted_through']}. In an "
+                           f"exploratory backtest, the third of entrants into Super League "
+                           f"with the highest forecast reached the top third 29 times in 45 "
+                           f"(64%), against 48% of all entrants; in 2023 the shortlist did "
+                           f"worse than that. The rating does not tell who will start: that "
+                           f"was no better than chance.")
             if rec and rec["games"] and rec["starts"] < 0.5 * rec["games"]:
                 msg = (f"**Mostly off the bench in {COMP_NAME[src]}**: {int(rec['starts'])} "
                        f"starts in {int(rec['games'])} matches. The rating is per minute, "
@@ -971,7 +974,10 @@ elif page == "🔄 Comparison":
                             f"{100 * ev_b['starter_start']:.0f}% of "
                             f"{int(ev_b['n_start'])} who had been starting "
                             f"(landing {int(ev_b['landing_from'])}–"
-                            f"{int(ev_b['landing_to'])}).")
+                            f"{int(ev_b['landing_to'])})"
+                            + (f"; a gap this size on {int(ev_b['n_bench'])} players could "
+                               f"be chance (p = {ev_b['p_value']:.2f})."
+                               if ev_b.get("p_value", 0) >= 0.05 else "."))
                 st.warning(msg)
 
         st.divider()
