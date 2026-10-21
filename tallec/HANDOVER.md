@@ -137,12 +137,29 @@ rolling 2023–2026):
   `sl_teamsheets`, `sl_match_lines`): the 21-man squads, the matchday 17 by shirt, the
   handicap, the total line and the weather for every match. Rerun it when Mike sends a
   new season.
-- **Nothing on these data beats the line by much.** Gradient boosting comes closest,
-  +0.54 [+0.04, +1.02] across directions, and is a 2027 candidate. What does hold up:
-  - the competition gaps, with NRL–SL at 13–16 points by every method;
-  - the effect of moving into SL, about +10, heterogeneous by profile;
-  - the named-team GIGOT gain, +0.93 with the named 17;
-  - the model carrying information beyond the betting line.
+- **Five independent reviews checked everything** (verdicts, bugs, re-runs in
+  `METHODS_SUMMARY.md`, which is the corrected version). **Nothing on these data beats
+  the line.** After the fixes:
+  - **component translation:** +0.27 into SL;
+  - **gradient boosting**, with player-grouped early stopping and 5 seeds: −0.05 into SL,
+    +0.40 [−0.05, +0.84] across directions;
+  - **Kalman, Bayes and style fit:** about 0.
+
+  What holds:
+  - **NRL–SL gap:** about 11–17 points by every method.
+  - **NRL–Cup gaps:** about 9–12 (NSW) and 10–16 (QLD). The AKM is the credible
+    estimator here; matching understates these gaps because promotions are selected.
+  - **Moving into SL:** about +10, no further gain in season two; the heterogeneity is
+    not established.
+  - **GIGOT, named 21:** +0.74 [+0.27, +1.22] over 2023–26, but −0.31 in 2026.
+  - **The model carries information beyond the line:** +0.25 [+0.01, +0.47].
+  - **No demonstrated betting edge:** 55.5% cover, best of 16 combinations.
+  - **No weather effect** once the season is accounted for.
+- **App outputs corrected after the review:**
+  - P(top third) is fitted on out-of-sample forecasts, with a base rate per target
+    (`top_third_base`);
+  - the bench flag states its p-value;
+  - range captions say "exploratory backtest".
 - Most scripts read the exploration's cache: set `POST2026_CACHE` to a pickle path, and
   `explore_post2026.py` writes it on its first run.
 - **The SL master's 2022–2025 rows used eight team codes the other way round** from

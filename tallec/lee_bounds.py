@@ -21,8 +21,8 @@ Design: the at-risk populations are everyone, rated or not, at the outcome seaso
   movers   every arrival in the explicit entry cohort with a rated source season; a
            mover is observed if rated (3+ matches) in the target that season
   stayers  primary competition the season before = the source, rated there, and the
-           next season seen in no other competition (possibly in none at all); observed
-           if rated in the source that season
+           next season seen in the source and in no other competition; observed if
+           rated in the source that season
 Matching is `matching_moves.match`, exact on competition, season and position group,
 Mahalanobis on the season-before profile, K nearest with replacement inside the
 caliper; each mover's stayers carry weight 1/K_i. Intervals: 500 resamples of movers
@@ -86,8 +86,11 @@ def stayers_at_risk(D, movers, min_n=3, col="class_score"):
     p = p[p.y_prev.notna() & p.cls.notna()].copy()
     p["season_tgt"] = p.season_src + 1
     nxt = D["comps_in"].reindex(list(zip(p.player_id, p.season_tgt)))
-    # stayed: seen only in his competition next season, or nowhere at all
-    p["stayed"] = [(not isinstance(s, set)) or s == {c} for s, c in zip(nxt, p.comp)]
+    # stayed: seen in his competition next season and in no other. A player seen
+    # nowhere is not at risk, just as an arrival must have played a match to be one;
+    # counting the stayers who left the game as unobserved (the first version) made the
+    # two groups' observation rates incomparable and the bounds too narrow.
+    p["stayed"] = [isinstance(s, set) and s == {c} for s, c in zip(nxt, p.comp)]
     p = p[p.stayed]
     p = outcome(D, p.assign(target=p.comp), min_n, col)
     bad = set(zip(movers.player_id, movers.season_tgt))

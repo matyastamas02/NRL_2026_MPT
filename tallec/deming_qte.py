@@ -137,15 +137,19 @@ def report(rel, T, Q):
                         for v in (40, 50, 60, 70, 80))
         L.append(f"| {r.source}->{r.target} | {r.n} | {r.rel_src:.2f} / {r.rel_tgt:.2f} | "
                  f"{r.b_ols:.2f} | {r.b_att:.2f} | {r.b_dem:.2f} | {eq} |")
-    L += ["", "Each cell: forecast / equivalent with the source rating's measurement error "
-          "removed (slope divided by the source reliability). Deming removes error from "
-          "both sides but assumes the true level does not change between the two "
-          "seasons; players do change, and movers are selected, so its slopes above 1 "
-          "are that assumption failing, not an exchange rate. The middle column is the "
-          "defensible one: it corrects only what is measurement error by construction.",
-          "",
+    L += ["", "Each cell: forecast / the 'source error removed' equivalent. **Neither "
+          "correction is valid here, and no exchange rate is claimed.** The source rating "
+          "is Class, which is already an empirical-Bayes posterior mean: shrinkage has "
+          "removed most of the attenuation (the next-season slope on the shrunk rating is "
+          "1.16-1.27 times the slope on the raw one), so dividing by a reliability corrects "
+          "a second time, and Deming's error variances are computed for a shrunk score and "
+          "assume the true level does not change between seasons (an independent review). "
+          "The forecast slopes stand as forecasts.", "",
           "## A9. Quantile effects of moving", "",
-          "Mover's rating minus matched stayers' rating, quantile by quantile.", "",
+          "Mover's rating minus matched stayers' rating, quantile by quantile. Differences "
+          "between quantiles are not established (into SL, q50 minus q90 is +7.2 "
+          "[-2.0, +18.5]), and a constant shift on the latent scale pushed through the "
+          "bounded 0-100 scale predicts the same pattern.", "",
           "| Moves | Movers | " + " | ".join(f"q{int(q * 100)}" for q in QS) + " |",
           "|---|---|" + "---|" * len(QS)]
     for lab, (n, pt, lo, hi) in Q.items():

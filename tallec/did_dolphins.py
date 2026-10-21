@@ -12,7 +12,8 @@ Callaway and Sant'Anna 2021). The clean version estimates one effect per cohort
                   profile, fitted on stayers still in the source competition at t+e)
 and aggregates the cohorts with their numbers of movers. e = 0, 1, 2 are the first
 three seasons after the move; e = -2 (y(t-2) - y(t-1), sign flipped) is the pre-trend
-placebo. Unlike the matching, it differences out each mover's own level.
+placebo. Unlike the matching, it differences out each mover's own level: the
+regression adjusts the change for age, minutes, matches and starts, not for the level.
 
 A5. The Dolphins entered the NRL in 2023, a new club needing a squad at once. Cup
 players promoted to it were promoted because a team had to be filled, more than
@@ -36,7 +37,11 @@ import sp_schema as sp
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT = os.path.join(BASE, "DID_DOLPHINS_REPORT.md")
-X_COLS = ["y_prev", "cls", "age", "mins_pg", "games", "start_share"]
+# Pre-period ratings are NOT among the covariates: conditioning the change on y(t-1)
+# turns the difference-in-differences into a plain regression adjustment (the first
+# version did, and an independent review caught it; its "placebo" was then mostly
+# mechanical). These are the profile variables that do not contain the outcome.
+X_COLS = ["age", "mins_pg", "games", "start_share"]
 
 
 def did(D, M, S):

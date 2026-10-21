@@ -65,11 +65,14 @@ CACHE = os.environ.get("POST2026_CACHE")
 
 
 # ── per-rate z-scores, one row per player-match ──────────────────────────────────
-def rate_rows(con):
+def rate_rows(con, modes=None):
+    """`modes`: {competition: rating basis} as decided at a cut-off. Without it the
+    basis is decided from the whole history, which for the Queensland Cup is not the
+    basis known before 2025 (an independent review found the first version did this)."""
     out, worst = [], 0.0
     for comp in ("NRL", "SL", "NSW", "QLD"):
         hist = rh.load(con, comp)
-        force, _ = rh._mode(hist)
+        force = modes[comp] if modes is not None else rh._mode(hist)[0]
         for s in sorted(hist.season.dropna().unique()):
             part = hist[hist.season == s]
             if len(part) < rh.MIN_POOL:
@@ -190,11 +193,20 @@ def persistence(train, default="median"):
         ok = x.notna() & y.notna()
         if ok.sum() >= 30 and x[ok].std() > 0:
             b[j] = np.polyfit(x[ok], y[ok], 1)[0]
+    if default == "drop":
+        return b                       # NaN: the rate is left out on both sides
     fill = np.nanmedian(b) if default == "median" else 1.0
     return np.where(np.isnan(b), fill, b)
 
 
 def index(f, b=None):
+    f = f.copy()
+    if b is not None and np.isnan(b).any():
+        # a rate without a slope is dropped from training pairs and entrants alike, so
+        # the line is not fitted on an index without it and applied to one with it
+        for j in np.flatnonzero(np.isnan(b)):
+            f["s_" + ZC[j]] = np.nan
+        b = np.nan_to_num(b)
     w, S = _weights(f)
     return (w * S * (1.0 if b is None else b)).sum(1)
 
@@ -365,10 +377,19 @@ def boot(ids, fn, n=N_BOOT):
 
 # ── the run ─────────────────────────────────────────────────────────────────────
 def build(con):
-    rows, worst = rate_rows(con)
-    print(f"per-rate z-scores: {len(rows):,} player-matches; composite rebuilt from them "
-          f"differs from the engine's by at most {worst:.2e}")
-    cum, one = rate_features(rows)
+    # per-rate features for each landing season, on the rating basis known at its cut-off
+    feats, by_t = {}, {}
+    for t in SEASONS:
+        modes = {c: rh._mode(rh.load(con, c, through=t - 1))[0]
+                 for c in ("NRL", "SL", "NSW", "QLD")}
+        key = tuple(sorted((k, str(v)) for k, v in modes.items()))
+        if key not in feats:
+            rows, worst = rate_rows(con, modes)
+            print(f"per-rate z-scores for {dict(key)}: {len(rows):,} player-matches; "
+                  f"composite rebuilt differs from the engine's by at most {worst:.2e}")
+            feats[key] = rate_features(rows)
+        by_t[t] = feats[key]
+    cum, one = by_t[max(SEASONS)]
     cohort = fz.entry_cohort(con, LANDINGS)
     know = {t: fz.knowledge(con, t - 1) for t in SEASONS}
     pairs = {t: know[t]["pairs"][know[t]["pairs"].layer == "B_next_season"].copy()
@@ -380,8 +401,9 @@ def build(con):
     # table as the rating it is compared with
     sea_at = {t - 1: know[t]["sea"] for t in SEASONS}
     sea_at[max(SEASONS)] = sea_all
-    return dict(cum=cum, one=one, cohort=cohort, pairs=pairs, sea_at=sea_at,
-                ps=starts(con))
+    return dict(cum=cum, one=one, cum_by_t={t: v[0] for t, v in by_t.items()},
+                one_by_t={t: v[1] for t, v in by_t.items()}, cohort=cohort, pairs=pairs,
+                sea_at=sea_at, ps=starts(con))
 
 
 def run():
@@ -414,6 +436,8 @@ def run():
 
     tests, notes = [], []
     for t in SEASONS:
+        cum = D.get("cum_by_t", {}).get(t, D["cum"])
+        one = D.get("one_by_t", {}).get(t, D["one"])
         train = attach(D["pairs"][t], cum, one, True)
         train["pair"] = train.source + "->" + train.target
         ev = attach(cohort[cohort.season_tgt == t], cum, one, False)
@@ -423,9 +447,9 @@ def run():
         ev["S0"], ev["S0_basis"] = fz.predict_lines(m0, ev)
         train["S0_fit"] = fz.predict_lines(m0, train)[0]
         # 1: components
-        b = persistence(train)
-        b1 = persistence(train, default="one")
-        for name, bb in (("C-shrink", None), ("C-persist", b), ("C-persist (pcm 1.0)", b1)):
+        b = persistence(train, default="drop")
+        b1 = persistence(train, default="median")
+        for name, bb in (("C-shrink", None), ("C-persist", b), ("C-persist (pcm median)", b1)):
             tr = train.assign(class_source=index(train, bb))
             mm = fz.fit_lines(tr)
             ev[name] = fz.predict_lines(mm, ev.assign(class_source=index(ev, bb)))[0]
@@ -462,6 +486,8 @@ def run():
                       trl.starter.values)
         ev["p_starter"] = f(ev[["S0", "src_start_share", "src_mins"]].values)
         ev["base_top3"] = np.nanmean(trl.top3)
+        # the same base rate inside each target competition, for subsets by target
+        ev["base_top3_tgt"] = ev.target.map(trl.groupby("target").top3.mean())
         ev["base_starter"] = np.nanmean(trl.starter)
         tests.append(ev)
     return pd.concat(tests, ignore_index=True), pd.DataFrame(notes)
@@ -547,7 +573,7 @@ def report(ev, notes):
               f"{len(d)} entrants, {d.player_id.nunique()} players, landing 2023–2026.", "",
               "| Model | MAE | Δ vs S0 |", "|---|---|---|",
               f"| S0 (app line) | {np.abs(d.class_target - d.S0).mean():.2f} | — |"]
-        L += mae_rows(d, ["C-shrink", "C-persist", "C-persist (pcm 1.0)", "C-ridge",
+        L += mae_rows(d, ["C-shrink", "C-persist", "C-persist (pcm median)", "C-ridge",
                           "S0-EB"]) + [""]
         if d is sl:
             L += ["By season, C-persist against S0:", "", "| Season | n | S0 | C-persist | Δ |",
@@ -581,8 +607,9 @@ def report(ev, notes):
           "means better than the base rate):", "", "| Entrants | Probability | Brier | "
           "Base-rate Brier | Skill |", "|---|---|---|---|---|"]
     for lab, d in (("into SL", sl), ("all", ev)):
-        for p, y, base in (("p_top3_S0", "top3", "base_top3"),
-                           ("p_top3_C-persist", "top3", "base_top3"),
+        tb = "base_top3_tgt" if lab == "into SL" else "base_top3"
+        for p, y, base in (("p_top3_S0", "top3", tb),
+                           ("p_top3_C-persist", "top3", tb),
                            ("p_starter", "starter", "base_starter")):
             b, b0, sk = brier(d, p, y, base)
             L.append(f"| {lab} | {p} | {b:.3f} | {b0:.3f} | {sk:+.3f} |")

@@ -38,15 +38,15 @@ Bounds inside thirds of the season-before rating, averaged; against the plain bo
 
 | Pair | Setting | Plain bounds | Bounds within thirds |
 |---|---|---|---|
-| NRL–NSW | 3+ matches, shrunk (main) | [-6.7, +18.8] | [-4.7, +17.6] |
-| NRL–QLD | 3+ matches, shrunk (main) | [-13.1, +20.7] | [-11.6, +19.2] |
-| NRL–SL | 3+ matches, shrunk (main) | [+10.3, +19.6] | too few movers per third |
-| NSW–SL | 3+ matches, shrunk (main) | [+5.0, +17.1] | too few movers per third |
-| QLD–SL | 3+ matches, shrunk (main) | [-5.2, +15.2] | too few movers per third |
-| NSW–QLD | 3+ matches, shrunk (main) | [-8.0, +14.8] | [-7.4, +14.3] |
-| NRL–NSW | 1+ match, shrunk | [-0.2, +11.2] | [-0.3, +11.0] |
-| NRL–QLD | 1+ match, shrunk | [+2.1, +9.5] | [+1.4, +10.5] |
-| NRL–SL | 1+ match, shrunk | [+7.8, +18.8] | too few movers per third |
-| NSW–SL | 1+ match, shrunk | [+1.4, +17.7] | too few movers per third |
-| QLD–SL | 1+ match, shrunk | [-6.8, +14.7] | too few movers per third |
-| NSW–QLD | 1+ match, shrunk | [-8.1, +15.4] | [-7.3, +15.0] |
+| NRL–NSW | 3+ matches, shrunk (main) | [-13.6, +25.0] | [-11.3, +23.2] |
+| NRL–QLD | 3+ matches, shrunk (main) | [-14.7, +23.7] | [-13.7, +21.8] |
+| NRL–SL | 3+ matches, shrunk (main) | [+10.9, +18.5] | too few movers per third |
+| NSW–SL | 3+ matches, shrunk (main) | [+6.0, +11.2] | too few movers per third |
+| QLD–SL | 3+ matches, shrunk (main) | [-2.6, +1.8] | too few movers per third |
+| NSW–QLD | 3+ matches, shrunk (main) | [+1.5, +7.4] | [+1.4, +7.4] |
+| NRL–NSW | 1+ match, shrunk | [+2.5, +6.9] | [+2.7, +6.7] |
+| NRL–QLD | 1+ match, shrunk | [+4.9, +8.3] | [+5.1, +8.2] |
+| NRL–SL | 1+ match, shrunk | [+12.5, +12.7] | too few movers per third |
+| NSW–SL | 1+ match, shrunk | [+6.9, +6.9] | too few movers per third |
+| QLD–SL | 1+ match, shrunk | [-1.9, -0.5] | too few movers per third |
+| NSW–QLD | 1+ match, shrunk | [+4.1, +4.9] | [+3.6, +5.3] |

@@ -46,9 +46,10 @@ TUNE_THROUGH = 2022
 CACHE = os.environ.get("POST2026_CACHE")
 
 
-def composites(con, comp):
+def composites(con, comp, force="auto"):
     hist = rh.load(con, comp)
-    force, _ = rh._mode(hist)
+    if force == "auto":
+        force, _ = rh._mode(hist)
     pm = rh.composites(hist, comp, force)
     pm = pm[pm.ratable].copy()
     pm["player_id"] = sp.normalize_player_id(pm.player_id)
@@ -118,6 +119,29 @@ def run():
         params[c] = dict(sigma2=s2, tau2=t2, q_share=qf, Q_share=Qf)
     con.close()
     K = pd.concat(levels, ignore_index=True)
+    # Levels on the rating basis known at each translation cut-off: a competition whose
+    # basis depends on the cut-off (the Queensland Cup, competition-relative through
+    # 2024) gets a second set of levels on the other basis, tuned the same way.
+    K_at = {}
+    con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
+    for t in (2023, 2024, 2025, 2026):
+        parts = []
+        for c in COMPS:
+            force_t = rh._mode(rh.load(con, c, through=t - 1))[0]
+            force_all = rh._mode(rh.load(con, c))[0]
+            if force_t == force_all:
+                parts.append(K[K.comp == c])
+                continue
+            key = (c, str(force_t))
+            if key not in K_at:
+                pm = composites(con, c, force_t)
+                s2, t2, m0 = moments(pm[pm.season <= TUNE_THROUGH])
+                _, qf, Qf = tune(pm, s2, t2, m0)
+                K_at[key] = kalman(pm, s2, t2, m0, qf * s2, Qf * t2).assign(comp=c)
+            parts.append(K_at[key])
+        K_at[t] = pd.concat(parts, ignore_index=True)
+    con.close()
+    params["_levels_at"] = K_at
     _, sea, _ = rh.all_competitions(rb.DB, through=2026)
     cum, sea = (d.assign(player_id=sp.normalize_player_id(d.player_id))
                 for d in rh.all_competitions(rb.DB, through=2026)[:2])
@@ -146,12 +170,13 @@ def persistence(K, cum, sea):
     return pd.concat(rows)
 
 
-def translation(K):
+def translation(K, K_at=None):
     D = pickle.load(open(CACHE, "rb"))
-    lev = K.rename(columns={"comp": "source", "season": "season_src"})[
-        ["player_id", "source", "season_src", "level"]]
     out = []
     for t in (2023, 2024, 2025, 2026):
+        Kt = K_at[t] if K_at and t in K_at else K
+        lev = Kt.rename(columns={"comp": "source", "season": "season_src"})[
+            ["player_id", "source", "season_src", "level"]]
         tr = D["pairs"][t].copy()
         tr["player_id"] = sp.normalize_player_id(tr.player_id.astype(str))
         tr["pair"] = tr.source + "->" + tr.target
@@ -175,7 +200,7 @@ def report(K, params, cum, sea):
          "## Parameters (fitted on seasons up to 2022)", "",
          "| Competition | Match noise σ² | Between-player τ² | Drift per match (×σ²) | "
          "Extra at a season break (×τ²) |", "|---|---|---|---|---|"]
-    for c, p in params.items():
+    for c, p in ((k, v) for k, v in params.items() if not k.startswith("_")):
         L.append(f"| {c} | {p['sigma2']:.3f} | {p['tau2']:.4f} | {p['q_share']:.3f} | "
                  f"{p['Q_share']:.2f} |")
     P = persistence(K, cum, sea)
@@ -189,7 +214,7 @@ def report(K, params, cum, sea):
                  f"{np.abs(g.y_next - g.p_level).mean():.2f} | {d:+.2f} [{lo:+.2f}, "
                  f"{hi:+.2f}] |")
     if CACHE and os.path.exists(CACHE):
-        T = translation(K)
+        T = translation(K, params.pop("_levels_at", None))
         L += ["", "## Translation: the app's line on the Kalman level", "",
               "| Entrants | n | MAE, Class | MAE, Kalman level | Δ [95%] |",
               "|---|---|---|---|---|"]

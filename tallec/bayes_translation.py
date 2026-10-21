@@ -4,7 +4,7 @@
     y_i = a_d + b_d (x_i - m) + e_i,   e_i ~ N(0, s2_d)
     (a_d, b_d) ~ N((A, B), diag(ta2, tb2))        partial pooling across directions
     s2_d ~ InvGamma(nu/2, nu s2_0 / 2)            pooled noise, s2_0 the pooled variance
-    A, B flat; ta2, tb2 ~ InvGamma(1, 1)          weak
+    A, B flat; ta2 ~ InvGamma(2, 25), tb2 ~ InvGamma(2, 0.02)   scaled to the coefficients
 d is the direction, x the source rating, m the mean source rating of the training
 pairs. Every conditional is conjugate, so the sampler is plain Gibbs. A direction with
 no training pairs takes (a, b) from the population (A, B, ta2, tb2).
@@ -60,8 +60,12 @@ def gibbs(train, rng):
         b = np.array([ab[d][1] for d in dirs])
         A = rng.normal(a.mean(), np.sqrt(ta2 / len(dirs)))
         B = rng.normal(b.mean(), np.sqrt(tb2 / len(dirs)))
-        ta2 = 1 / rng.gamma(1 + len(dirs) / 2, 1 / (1 + ((a - A) ** 2).sum() / 2))
-        tb2 = 1 / rng.gamma(1 + len(dirs) / 2, 1 / (1 + ((b - B) ** 2).sum() / 2))
+        # InvGamma(2, 25) on the intercept spread and InvGamma(2, 0.02) on the slope
+        # spread: prior means 25 and 0.02 (SD about 5 points and 0.14 of slope). The
+        # first version used InvGamma(1, 1) for both, which on the slope scale is far
+        # from weak and left the slopes unpooled (an independent review).
+        ta2 = 1 / rng.gamma(2 + len(dirs) / 2, 1 / (25 + ((a - A) ** 2).sum() / 2))
+        tb2 = 1 / rng.gamma(2 + len(dirs) / 2, 1 / (0.02 + ((b - B) ** 2).sum() / 2))
         if it >= BURN and it % 2 == 0:
             keep.append(({d: ab[d].copy() for d in dirs}, dict(s2), A, B, ta2, tb2))
     return keep, m

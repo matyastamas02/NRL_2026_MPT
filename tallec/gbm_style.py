@@ -5,7 +5,8 @@ B4. Everything known the season before, handed to a flexible learner: source rat
 age, minutes per match, rated matches, share started, the nine per-rate profile values
 (each rate's player mean shrunk by its own reliability, from `explore_post2026.py`),
 source and target competitions and the position group. Histogram gradient boosting,
-shallow trees, early stopping on a grouped validation split, fitted on the next-season
+shallow trees, early stopping on a validation split by player, five seeds averaged,
+on the rating basis known at each cut-off, fitted on the next-season
 pairs of the seasons before each landing season. If this does not beat the line, no
 amount of feature mining on these data will.
 
@@ -26,6 +27,7 @@ import sys
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.model_selection import GroupShuffleSplit
 
 import explore_post2026 as ep
 import frozen_2026 as fz
@@ -57,8 +59,9 @@ def club_style(one, st):
     return j.groupby(["comp", "season", "team"])[MZ].mean()
 
 
-def features(f, D, first, st, style):
-    f = ep.attach(f, D["cum"], D["one"], False)
+def features(f, D, first, st, style, t):
+    f = ep.attach(f, D.get("cum_by_t", {}).get(t, D["cum"]),
+                  D.get("one_by_t", {}).get(t, D["one"]), False)
     f["pair"] = f.source + "->" + f.target
     s = st.set_index(["player_id", "comp", "season"]).start_share
     f["start_share"] = s.reindex(list(zip(f.player_id, f.source, f.season_src))).values
@@ -84,19 +87,29 @@ def run():
     con = sqlite3.connect(f"file:{rb.DB}?mode=ro", uri=True)
     first, st = club_tables(con)
     con.close()
-    style = club_style(D["one"], st)
     out = []
     for t in (2023, 2024, 2025, 2026):
-        tr = features(D["pairs"][t], D, first, st, style)
-        ev = features(D["cohort"][D["cohort"].season_tgt == t], D, first, st, style)
+        style = club_style(D.get("one_by_t", {}).get(t, D["one"]), st)
+        tr = features(D["pairs"][t], D, first, st, style, t)
+        ev = features(D["cohort"][D["cohort"].season_tgt == t], D, first, st, style, t)
         cats = {"source": sorted(tr.source.unique()), "target": sorted(tr.target.unique()),
                 "group": sorted(tr.group.dropna().unique())}
-        gbm = HistGradientBoostingRegressor(max_depth=3, learning_rate=0.05, max_iter=500,
-                                            l2_regularization=1.0, early_stopping=True,
-                                            validation_fraction=0.2, random_state=0)
-        gbm.fit(design(tr, cats), tr.class_target)
+        Xtr, Xev = design(tr, cats), design(ev, cats)
+        # Early stopping on a validation set split by PLAYER (a random split let the
+        # same player's other pairs into validation), and five seeds averaged: the
+        # first version used one seed, which sat at the top of the seed distribution.
+        preds = []
+        for seed in range(5):
+            gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=seed)
+            fit_i, val_i = next(gss.split(Xtr, tr.class_target, tr.player_id))
+            gbm = HistGradientBoostingRegressor(max_depth=3, learning_rate=0.05,
+                                                max_iter=500, l2_regularization=1.0,
+                                                early_stopping=True, random_state=seed)
+            gbm.fit(Xtr.iloc[fit_i], tr.class_target.iloc[fit_i],
+                    X_val=Xtr.iloc[val_i], y_val=tr.class_target.iloc[val_i])
+            preds.append(gbm.predict(Xev))
         ev["S0"] = fz.predict_lines(fz.fit_lines(tr), ev)[0]
-        ev["gbm"] = np.clip(gbm.predict(design(ev, cats)), 0, 100)
+        ev["gbm"] = np.clip(np.mean(preds, axis=0), 0, 100)
         trf = tr.assign(fit=tr.fit.fillna(tr.fit.median()))
         evf = ev.assign(fit=ev.fit.fillna(tr.fit.median()))
         ev["S_fit"] = fz.predict_lines(fz.fit_lines(trf, [("fit", "numeric")]), evf)[0]

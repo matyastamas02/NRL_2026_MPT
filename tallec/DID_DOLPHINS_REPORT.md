@@ -8,28 +8,28 @@ Change in a mover's rating from the season before the move, minus the change com
 
 | Moves | e | Movers | ATT [95%] |
 |---|---|---|---|
-| into SL from NRL/NSW/QLD | -2 | 110 | +1.1 [-1.1, +3.4] |
-| into SL from NRL/NSW/QLD | +0 | 173 | +10.9 [+7.5, +14.2] |
-| into SL from NRL/NSW/QLD | +1 | 94 | +16.6 [+11.0, +22.2] |
-| into SL from NRL/NSW/QLD | +2 | 42 | +15.8 [+7.6, +24.2] |
-| NRL -> NSW Cup | -2 | 88 | -1.0 [-3.6, +1.6] |
-| NRL -> NSW Cup | +0 | 149 | +11.0 [+7.0, +14.8] |
-| NRL -> NSW Cup | +1 | 39 | +12.9 [+4.0, +21.1] |
-| NRL -> NSW Cup | +2 | 33 | +4.5 [-4.7, +13.0] |
-| NSW Cup -> NRL | -2 | 52 | +0.4 [-3.7, +4.6] |
-| NSW Cup -> NRL | +0 | 110 | -3.9 [-7.8, +0.0] |
-| NSW Cup -> NRL | +1 | 52 | -4.2 [-10.8, +2.8] |
-| NSW Cup -> NRL | +2 | 20 | -2.7 [-16.5, +10.6] |
-| NRL -> QLD Cup | -2 | 33 | -1.7 [-5.5, +3.0] |
-| NRL -> QLD Cup | +0 | 69 | +11.9 [+6.0, +18.1] |
-| NRL -> QLD Cup | +1 | 23 | +7.0 [-1.7, +15.8] |
-| NRL -> QLD Cup | +2 | 14 | +14.4 [+1.6, +26.6] |
-| QLD Cup -> NRL | -2 | 20 | +1.9 [-5.0, +8.3] |
-| QLD Cup -> NRL | +0 | 43 | -9.8 [-17.0, -2.6] |
-| QLD Cup -> NRL | +1 | 23 | -22.0 [-29.2, -14.6] |
-| QLD Cup -> NRL | +2 | 14 | -25.0 [-36.2, -13.2] |
+| into SL from NRL/NSW/QLD | -2 | 110 | +5.1 [+0.7, +9.5] |
+| into SL from NRL/NSW/QLD | +0 | 173 | +9.5 [+5.0, +13.8] |
+| into SL from NRL/NSW/QLD | +1 | 94 | +17.2 [+10.5, +23.6] |
+| into SL from NRL/NSW/QLD | +2 | 42 | +15.8 [+7.3, +24.2] |
+| NRL -> NSW Cup | -2 | 88 | -4.1 [-9.2, +0.6] |
+| NRL -> NSW Cup | +0 | 149 | +14.9 [+10.5, +19.4] |
+| NRL -> NSW Cup | +1 | 39 | +17.6 [+6.4, +28.0] |
+| NRL -> NSW Cup | +2 | 33 | +9.1 [-1.2, +18.6] |
+| NSW Cup -> NRL | -2 | 52 | -4.0 [-11.6, +3.7] |
+| NSW Cup -> NRL | +0 | 110 | -4.7 [-9.5, +0.0] |
+| NSW Cup -> NRL | +1 | 52 | -6.3 [-13.3, +1.6] |
+| NSW Cup -> NRL | +2 | 20 | -9.1 [-25.1, +6.4] |
+| NRL -> QLD Cup | -2 | 33 | -0.5 [-7.1, +5.9] |
+| NRL -> QLD Cup | +0 | 69 | +14.0 [+7.1, +20.8] |
+| NRL -> QLD Cup | +1 | 23 | +10.9 [+1.0, +20.3] |
+| NRL -> QLD Cup | +2 | 14 | +22.4 [+10.0, +34.9] |
+| QLD Cup -> NRL | -2 | 20 | +8.9 [-1.9, +19.9] |
+| QLD Cup -> NRL | +0 | 43 | -17.1 [-26.0, -8.1] |
+| QLD Cup -> NRL | +1 | 23 | -29.4 [-39.2, -18.9] |
+| QLD Cup -> NRL | +2 | 14 | -37.7 [-49.4, -24.8] |
 
-Into SL, same movers in seasons one and two (94): change from e = 0 to e = 1, +1.0 [-3.8, +6.0].
+Into SL, same movers in seasons one and two (94): change from e = 0 to e = 1, +1.8 [-2.9, +6.7].
 
 ## A5. Cup players promoted to the Dolphins in 2023
 
