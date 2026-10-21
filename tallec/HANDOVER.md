@@ -155,6 +155,16 @@ rolling 2023–2026):
   - **The model carries information beyond the line:** +0.25 [+0.01, +0.47].
   - **No demonstrated betting edge:** 55.5% cover, best of 16 combinations.
   - **No weather effect** once the season is accounted for.
+- **New in the app:**
+  - a competition-strength panel on the Comparison page, taken from
+    `predict_translation.LEAGUE_STRENGTH` (ranges from `METHODS_SUMMARY.md`), with the
+    raw ladder in an expander underneath;
+  - a 🌐 *Into Super League* page: every rated NRL and Cup player on the SL scale, with
+    the line forecast, the 50% range, the top-third chance and starts
+    (`predict_translation.line_forecasts`);
+  - team selections from `sl_teamsheets` on SL profiles (betting lines are never shown
+    in BOSC);
+  - retention, from the new table `retention` written by `build_decision_tables.py`.
 - **App outputs corrected after the review:**
   - P(top third) is fitted on out-of-sample forecasts, with a base rate per target
     (`top_third_base`);

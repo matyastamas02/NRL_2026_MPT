@@ -25,7 +25,8 @@ import numpy as np
 import sqlite3
 from pathlib import Path
 from predict_translation import (translate, available_pairs, comparables, COMP_NAME,
-                                 top_third, start_record, bench_evidence)
+                                 top_third, start_record, bench_evidence, retention,
+                                 line_forecasts, league_strength)
 from sp_schema import POSITION_GROUP
 import runtime
 
@@ -328,6 +329,27 @@ def load_round_composites(comp):
 if "shortlist" not in st.session_state:
     st.session_state["shortlist"] = []
 
+def _ladder_table(ladder):
+    """The measured ladder: mean within-player shift per direction, with the sign check
+    computed rather than asserted."""
+    lad = ladder.copy()
+    lad["Move"] = lad.source.map(COMP_NAME) + " → " + lad.target.map(COMP_NAME)
+    lad["Shift (pts)"] = lad.shift_pts.round(1)
+    lad["± 95%"] = (1.96 * lad.se_pts).round(1)
+    view = lad[["Move", "n", "Shift (pts)", "± 95%"]].rename(columns={"n": "Moves observed"})
+    st.dataframe(view, width="stretch", hide_index=True)
+    by = {(r.source, r.target): r for r in ladder.itertuples()}
+    both_ways = [(a, b) for (a, b) in by if (b, a) in by and a < b]
+    odd = [f"{COMP_NAME[a]} ↔ {COMP_NAME[b]}" for a, b in both_ways
+           if by[(a, b)].shift_pts * by[(b, a)].shift_pts >= 0]
+    st.caption("A positive shift means players who made this move rated higher in the "
+               "destination the next season than in the source. The two directions of a "
+               "pair come from different players and seasons, so they need not mirror "
+               f"each other; in this ladder {len(both_ways) - len(odd)} of "
+               f"{len(both_ways)} pairs have opposite signs"
+               + (f", and {', '.join(odd)} does not." if odd else "."))
+
+
 # ─── Header ────────────────────────────────────────────────────────────
 st.markdown("# 🏉 BOSC")
 st.markdown("*Player Intelligence — Recruitment Analytics for Super League*")
@@ -345,7 +367,7 @@ with nav2:
     page = st.selectbox(
         "Select section:",
         ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🎯 Position", "🔄 Comparison",
-         "🏉 Squad (GIGOT)", "📈 Trends"],
+         "🌐 Into Super League", "🏉 Squad (GIGOT)", "📈 Trends"],
         label_visibility="collapsed")
 _basis = pd.read_sql("SELECT rating_basis, count(*) n FROM player_ratings "
                      "WHERE competition = ? AND season = ? GROUP BY 1 "
@@ -445,6 +467,31 @@ if page == "🔍 Search":
             st.caption(f"No ratable minutes yet — rating defaults to the "
                        f"{'positional' if _b == 'position_relative' else 'competition'} "
                        f"average (50).")
+
+        # the club's own selections, from Mike's Super League team sheets: how often
+        # he was in the 21, and in which part of it (betting lines in the same source
+        # are deliberately not shown anywhere in BOSC)
+        if comp == "SL":
+            ts = pd.read_sql(
+                "SELECT t.season, t.team, sum(t.role = 'start') AS starts, "
+                "sum(t.role = 'bench') AS bench, sum(t.role = 'reserve') AS reserve, "
+                "(SELECT count(DISTINCT l.round) FROM sl_match_lines l "
+                " WHERE l.season = t.season AND l.team = t.team) AS club_matches "
+                "FROM sl_teamsheets t WHERE t.player_id = ? GROUP BY 1, 2 "
+                "ORDER BY 1 DESC", con, params=(str(player_id),)) \
+                if "sl_teamsheets" in set(pd.read_sql(
+                    "SELECT name FROM sqlite_master WHERE type='table'", con).name) \
+                else pd.DataFrame()
+            if len(ts):
+                st.markdown("**Team selections** — from the club's team sheets")
+                view = ts.head(4).rename(columns={
+                    "season": "Season", "team": "Club", "starts": "Started (1–13)",
+                    "bench": "Bench (14–17)", "reserve": "In the 21, not the 17",
+                    "club_matches": "Club matches"})
+                st.dataframe(view, width="stretch", hide_index=True)
+                st.caption("Counted from Mike's Super League team sheets, 2021–2026: "
+                           "shirt 1–13 is a start, 14–17 the bench, and the further four "
+                           "names the rest of the 21-man squad.")
 
         st.divider()
 
@@ -979,6 +1026,13 @@ elif page == "🔄 Comparison":
                                f"be chance (p = {ev_b['p_value']:.2f})."
                                if ev_b.get("p_value", 0) >= 0.05 else "."))
                 st.warning(msg)
+            ret = retention(tgt)
+            if ret and ret["n1"] >= 20:
+                st.caption(f"Of {int(ret['n1'])} earlier entrants into {COMP_NAME[tgt]} "
+                           f"(landing {int(ret['landing_from'])}–{int(ret['landing_to'])}), "
+                           f"{100 * ret['stay1']:.0f}% were still playing there the season "
+                           f"after, and {100 * ret['stay2']:.0f}% of {int(ret['n2'])} with "
+                           f"two seasons to look at were there in both.")
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")
@@ -994,25 +1048,117 @@ elif page == "🔄 Comparison":
             st.dataframe(sim.round(0), width="stretch", hide_index=True)
 
     st.divider()
-    st.write("**The measured ladder** — mean within-player shift, in rating points")
-    lad = ladder.copy()
-    lad["Move"] = lad.source.map(COMP_NAME) + " → " + lad.target.map(COMP_NAME)
-    lad["Shift (pts)"] = lad.shift_pts.round(1)
-    lad["± 95%"] = (1.96 * lad.se_pts).round(1)
-    view = lad[["Move", "n", "Shift (pts)", "± 95%"]].rename(columns={"n": "Moves observed"})
-    st.dataframe(view, width="stretch", hide_index=True)
-    # the sign check is computed, not asserted: a sentence saying "they do" stood here
-    # while one pair did not
-    by = {(r.source, r.target): r for r in ladder.itertuples()}
-    both_ways = [(a, b) for (a, b) in by if (b, a) in by and a < b]
-    odd = [f"{COMP_NAME[a]} ↔ {COMP_NAME[b]}" for a, b in both_ways
-           if by[(a, b)].shift_pts * by[(b, a)].shift_pts >= 0]
-    st.caption("A positive shift means players who made this move rated higher in the "
-               "destination the next season than in the source. The two directions of a "
-               "pair come from different players and seasons, so they need not mirror "
-               f"each other; in this ladder {len(both_ways) - len(odd)} of "
-               f"{len(both_ways)} pairs have opposite signs"
-               + (f", and {', '.join(odd)} does not." if odd else "."))
+    st.write("**How strong each competition is** — how much higher the same player "
+             "rates there than in the NRL, in peer points")
+    ls = league_strength()
+    ls["Competition"] = ls.comp.map(COMP_NAME)
+    ls["Same player rates higher by"] = [
+        "reference" if r.low == r.high == 0 else f"{r.low}–{r.high} pts"
+        for r in ls.itertuples()]
+    ls["Estimated from"] = ls.basis
+    st.dataframe(ls[["Competition", "Same player rates higher by", "Estimated from"]],
+                 width="stretch", hide_index=True)
+    st.caption("A player who is a 50 in the NRL would be about a 61–67 in Super League, "
+               "59–62 in the NSW Cup and 60–66 in the Queensland Cup. Super League and "
+               "the Queensland Cup cannot be told apart; the NSW Cup is probably the "
+               "stronger of the three. Ranges across the methods that held up under "
+               "independent review, on 2021–2026 moves; exploratory, since 2027 is the "
+               "first season none of it has seen. These describe the fields, not one "
+               "player: for him, use the forecast above.")
+    with st.expander("Raw shifts by direction (the measured ladder)"):
+        st.caption("Mean within-player shift of every next-season move. Each direction "
+                   "carries its own regression to the middle and its own selection (who "
+                   "gets promoted or released), so directions can contradict each other "
+                   "and the strengths above are the better summary.")
+        _ladder_table(ladder)
+
+
+# ─── PAGE: Into Super League — every rated NRL / Cup player on the SL scale ─────
+elif page == "🌐 Into Super League":
+    st.subheader("Players from the NRL and the Cups, on the Super League scale")
+    st.write("Every rated player in the NRL, the NSW Cup and the Queensland Cup, with "
+             "what he would be expected to rate in his first Super League season if he "
+             "moved, the range that forecast has held, and the chance of a season in "
+             "Super League's top third. One list across the three competitions, ordered "
+             "by that chance.")
+    f1, f2, f3, f4 = st.columns(4)
+    with f1:
+        srcs = st.multiselect("From:", ["NRL", "NSW", "QLD"], default=["NRL", "NSW", "QLD"],
+                              format_func=lambda c: COMP_NAME[c], key="isl_src")
+    with f2:
+        grp_pick = st.selectbox("Position group:", ["All", "Fullback", "Winger", "Centre",
+                                                    "Halves", "Hooker", "Middles", "Edge"],
+                                key="isl_grp")
+    with f3:
+        min_games = st.slider("Matches last season, at least:", 0, 25, 10, key="isl_min")
+    with f4:
+        max_age = st.slider("Age, at most:", 20, 38, 33, key="isl_age")
+
+    @st.cache_data
+    def _isl_table(src):
+        pl = load_all_players(src)
+        meta = load_player_meta(src)
+        if pl.empty:
+            return pd.DataFrame()
+        d = pl.merge(meta, on="player_id", how="left")
+        fc = line_forecasts(d.class_score.values, src, "SL")
+        if fc is None:
+            return pd.DataFrame()
+        d = pd.concat([d.reset_index(drop=True), fc], axis=1)
+        st_ = pd.read_sql("SELECT player_id, starts, games AS games_all FROM "
+                          "player_season_starts WHERE comp = ? AND season = ?", con,
+                          params=(src, season_of(src)))
+        d = d.merge(st_, on="player_id", how="left")
+        # his club in that competition and season (the registry's team list spans every
+        # competition and season he has played in)
+        club = pd.read_sql("SELECT player_id, team, count(*) n FROM player_match_stats "
+                           "WHERE competition = ? AND season = ? GROUP BY 1, 2", con,
+                           params=(src, season_of(src)))
+        club = club.sort_values("n", ascending=False).drop_duplicates("player_id")
+        d = d.merge(club[["player_id", "team"]], on="player_id", how="left")
+        d["source"] = src
+        return d
+
+    tabs = [_isl_table(c) for c in srcs]
+    tab = pd.concat([t for t in tabs if len(t)], ignore_index=True) if any(
+        len(t) for t in tabs) else pd.DataFrame()
+    if tab.empty:
+        st.info("No rated players in the chosen competitions.")
+    else:
+        m = (tab.games.fillna(0) >= min_games) & (tab.age.fillna(0) <= max_age)
+        if grp_pick != "All":
+            m &= tab.pos_group == grp_pick
+        v = tab[m].sort_values("p_top3", ascending=False).copy()
+        v["From"] = v.source.map(COMP_NAME)
+        v["Team"] = v.team.fillna("—")
+        v["Started"] = [f"{int(a)} of {int(b)}" if pd.notna(a) and pd.notna(b) else "—"
+                        for a, b in zip(v.starts, v.games_all)]
+        v["Mostly bench"] = np.where(v.starts.notna() & (v.starts < 0.5 * v.games_all),
+                                     "yes", "")
+        v["Likely range (50%)"] = [f"{a:.0f}–{b:.0f}" for a, b in zip(v.lo50, v.hi50)]
+        v["Top-third chance"] = (100 * v.p_top3).round(0)
+        show = v[["name", "From", "Team", "position", "age", "class_score", "forecast",
+                  "Likely range (50%)", "Top-third chance", "Started", "Mostly bench"]]
+        show.columns = ["Player", "From", "Team", "Position", "Age", "Rating there",
+                        "SL forecast", "Likely range (50%)", "Top-third chance (%)",
+                        f"Started, {season_of('NRL')}", "Mostly bench"]
+        st.caption(f"{len(v):,} players match the filters.")
+        st.dataframe(show.head(150).round(1), width="stretch", hide_index=True)
+        st.download_button("⬇️ Export this list (CSV)", show.to_csv(index=False),
+                           "into_super_league.csv", "text/csv", key="isl_csv")
+        ret = retention("SL")
+        st.caption(
+            "**How to read it.** The forecast is the app's straight line for each "
+            "direction, fitted on earlier moves into Super League; the range is that "
+            "line's past errors; the chance is calibrated on forecasts made out of sample. "
+            "In an exploratory backtest on 2023–2026 entrants, the third of entrants into "
+            "Super League with the highest forecast reached the top third 29 times in 45 "
+            "(64%), against 48% of all entrants. Most of these players will never move, "
+            "and the list says nothing about who is available or affordable; it ranks how "
+            "a move would be expected to go on the numbers. A high rating built mostly off "
+            "the bench is flagged, because short stints can carry a per-minute rating."
+            + (f" Of {int(ret['n1'])} earlier entrants into Super League, "
+               f"{100 * ret['stay1']:.0f}% were still there a season later." if ret else ""))
 
 # ─── PAGE: Squad & Contribution (GIGOT) ────────────────────────────────
 elif page == "🏉 Squad (GIGOT)":

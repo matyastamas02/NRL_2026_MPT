@@ -251,6 +251,53 @@ def top_third(forecast, target=None):
                 fitted_through=int(c.fitted_through))
 
 
+def line_forecasts(scores, source, target):
+    """The app's line forecast for many ratings at once, with its 50% / 80% ranges and
+    the top-third probability: the same numbers translate() and top_third() give one
+    player at a time, for the shortlist page."""
+    line = _line(source, target, LAYER_NEXT_SEASON)
+    x = np.asarray(scores, dtype=float)
+    if line is None:
+        return None
+    fc = np.clip(line["slope"] * x + line["intercept"], 0.0, 100.0)
+    q = line["resid_q"]
+    out = pd.DataFrame({"forecast": fc,
+                        "lo50": np.clip(fc + q[1], 0, 100), "hi50": np.clip(fc + q[2], 0, 100),
+                        "lo80": np.clip(fc + q[0], 0, 100), "hi80": np.clip(fc + q[3], 0, 100)})
+    cal = _read("SELECT * FROM decision_calibration WHERE kind = 'top_third'")
+    if len(cal):
+        c = cal.iloc[0]
+        out["p_top3"] = 1.0 / (1.0 + np.exp(-(float(c.intercept) + float(c.slope) * fc)))
+    return out
+
+
+def retention(target):
+    r = _read("SELECT * FROM retention WHERE target = ?", (target,))
+    return None if r.empty else r.iloc[0].to_dict()
+
+
+# How much higher the same player rates in each competition than in the NRL, in peer
+# points, as ranges across the methods that survived independent review
+# (METHODS_SUMMARY.md): matching, doubly robust, Lee bounds and the player-and-club
+# fixed-effects model (AKM). For the Cups the AKM is the credible estimate, because
+# matching understates the gap (promotions are selected on what the data do not show).
+# Super League and the Queensland Cup cannot be told apart. Exploratory: 2027 is the
+# first season that tests them.
+LEAGUE_STRENGTH = [
+    dict(comp="NRL", low=0, high=0, basis="reference"),
+    dict(comp="NSW", low=9, high=12,
+         basis="player-and-club model and same-season dual registrations"),
+    dict(comp="QLD", low=10, high=16,
+         basis="player-and-club model and same-season dual registrations"),
+    dict(comp="SL", low=11, high=17,
+         basis="every method: matched movers, doubly robust, bounds, player-and-club model"),
+]
+
+
+def league_strength():
+    return pd.DataFrame(LEAGUE_STRENGTH)
+
+
 def start_record(player_id, comp, season):
     """Matches, starts and his club's matches for one player-season, or None."""
     r = _read("SELECT * FROM player_season_starts WHERE player_id = ? AND comp = ? "

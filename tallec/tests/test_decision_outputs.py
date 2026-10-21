@@ -79,3 +79,28 @@ def test_start_records_and_bench_evidence_are_well_formed():
     con.close()
     rec = pt.start_record(row.player_id, row.comp, row.season)
     assert rec["starts"] <= rec["games"] and rec["starter"] in (0, 1)
+
+
+def test_the_shortlist_forecasts_match_translate_one_by_one():
+    fc = pt.line_forecasts([45.0, 60.0, 75.0], "NSW", "SL")
+    for x, row in zip((45.0, 60.0, 75.0), fc.itertuples()):
+        r = pt.translate(x, "NSW", "SL")
+        assert row.forecast == pytest.approx(r["score_target"])
+        assert (row.lo50, row.hi50) == pytest.approx(r["range50"])
+        tt = pt.top_third(r["score_target"], "SL")
+        if tt is not None:
+            assert row.p_top3 == pytest.approx(tt["p"])
+
+
+def test_competition_strengths_are_ordered_ranges():
+    ls = pt.league_strength().set_index("comp")
+    assert ls.loc["NRL", "low"] == ls.loc["NRL", "high"] == 0
+    assert (ls.low <= ls.high).all()
+    assert ls.loc["SL", "high"] >= ls.loc["NSW", "high"]
+
+
+def test_retention_is_a_share():
+    r = pt.retention("SL")
+    if r is None:
+        pytest.skip("retention not built")
+    assert 0 < r["stay2"] <= r["stay1"] < 1 and r["n2"] <= r["n1"]

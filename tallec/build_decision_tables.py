@@ -19,6 +19,8 @@ interchange columns of the raw export), so they are computed here and stored.
                         next-season pair the app's lines are fitted on, the label being
                         a season rating in the top third of every rated player in the
                         target competition that season. Through the freeze season.
+  retention             per target: share of entrants still playing there one and two
+                        seasons after landing
   bench_evidence        per target competition, from the entry cohort the comparison
                         card reads: how many entrants had started at least half their
                         source-season matches, how many had not, and what share of each
@@ -178,6 +180,30 @@ def evidence(con, ps):
     return pd.DataFrame(rows)
 
 
+def retention(con):
+    """Per target: of the entrants of the entry cohort, the share still playing in the
+    target competition one season after landing, and two seasons after (both seasons),
+    among those with that much follow-up in the data."""
+    c = pd.read_sql("SELECT player_id, target, season_tgt FROM entry_cohort", con)
+    c["player_id"] = sp.normalize_player_id(c.player_id)
+    c = c.drop_duplicates(["player_id", "target", "season_tgt"])
+    pres = pd.read_sql("SELECT DISTINCT player_id, competition comp, season "
+                       "FROM player_match_stats", con)
+    pres["player_id"] = sp.normalize_player_id(pres.player_id)
+    seen = set(zip(pres.player_id, pres.comp, pres.season))
+    last = int(pres.season.max())
+    rows = []
+    for tgt, g in c.groupby("target"):
+        in1 = np.array([(p, tgt, s + 1) in seen for p, s in zip(g.player_id, g.season_tgt)])
+        in2 = np.array([(p, tgt, s + 2) in seen for p, s in zip(g.player_id, g.season_tgt)])
+        e1, e2 = (g.season_tgt + 1 <= last).values, (g.season_tgt + 2 <= last).values
+        rows.append(dict(target=tgt, n1=int(e1.sum()), stay1=float(in1[e1].mean()),
+                         n2=int(e2.sum()), stay2=float((in1 & in2)[e2].mean()),
+                         landing_from=int(g.season_tgt.min()),
+                         landing_to=int(g.season_tgt.max())))
+    return pd.DataFrame(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
@@ -186,12 +212,14 @@ def main():
     ps = season_starts(con)
     cal, thresholds, base = calibration(con)
     ev = evidence(con, ps)
+    ret = retention(con)
     con.close()
     print(f"player_season_starts: {len(ps):,} rows; starter share "
           f"{ps.starter.mean():.2f}")
     print(cal.T.to_string())
     print(base.round(3).to_string(index=False))
     print(ev.round(2).to_string(index=False))
+    print(ret.round(2).to_string(index=False))
     if not a.write:
         return 0
     with runtime.guarded_write("decision_tables",
@@ -205,6 +233,7 @@ def main():
         base.to_sql("top_third_base", w, if_exists="replace", index=False)
         thresholds.to_sql("top_third_thresholds", w, if_exists="replace", index=False)
         ev.to_sql("bench_evidence", w, if_exists="replace", index=False)
+        ret.to_sql("retention", w, if_exists="replace", index=False)
         w.commit()
         w.close()
     print("wrote player_season_starts, decision_calibration, top_third_thresholds, "
