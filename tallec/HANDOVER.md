@@ -214,6 +214,20 @@ rolling 2023–2026):
   (report `SHORTLIST_VALIDATION.md`). The forecast's shortlist is not shown to beat the
   Australian rating, appearances, starts or minutes on 132 entrants.
 - **Retention** now says where the leavers went (`retention.left_to_*`).
+- **The 2027 test is frozen** (`FROZEN_2027_SPEC.md`, `frozen_2027.py`,
+  `frozen_2027_manifest.json`; context on 2023–2026 in `FROZEN_2027_CONTEXT.md`). It
+  tests the shipped line, not a challenger, in a fixed sequence: H1a, the forecast
+  against the source rating carried across; then H1b, only if H1a is confirmed, the
+  forecast against the average arrival (B0). H1a held in every earlier season with enough
+  entrants (2023 had 23) and H1b in none, so H1b is likely to end undecided on a cohort of ~40. The training cutoff is
+  the constant `TRAIN_THROUGH = 2026`, not `freeze_season`, so the app may roll its
+  ratings forward during 2027. **Re-freeze rule:** `python frozen_2027.py --freeze` may
+  be rerun (after committing) only while no season after 2026 is in the database; it
+  refuses once the first 2027 row is loaded. So settle Mike's six uncertain ID pairs,
+  and any other correction to through-2026 data, before the first 2027 import, then
+  re-freeze. After that, through-2026 corrections wait until the test has run. Run it
+  at the end of the 2027 Super League season: `frozen_2027.py --eval --out <dir>`, from
+  the commit the manifest names if the code has moved on.
 
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
@@ -271,11 +285,9 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 
 8. **Done: the 2026 test** — `FROZEN_2026_RESULT.md`. 42 SL entrants, S0 16.59 vs S1
    16.73, Δ −0.14 [−1.34, +0.99]: a one-point gain is not supported; the line stays.
-   Next: freeze the 2027 specification (trained through 2026) before any 2027 result.
-   Before that freeze, clean what the 2026 freeze kept fixed: mixed DOB formats in
-   `players` (dd/mm/yyyy from the old SL 2026 feed), a few `0000-00-00` and one
-   disagreeing DOB (Salesi Foketi), and two likely re-issued IDs (Floyd Aubrey QLD
-   70057/72468, Daniel O'Donnell NSW 67489/55028).
+   Done since: the DOB formats and eight re-issued IDs were cleaned
+   (`merge_reissued_ids.py`; six uncertain pairs and Salesi Foketi's two dates wait on
+   Mike), and the 2027 specification is frozen (see section 2).
 9. **A season-by-season shortlist test** for the arrival model, against a minutes
    baseline whose direction is learned from the training window (the sixth review showed
    reversing raw minutes would beat the model on NRL→QLD).
