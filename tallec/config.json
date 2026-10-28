@@ -25,7 +25,7 @@
     "attack_weight": 0.45,
     "defence_weight": 0.35,
     "points_weight": 0.2,
-    "description": "GIGOT input #5. Player's share of his own team's match output per stat group, blended (weights sum = 1.0), then percentile-scaled within his own competition so the median contributor = 50. Read by gigot_contribution.py; written to the DB only by regenerate_full.py."
+    "description": "Player Contribution. Player's share of his own team's match output per stat group, blended (weights sum = 1.0), then percentile-scaled within his own competition so the median contributor = 50. Read by contribution.py; written to the DB only by regenerate_full.py."
   },
   "class_calculation": {
     "season_weights": [

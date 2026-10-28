@@ -10,8 +10,11 @@ table instead of a missing database.
 Most of that size is `player_match_raw`: every column of every Stats Perform export, kept
 so a stat can be re-derived without the source files. The app never reads it. Everything
 it does read is in the other tables, which come to under half the file. This writes
-`tallec_app.db`, the same database without that one table, and that is the file that
+`tallec_app.db`, the same database without that table, and that is the file that
 goes to git.
+
+`sl_match_lines` is left out as well. BOSC is a recruitment product and holds no
+betting or match-prediction data; the lines stay in `tallec.db` for the match model.
 
 One table is added. The audit log lives in its own file, `tallec_audit.db`, which stays
 local, so the deployed app could not say when the ratings were last rebuilt. Its
@@ -40,7 +43,10 @@ APP_DB = os.path.join(BASE, "tallec_app.db")
 AUDIT = os.path.join(BASE, "tallec_audit.db")
 
 # Tables the app does not read and the copy leaves out. Nothing else is dropped.
-LEFT_OUT = ("player_match_raw",)
+# BETTING lists what must never reach BOSC: the copy fails its own check if one of
+# them is missing from LEFT_OUT.
+BETTING = ("sl_match_lines",)
+LEFT_OUT = ("player_match_raw",) + BETTING
 # Added to the copy from the audit log: name in the copy -> table in tallec_audit.db.
 FROM_AUDIT = {"audit_model_runs": "model_runs"}
 

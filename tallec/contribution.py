@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""GIGOT v2 input #5: Contribution Rating — computation module.
+"""Player Contribution — computation module.
 
 Contribution Rating = player's share of his team's output in a match, computed
 per stat group, then blended. This is REAL data (no mocks) — team totals are the
@@ -128,11 +128,11 @@ def load_ratings(con, competition):
 
 
 def expected_contribution(con, team, competition, available_players=None):
-    """GIGOT team-list hook: expected total contribution of a lineup.
+    """Expected total contribution of a line-up.
 
     available_players: list of player names, or None for the full known squad.
-    Returns the summed contribution ratings and the delta vs the full squad —
-    this is the 'player availability' signal that feeds GIGOT v2.
+    Returns the summed contribution ratings and the delta vs the full squad: what a
+    club gives up when these players are missing.
     """
     ratings = load_ratings(con, competition)
     squad = ratings[ratings["team"] == team]
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # READ-ONLY report. Regeneration lives in regenerate_full.py — running this
     # file cannot overwrite the tables any more.
     con = sqlite3.connect(DB)
-    print("gigot_contribution.py is import-only; this is a read-only report.")
+    print("contribution.py is import-only; this is a read-only report.")
     print("To (re)compute the contribution tables, run: python regenerate_full.py\n")
     for comp in ["NRL", "SL"]:
         try:

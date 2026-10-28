@@ -260,7 +260,7 @@ def load_player_metrics(comp, min_minutes=40):
 
 @st.cache_data
 def load_contribution(comp):
-    """GIGOT contribution ratings (player share of own team's output)."""
+    """Player Contribution ratings (a player's share of his own team's output)."""
     try:
         return pd.read_sql(
             "SELECT * FROM player_contribution_rating WHERE competition = ? "
@@ -367,7 +367,7 @@ with nav2:
     page = st.selectbox(
         "Select section:",
         ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🎯 Position", "🔄 Comparison",
-         "🌐 Into Super League", "🏉 Squad (GIGOT)", "📈 Trends"],
+         "🌐 Into Super League", "👥 Player Contribution", "📈 Trends"],
         label_visibility="collapsed")
 _basis = pd.read_sql("SELECT rating_basis, count(*) n FROM player_ratings "
                      "WHERE competition = ? AND season = ? GROUP BY 1 "
@@ -469,14 +469,13 @@ if page == "🔍 Search":
                        f"average (50).")
 
         # the club's own selections, from Mike's Super League team sheets: how often
-        # he was in the 21, and in which part of it (betting lines in the same source
-        # are deliberately not shown anywhere in BOSC)
+        # he was in the 21, and in which part of it
         if comp == "SL":
             ts = pd.read_sql(
                 "SELECT t.season, t.team, sum(t.role = 'start') AS starts, "
                 "sum(t.role = 'bench') AS bench, sum(t.role = 'reserve') AS reserve, "
-                "(SELECT count(DISTINCT l.round) FROM sl_match_lines l "
-                " WHERE l.season = t.season AND l.team = t.team) AS club_matches "
+                "(SELECT count(DISTINCT c.round) FROM sl_teamsheets c "
+                " WHERE c.season = t.season AND c.team = t.team) AS club_matches "
                 "FROM sl_teamsheets t WHERE t.player_id = ? GROUP BY 1, 2 "
                 "ORDER BY 1 DESC", con, params=(str(player_id),)) \
                 if "sl_teamsheets" in set(pd.read_sql(
@@ -1160,12 +1159,12 @@ elif page == "🌐 Into Super League":
             + (f" Of {int(ret['n1'])} earlier entrants into Super League, "
                f"{100 * ret['stay1']:.0f}% were still there a season later." if ret else ""))
 
-# ─── PAGE: Squad & Contribution (GIGOT) ────────────────────────────────
-elif page == "🏉 Squad (GIGOT)":
-    st.subheader("Squad Contribution — GIGOT input #5")
+# ─── PAGE: Player Contribution ─────────────────────────────────────────
+elif page == "👥 Player Contribution":
+    st.subheader("Player Contribution")
     st.write("**Contribution Rating** = a player's share of his own team's output "
              "(attack 45% · defence 35% · points 20%), percentile-scaled so the "
-             "median contributor = 50. This is real data, not a mock.")
+             "median contributor = 50.")
 
     contrib = load_contribution(comp)
     if contrib.empty:
@@ -1180,9 +1179,9 @@ elif page == "🏉 Squad (GIGOT)":
         # SEVENTEEN, not against everyone who has appeared this season. Comparing a
         # 17-man line-up with a 30-plus-man season squad mostly measures squad size.
         LINEUP = 17
-        st.markdown("**Team-list simulator** — untick players to see what the line-up "
-                    "gives up against this club's strongest available seventeen. That "
-                    "gap is the *Player Availability* signal the GIGOT match model uses.")
+        st.markdown("**Squad depth** — untick players to see what the line-up gives up "
+                    "against this club's strongest seventeen: how much the club leans "
+                    "on a few players, and what a departure would leave to fill.")
         available = st.multiselect("Available players:", squad["name"].tolist(),
                                    default=squad["name"].tolist())
         best17 = squad.nlargest(LINEUP, "contribution_rating")

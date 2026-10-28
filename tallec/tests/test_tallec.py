@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import gigot_contribution as gc          # noqa: E402
+import contribution as gc          # noqa: E402
 import player_rating_engine as pre       # noqa: E402
 import sp_schema as sp                   # noqa: E402
 

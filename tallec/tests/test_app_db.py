@@ -23,6 +23,8 @@ def dbs(tmp_path, monkeypatch):
     con.execute("CREATE TABLE player_match_raw (player_id TEXT, blob TEXT)")
     con.execute("INSERT INTO player_match_raw VALUES ('1', 'x')")
     con.execute("CREATE INDEX ix_raw ON player_match_raw(player_id)")
+    con.execute("CREATE TABLE sl_match_lines (season INT, team TEXT, handicap REAL)")
+    con.execute("INSERT INTO sl_match_lines VALUES (2026, 'LR', -4.5)")
     con.commit()
     con.close()
     monkeypatch.setattr(bad, "DB", str(full))
@@ -31,7 +33,7 @@ def dbs(tmp_path, monkeypatch):
     return full, app
 
 
-def test_the_copy_leaves_out_the_raw_table_and_nothing_else(dbs):
+def test_the_copy_leaves_out_the_raw_table_and_the_lines_and_nothing_else(dbs):
     full, app = dbs
     bad.build()
     tables = {r[0] for r in sqlite3.connect(app).execute(
@@ -86,3 +88,21 @@ def test_the_audit_run_log_travels_with_the_copy(dbs, tmp_path):
     audit.execute("INSERT INTO model_runs VALUES (2, '2026-10-07T09:00:00+00:00', 'x')")
     audit.commit()
     assert bad.differences() == ["audit_model_runs: 1 rows in the copy, 2 in the audit log"]
+
+
+def test_the_shipped_copy_holds_no_betting_data():
+    """BOSC is shown to clubs: no betting table, and no column that carries a line or a
+    price, may be in the file the app reads. Player names are not checked (a Super League
+    player is called Gigot)."""
+    if not os.path.exists(bad.APP_DB):
+        pytest.skip("tallec_app.db is not here")
+    con = sqlite3.connect(f"file:{bad.APP_DB}?mode=ro", uri=True)
+    tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+    assert not set(tables) & set(bad.BETTING)
+    words = ("handicap", "odds", "total_line", "price", "bookmaker", "line_open",
+             "line_close")
+    cols = [(t, r[1]) for t in tables
+            for r in con.execute(f'PRAGMA table_info("{t}")')
+            if any(w in r[1].lower() for w in words)]
+    con.close()
+    assert cols == []

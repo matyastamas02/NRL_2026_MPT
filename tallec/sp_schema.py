@@ -9,7 +9,7 @@ import re
 import unicodedata
 
 # canonical Stats Perform field -> lowercase engine-compat key (what the rating
-# engine, gigot_contribution and bosc_app query).
+# engine, contribution and bosc_app query).
 ENGINE_MAP = {
     "Ball Runs - Metres Gained":        "all_run_metres",
     "Ball Runs - Post Contact Metres":  "p_c_m",

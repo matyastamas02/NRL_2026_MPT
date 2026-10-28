@@ -54,7 +54,8 @@ Key tables:
   competition for the whole history, chosen from overall position coverage — mixing
   position-relative and competition-relative seasons into one Class would be
   meaningless.
-- `player_contribution`, `player_contribution_rating` — GIGOT input #5.
+- `player_contribution`, `player_contribution_rating` — Player Contribution: a player's
+  share of his own team's output.
 - `translation_ladder`, `translation_pairs`, `translation_model_meta` — the measured
   competition level differences and the observations behind them.
 - `metric_dictionary`, `rate_rules`, `overlap_rules` — Mike's Volume + Rate spec as
@@ -77,7 +78,7 @@ the boundaries are enforced in code, not just documented.
 | `resolve_duplicates.py` | splits identifiers covering two players, restores the 16 held-out rows | once, done 2026-08-25 |
 | `gigot_v2.py` | nothing — evaluation only, writes `gigot_v2_results.csv` | when the question is asked again |
 | `fit_translation_v2.py` | translation tables + `translation_model_v2.pkl` | when a season completes |
-| `gigot_contribution.py` | **nothing** — import-only module holding the formula | — |
+| `contribution.py` | **nothing** — import-only module holding the formula | — |
 | `runtime.py` | the audit log in `tallec_audit.db`; snapshots into `_backups/` | imported by every writer |
 
 Shared definitions live in `sp_schema.py` (field mapping, position groups, the

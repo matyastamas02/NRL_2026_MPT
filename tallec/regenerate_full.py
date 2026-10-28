@@ -2,7 +2,7 @@
 """Regenerate ratings + contribution, PER COMPETITION, over the full history.
 
 THIS SCRIPT IS THE SINGLE WRITER of player_ratings, player_contribution and
-player_contribution_rating. The contribution formula lives in gigot_contribution.py
+player_contribution_rating. The contribution formula lives in contribution.py
 (import-only) so the two files cannot drift apart.
 
 Two design decisions worth knowing before reading the numbers.
@@ -43,7 +43,7 @@ import time
 
 import player_rating_engine as pre
 import runtime
-import gigot_contribution as gc
+import contribution as gc
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")

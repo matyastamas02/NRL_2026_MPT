@@ -9,7 +9,7 @@ Five inputs per team per fixture:
 | 2 | Team Class | xLadder ELO (K=27, stored in masters) | **DONE** — live |
 | 3 | Player Form | pre-match rolling mean of the last 5 composites | **DONE — measured, adds nothing** |
 | 4 | Player Class | pre-match expanding mean of all prior composites | **DONE — measured, small real gain** |
-| 5 | Contribution Rating | `gigot_contribution.py` | **DONE — real data**, per competition |
+| 5 | Contribution Rating | `contribution.py` | **DONE — real data**, per competition |
 
 **Measured 2026-08-20** by `gigot_v2.py`. The headline: on the NRL the player layer
 beats the shipped xLadder margin prediction, but by about 3%. That is enough to
@@ -149,7 +149,7 @@ competition. Team totals are the sum of teammates' stats in the same match, so t
 metric needs no external join.
 
 Written **only** by `regenerate_full.py`, per competition; the formula lives in
-`gigot_contribution.py`, which is import-only, and the weights in `config.json`.
+`contribution.py`, which is import-only, and the weights in `config.json`.
 `expected_contribution(con, team, competition, available)` returns a line-up's summed
 rating and the delta against the full squad — the Player Availability signal.
 

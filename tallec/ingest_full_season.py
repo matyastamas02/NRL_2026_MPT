@@ -99,7 +99,7 @@ print(f"\ncombined: {len(raw)} rows, {raw.shape[1]} cols")
 con = sqlite3.connect(DB)
 
 # ── engine table: only lowercase engine-compat columns (what the rating engine,
-# gigot_contribution and bosc_app query). SQLite is case-insensitive on column
+# contribution and bosc_app query). SQLite is case-insensitive on column
 # names, so keep this strictly disjoint from the canonical Title-Case set.
 ENGINE_COLS = (["player_id", "player", "team", "opposition", "Competition", "Season",
                 "round", "minutes", "position", "position_source", "fantasy"]

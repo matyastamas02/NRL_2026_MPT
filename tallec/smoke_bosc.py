@@ -21,7 +21,7 @@ APP = os.path.join(APPDIR, "bosc_app.py")
 PAGES = [("🔍 Search", "Search"), ("⚖️ Compare", "Compare"),
          ("📊 Benchmarks", "Benchmarks"), ("🎯 Position", "Position"),
          ("🔄 Comparison", "Translation"), ("🌐 Into Super League", "Into SL"),
-         ("🏉 Squad (GIGOT)", "Squad"), ("📈 Trends", "Trends")]
+         ("👥 Player Contribution", "Contribution"), ("📈 Trends", "Trends")]
 LEAGUES = ["SL", "NRL", "NSW", "QLD"]
 
 fails = 0
