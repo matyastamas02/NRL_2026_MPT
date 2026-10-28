@@ -1,37 +1,34 @@
 {
-  "generated_at": "2026-10-15T09:37:40+00:00",
-  "code_commit": "9626e98",
+  "generated_at": "2026-10-28T13:45:54+00:00",
+  "code_commit": "76a0bd4",
   "code_clean": false,
   "uncommitted_paths": [
-    "tallec/tallec_app.db",
-    "tallec/weekly_update.py",
     ".DS_Store",
     ".agents/",
-    ".claude/",
-    "tallec/frozen_2026_run/"
+    ".claude/"
   ],
-  "config_hash_canonical": "ab97bd7b51fb",
-  "freeze_season": 2025,
+  "config_hash_canonical": "6f694366f766",
+  "freeze_season": 2026,
   "input": {
     "table": "player_match_stats",
     "rows": 137584,
-    "sha256": "7af4d2b3657ccc3a"
+    "sha256": "9a0d07f3b0633cad"
   },
   "artefacts": {
     "translation_model_v3.pkl": {
-      "sha256": "31eb60e92a298bf2",
-      "produced_by_run_id": 31,
-      "run_at": "2026-09-22T17:49:06+00:00",
-      "run_commit": "cc94a46",
+      "sha256": "19e421f81a121467",
+      "produced_by_run_id": 34,
+      "run_at": "2026-10-28T13:36:10+00:00",
+      "run_commit": "3093009",
       "run_tree_dirty": true,
-      "run_config_hash": "ab97bd7b51fb"
+      "run_config_hash": "6f694366f766"
     },
     "translation_model_v2.pkl": {
       "sha256": "ef528cf680e7b102",
       "status": "sealed — the v1 out-of-sample result in v1_holdout_record.json was produced with this file and it must not be rebuilt"
     },
     "config.json": {
-      "sha256": "e6b46f71d173ae0a"
+      "sha256": "4d3aec6609349446"
     },
     "v1_holdout_record.json": {
       "sha256": "9c02259b77e7f7cf"
@@ -39,28 +36,28 @@
   },
   "tables": {
     "player_ratings": {
-      "rows": 1835,
-      "sha256": "4e6e611f4f7b07bb"
+      "rows": 2018,
+      "sha256": "32d69372eb3102c7"
     },
     "player_contribution": {
-      "rows": 22878,
-      "sha256": "5e5cbab7e6aea8d7"
+      "rows": 24623,
+      "sha256": "d031d1dbee4bb06a"
     },
     "player_contribution_rating": {
-      "rows": 1869,
-      "sha256": "c78b73f9d425f2c8"
+      "rows": 2060,
+      "sha256": "74fc863b254b9e40"
     },
     "translation_ladder_v3": {
       "rows": 36,
-      "sha256": "d758308f6209476b"
+      "sha256": "f5fb9e745e223a51"
     },
     "translation_pairs_v3": {
-      "rows": 2948,
-      "sha256": "2eca3ced3d018de5"
+      "rows": 3617,
+      "sha256": "e791df35614a08e7"
     },
     "translation_model_v3_meta": {
       "rows": 2,
-      "sha256": "0ad7601a46b5cfd0"
+      "sha256": "32f0464033abd7b6"
     }
   },
   "note": "The commit named here is the one the code was at when the artefacts were built. The manifest itself is committed afterwards, so the commit containing this file is one later."

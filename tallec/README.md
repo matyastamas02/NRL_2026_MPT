@@ -15,12 +15,12 @@ recruitment app. `AUS_DATA.md` documents the Australian source file in detail;
 | --- | --- | --- | --- | --- |
 | NRL | 2020–2026 | 47,261 | 31 | 508 |
 | NSW Cup | 2021–2026 | 26,852 | 30 | 599 |
-| Queensland Cup | 2021–2026 | 29,599 | 27 | 516 |
+| Queensland Cup | 2021–2026 | 29,599 | 27 | 515 |
 | Super League | 2021–2026 | 33,872 | 30 | 457 |
 
-Ratings are published for: NRL 2025 (472), NSW Cup 2025 (496), Queensland Cup 2025 (494), Super League 2025 (373). Position metrics hold 166,020 figures.
+Ratings are published for: NRL 2026 (497), NSW Cup 2026 (584), Queensland Cup 2026 (485), Super League 2026 (452). Position metrics hold 202,806 figures.
 
-Last rebuilt: `player_ratings+contribution` 2026-10-15; `translation_model_v2` 2026-09-22; `translation_model_v3` 2026-09-22.
+Last rebuilt: `player_ratings+contribution` 2026-10-28; `translation_model_v2` 2026-09-22; `translation_model_v3` 2026-10-28.
 
 <!-- DATA-STATE:END -->
 
