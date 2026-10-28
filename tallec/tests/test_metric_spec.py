@@ -86,6 +86,12 @@ def test_set_restarts_block_super_league_only():
     assert not [m for m in sl if m["volume"] == name][0]["computable"]
 
 
+def test_super_league_set_restarts_count_from_2026():
+    """The 2026 export carries them on every Super League row; 2021-2025 has none."""
+    sl = ms.resolve("Middles", "SL", 2026)["Defence & Discipline"]
+    assert [m for m in sl if m["volume"] == "Combined Infringements"][0]["computable"]
+
+
 def test_mikes_answers_are_recorded_with_the_outstanding_requests():
     """Six months on, nobody remembers which choices were decisions and which guesses."""
     assert set(ms.RESOLVED) == {"ninth block", "Back Row and Lock",

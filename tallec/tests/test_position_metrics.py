@@ -85,6 +85,12 @@ def test_an_optional_input_degrades_instead_of_blocking():
     assert list(deg) == [True, False], "and Super League must be flagged"
 
 
+def test_super_league_2026_is_not_flagged_for_set_restarts():
+    ok, deg = pm._available(["Penalties", "SetRestart"], ("SetRestart",),
+                            np.array(["SL", "SL"]), np.array([2025, 2026]))
+    assert list(deg) == [True, False]
+
+
 def test_lower_is_better_metrics_are_inverted():
     """A clean player scores high, so every figure on the page reads the same way."""
     v = pd.DataFrame({

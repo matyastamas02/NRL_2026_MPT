@@ -184,6 +184,37 @@ rolling 2023–2026):
   2026; `gigot_sl_named.season_maps` maps per season and is right either way.
 - **`tallec_app.db` is now 56 MB**, above GitHub's 50 MB warning; the hard limit is 100 MB.
 
+**Mike's October email (worked on 2026-10-28), in his order:**
+- **BOSC and GIGOT separated in the app.** The "Squad (GIGOT)" page is "Player
+  Contribution" (its simulator is "Squad depth"); `sl_match_lines` is no longer read by
+  the app and `build_app_db.py` leaves it out of `tallec_app.db` (a test fails if a
+  betting table or a line/price column reaches the copy); `gigot_contribution.py` is
+  `contribution.py`. Still to do with the hosting: BOSC's own private repository. The
+  files BOSC needs are the import closure of `bosc_app.py` and the rebuild scripts
+  (24 modules, none of them GIGOT's); `player_rating_engine.compute_prematch` and
+  `datastate.xladder_block` are the only GIGOT/xLadder traces left in them.
+- **Rolled forward to 2026.** `freeze_season` 2026; ratings, position metrics,
+  transition events, translation v3, entry cohort and decision tables rebuilt. Before
+  that, `merge_reissued_ids.py` merged eight players carrying two identifiers (same
+  name and date of birth, never in the same match) and listed six uncertain pairs for
+  Mike; registry dates are all ISO and a `0000-00-00` placeholder gives way to a real
+  feed date. The 2026 test's record (`frozen_2026_run/`, `FROZEN_2026_RESULT.md`) is
+  untouched; `frozen_2026.py` itself now refuses to rerun, as intended.
+- **Current Players / Historical Seasons.** A toggle (on by default) lists each player
+  once, in the competition he played most in his latest season, with that season's club
+  (the pages used to show the registry's alphabetically first club). New table
+  `player_season_ratings` (written by `regenerate_full.py`) and page Historical Seasons.
+- **Radar** is the framework's four categories (`player_position_category`); attack
+  punch and the fantasy blend are gone. Super League set restarts count from 2026
+  (`metric_spec.AVAILABILITY["SetRestart"]["present_from"]`).
+- **Into Super League**: average and total minutes, start share, seasons and matches
+  behind the rating, four proposed recruitment views, a pasted name list, a five-player
+  meeting shortlist, the track record (`entrant_backtest`) and the comparison with
+  simpler shortlists (`shortlist_validation`), both from `validate_shortlist.py`
+  (report `SHORTLIST_VALIDATION.md`). The forecast's shortlist is not shown to beat the
+  Australian rating, appearances, starts or minutes on 132 entrants.
+- **Retention** now says where the leavers went (`retention.left_to_*`).
+
 One item from the August handover looks closed by the Super League 2025 repair of
 2026-09-20: the master's stored margin predictions for 2025 had an error of 7.63 against
 15.69 in training, which suggested an in-sample column. The same column now scores

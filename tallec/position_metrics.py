@@ -184,8 +184,11 @@ def _available(inputs, optional, comps, seasons):
         gap = np.zeros(len(comps), dtype=bool)
         if av.get("usable_from"):
             gap |= np.asarray(seasons) < av["usable_from"]
+        # `present_from` ends a competition's gap: Super League set restarts are in the
+        # 2026 export only
+        since = av.get("present_from") or {}
         for miss in (av.get("missing_in") or []):
-            gap |= np.asarray(comps) == miss
+            gap |= (np.asarray(comps) == miss) & (np.asarray(seasons) < since.get(miss, 9999))
         if code in optional:
             degraded |= gap
         else:

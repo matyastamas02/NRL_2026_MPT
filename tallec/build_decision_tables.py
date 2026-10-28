@@ -197,10 +197,24 @@ def retention(con):
         in1 = np.array([(p, tgt, s + 1) in seen for p, s in zip(g.player_id, g.season_tgt)])
         in2 = np.array([(p, tgt, s + 2) in seen for p, s in zip(g.player_id, g.season_tgt)])
         e1, e2 = (g.season_tgt + 1 <= last).values, (g.season_tgt + 2 <= last).values
-        rows.append(dict(target=tgt, n1=int(e1.sum()), stay1=float(in1[e1].mean()),
-                         n2=int(e2.sum()), stay2=float((in1 & in2)[e2].mean()),
-                         landing_from=int(g.season_tgt.min()),
-                         landing_to=int(g.season_tgt.max())))
+        row = dict(target=tgt, n1=int(e1.sum()), stay1=float(in1[e1].mean()),
+                   n2=int(e2.sum()), stay2=float((in1 & in2)[e2].mean()),
+                   landing_from=int(g.season_tgt.min()),
+                   landing_to=int(g.season_tgt.max()))
+        # Where the ones who left went the next season (Mike, October 2026: leaving
+        # because it failed is not leaving because it worked). Counted among the entrants
+        # with a season of follow-up; a player in two other competitions counts in the
+        # stronger one. "Elsewhere" is none of the four competitions: retired, injured,
+        # or in a competition the data do not cover, such as the Championship.
+        left = ~in1 & e1
+        dest = []
+        for p_, s_ in zip(g.player_id[left], g.season_tgt[left]):
+            there = [c_ for c_ in ("NRL", "NSW", "QLD", "SL")
+                     if c_ != tgt and (p_, c_, s_ + 1) in seen]
+            dest.append(there[0] if there else "elsewhere")
+        for c_ in ("NRL", "NSW", "QLD", "SL", "elsewhere"):
+            row[f"left_to_{c_}"] = int(sum(d_ == c_ for d_ in dest))
+        rows.append(row)
     return pd.DataFrame(rows)
 
 

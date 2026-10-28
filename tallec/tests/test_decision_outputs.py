@@ -104,3 +104,14 @@ def test_retention_is_a_share():
     if r is None:
         pytest.skip("retention not built")
     assert 0 < r["stay2"] <= r["stay1"] < 1 and r["n2"] <= r["n1"]
+
+
+def test_the_leavers_add_up_to_everyone_who_left():
+    """Every entrant who was not in the target the season after went somewhere, or
+    nowhere in the data -- and is counted once."""
+    r = pt.retention("SL")
+    if r is None or "left_to_elsewhere" not in r:
+        pytest.skip("retention destinations not built")
+    left = sum(int(r[f"left_to_{c}"]) for c in ("NRL", "NSW", "QLD", "elsewhere"))
+    assert left == round(r["n1"] * (1 - r["stay1"]))
+    assert r["left_to_SL"] == 0

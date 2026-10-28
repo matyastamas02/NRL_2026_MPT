@@ -233,9 +233,9 @@ def top_third(forecast, target=None):
 
     A logistic on out-of-sample line forecasts of every next-season pair (each pair
     forecast from earlier seasons only; `build_decision_tables.py`). The base rate is the
-    target competition's own share of earlier moves that reached its top third. In an
-    exploratory backtest the third of entrants into Super League with the highest line
-    forecast reached the top third 29 times in 45 (64%), against 48% of all entrants.
+    target competition's own share of earlier moves that reached its top third. How a
+    top-third-by-forecast shortlist has done against simpler rules is in the table
+    `shortlist_validation` (`validate_shortlist.py`, SHORTLIST_VALIDATION.md).
     Where the page's forecast comes from the conditional model the curve is applied to
     that number instead, which was not tested separately."""
     cal = _read("SELECT * FROM decision_calibration WHERE kind = 'top_third'")

@@ -22,7 +22,9 @@ import sp_schema as sp
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 from predict_translation import (translate, available_pairs, comparables, COMP_NAME,
                                  top_third, start_record, bench_evidence, retention,
@@ -221,6 +223,45 @@ def load_all_players(comp):
 
 
 @st.cache_data
+def shortlist_table():
+    """`validate_shortlist.py`'s comparison of the forecast with simpler shortlists."""
+    try:
+        return pd.read_sql("SELECT * FROM shortlist_validation", con)
+    except Exception:
+        return pd.DataFrame()
+
+
+def retention_sentence(tgt):
+    """Who stayed in the target competition, and where the others went the next season."""
+    ret = retention(tgt)
+    if not ret or ret["n1"] < 20:
+        return ""
+    out = (f"Of {int(ret['n1'])} earlier entrants into {COMP_NAME[tgt]} (landing "
+           f"{int(ret['landing_from'])}–{int(ret['landing_to'])}), "
+           f"{100 * ret['stay1']:.0f}% were still playing there the season after")
+    gone = {c: int(ret.get(f"left_to_{c}") or 0) for c in ("NRL", "NSW", "QLD", "SL")}
+    gone = [f"{n} to the {COMP_NAME[c]}" for c, n in gone.items() if n and c != tgt]
+    if "left_to_elsewhere" in ret:
+        gone.append(f"{int(ret['left_to_elsewhere'])} to none of the four competitions "
+                    "(retired, injured, or a league the data do not cover)")
+        out += "; of those who left, " + ", ".join(gone)
+    return out + (f", and {100 * ret['stay2']:.0f}% of {int(ret['n2'])} with two seasons "
+                  f"to look at were there in both.")
+
+
+def shortlist_sentence():
+    """One sentence on the forecast shortlist's backtest record, or an empty string."""
+    v = shortlist_table()
+    if v.empty or not (v.rule == "forecast").any():
+        return ""
+    f = v[v.rule == "forecast"].iloc[0]
+    return (f"In an exploratory backtest on {f.seasons} entrants, the third of entrants "
+            f"into Super League with the highest forecast reached the top third "
+            f"{int(f.hits)} times in {int(f.shortlisted)} ({100 * f.hit_rate:.0f}%), "
+            f"against {100 * f.base_rate:.0f}% of all entrants. ")
+
+
+@st.cache_data
 def load_season_ratings(comp):
     """Every player-season of `comp`, rated on that season alone, with where the player
     is now (his main competition and club in his most recent season)."""
@@ -279,51 +320,53 @@ def get_player_stats(player_id, comp):
     """Get raw match stats for a player in a competition (all seasons held)."""
     query = """
     SELECT season, round, team, opposition, minutes, all_run_metres, tackles,
-           tackle_breaks, tries, fantasy, p_c_m, errors
+           tackle_breaks, tries, p_c_m, errors
     FROM player_match_stats
     WHERE player_id = ? AND competition = ?
     ORDER BY season DESC, round DESC
     """
     return pd.read_sql(query, con, params=(player_id, comp))
 
-# Radar axes: (label, per-what) — computed as percentile ranks across qualified players
-RADAR_METRICS = [
-    ("Run m / min",      "run_pm"),
-    ("PCM / min",        "pcm_pm"),
-    ("Tackles / min",    "tck_pm"),
-    ("Tackle breaks /g", "tb_pg"),
-    ("Attack punch /g",  "punch_pg"),   # line breaks + tries per game
-    ("Fantasy / min",    "fant_pm"),
-]
+# The radar's axes are the four categories of Mike's positional framework. Until
+# 2026-10-28 they were six raw rates from the first prototype, two of them home-made
+# (attack punch = line breaks + tries per game; a fantasy-style points blend) and none
+# scored against the player's own position. Every axis now has a rugby league rationale
+# Mike signed off, and a prop is measured against props, not against wingers.
+RADAR_CATEGORIES = ["Yardage", "Attack", "Involvement", "Defence & Discipline"]
+
 
 @st.cache_data
 def load_player_metrics(comp, min_minutes=40):
-    """Aggregate per-player rate metrics + their percentile ranks (0-100)."""
+    """Per player this season: club, most-played position and minutes, for the pickers."""
     q = """
-    SELECT player_id, player as name, team, position, minutes,
-           all_run_metres, p_c_m, tackles, tackle_breaks, line_breaks, tries, fantasy
+    SELECT player_id, player as name, team, position, minutes
     FROM player_match_stats
     WHERE competition = ? AND season = ?
     """
     pm = pd.read_sql(q, con, params=(comp, season_of(comp)))
-    for c in ["all_run_metres","p_c_m","tackles","tackle_breaks","line_breaks","tries","fantasy"]:
-        pm[c] = pm[c].fillna(0)
-    agg = pm.groupby("player_id").agg(
-        name=("name","first"), team=("team","first"), position=("position","first"),
-        mins=("minutes","sum"), games=("player_id","count"),
-        run=("all_run_metres","sum"), pcm=("p_c_m","sum"), tck=("tackles","sum"),
-        tb=("tackle_breaks","sum"), lb=("line_breaks","sum"),
-        tries=("tries","sum"), fant=("fantasy","sum")).reset_index()
-    agg = agg[agg["mins"] >= min_minutes].copy()
-    agg["run_pm"]   = agg["run"]  / agg["mins"]
-    agg["pcm_pm"]   = agg["pcm"]  / agg["mins"]
-    agg["tck_pm"]   = agg["tck"]  / agg["mins"]
-    agg["tb_pg"]    = agg["tb"]   / agg["games"]
-    agg["punch_pg"] = (agg["lb"] + agg["tries"]) / agg["games"]
-    agg["fant_pm"]  = agg["fant"] / agg["mins"]
-    for _, key in RADAR_METRICS:
-        agg[f"pct_{key}"] = agg[key].rank(pct=True) * 100
-    return agg
+    club = (pm.groupby(["player_id", "team"]).size().rename("n").reset_index()
+            .sort_values("n", ascending=False).drop_duplicates("player_id"))
+    pos = (pm.groupby(["player_id", "position"]).size().rename("n").reset_index()
+           .sort_values("n", ascending=False).drop_duplicates("player_id"))
+    agg = pm.groupby("player_id").agg(name=("name", "first"), mins=("minutes", "sum"),
+                                     games=("player_id", "count")).reset_index()
+    agg = (agg.merge(club[["player_id", "team"]], on="player_id")
+              .merge(pos[["player_id", "position"]], on="player_id"))
+    return agg[agg["mins"] >= min_minutes].copy()
+
+
+def category_profile(player_id, comp, season):
+    """The four category scores at the position he played most in that season, with
+    how many of each category's metrics the data could score."""
+    cats = load_position_categories(comp, season)
+    mets = load_position_metrics(comp, season)
+    mine = mets[mets.player_id.astype(str) == str(player_id)]
+    if mine.empty:
+        return None, pd.DataFrame()
+    main = (mine[["position", "matches"]].drop_duplicates()
+            .sort_values("matches", ascending=False).position.iloc[0])
+    c = cats[(cats.player_id.astype(str) == str(player_id)) & (cats.position == main)]
+    return main, c.set_index("category").reindex(RADAR_CATEGORIES)
 
 @st.cache_data
 def load_contribution(comp):
@@ -635,8 +678,9 @@ if page == "🔍 Search":
 # ─── PAGE: Head-to-Head Compare ────────────────────────────────────────
 elif page == "⚖️ Compare":
     st.subheader("Head-to-Head Comparison")
-    st.write("Two players side by side. Radar axes are **percentile ranks** across "
-             "all players with ≥ 40 minutes — 100 = best in the database.")
+    st.write("Two players side by side, on the four categories of the positional "
+             "framework. Each axis is scored 0–100 against players **in the same "
+             "position**, competition and season; 50 is the middle of that group.")
 
     metrics = load_player_metrics(comp)
     all_players = load_all_players(comp)
@@ -653,14 +697,17 @@ elif page == "⚖️ Compare":
 
     ma = metrics[metrics["name"] == name_a].iloc[0]
     mb = metrics[metrics["name"] == name_b].iloc[0]
+    season = season_of(comp)
+    pos_a, prof_a = category_profile(ma["player_id"], comp, season)
+    pos_b, prof_b = category_profile(mb["player_id"], comp, season)
 
     # rating cards
     ra = all_players[all_players["name"] == name_a]
     rb = all_players[all_players["name"] == name_b]
     c1, c2 = st.columns(2)
-    for col, m, r in [(c1, ma, ra), (c2, mb, rb)]:
+    for col, m, r, pos in [(c1, ma, ra, pos_a), (c2, mb, rb, pos_b)]:
         with col:
-            st.markdown(f"**{m['name']}** — {m['team']} · {m['position']}")
+            st.markdown(f"**{m['name']}** — {m['team']} · {pos or m['position']}")
             k1, k2, k3 = st.columns(3)
             form = float(r["form_score"].iloc[0]) if len(r) else 50
             cls  = float(r["class_score"].iloc[0]) if len(r) else 50
@@ -668,39 +715,48 @@ elif page == "⚖️ Compare":
             k2.metric("Class", f"{cls:.0f}", help=PEER_SCALE_HELP)
             k3.metric("Minutes", int(m["mins"]))
 
-    # radar
-    import plotly.graph_objects as go
-    labels = [lab for lab, _ in RADAR_METRICS]
-    va = [float(ma[f"pct_{k}"]) for _, k in RADAR_METRICS]
-    vb = [float(mb[f"pct_{k}"]) for _, k in RADAR_METRICS]
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=va + va[:1], theta=labels + labels[:1],
-                                  fill="toself", name=name_a,
-                                  line=dict(color="#4C8DFF")))
-    fig.add_trace(go.Scatterpolar(r=vb + vb[:1], theta=labels + labels[:1],
-                                  fill="toself", name=name_b,
-                                  line=dict(color="#F5A524")))
-    fig.update_layout(
-        polar=dict(bgcolor="rgba(0,0,0,0)",
-                   radialaxis=dict(range=[0, 100], showticklabels=True,
-                                   gridcolor="#2A3554", tickfont=dict(color="#9AA8C7")),
-                   angularaxis=dict(gridcolor="#2A3554", tickfont=dict(color="#EDF1F9"))),
-        paper_bgcolor="rgba(0,0,0,0)", legend=dict(font=dict(color="#EDF1F9")),
-        height=420, margin=dict(t=40, b=20))
-    st.plotly_chart(fig, width="stretch")
+    if prof_a.empty or prof_b.empty:
+        st.info("Category scores need five matches or more at one position this "
+                "season; " + " and ".join(n for n, pr in [(name_a, prof_a), (name_b, prof_b)]
+                                         if pr.empty) + " has fewer.")
+    else:
+        import plotly.graph_objects as go
+        labels = RADAR_CATEGORIES
+        va = [float(x) if pd.notna(x) else 0.0 for x in prof_a.score]
+        vb = [float(x) if pd.notna(x) else 0.0 for x in prof_b.score]
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(r=va + va[:1], theta=labels + labels[:1],
+                                      fill="toself", name=name_a,
+                                      line=dict(color="#4C8DFF")))
+        fig.add_trace(go.Scatterpolar(r=vb + vb[:1], theta=labels + labels[:1],
+                                      fill="toself", name=name_b,
+                                      line=dict(color="#F5A524")))
+        fig.update_layout(
+            polar=dict(bgcolor="rgba(0,0,0,0)",
+                       radialaxis=dict(range=[0, 100], showticklabels=True,
+                                       gridcolor="#2A3554", tickfont=dict(color="#9AA8C7")),
+                       angularaxis=dict(gridcolor="#2A3554", tickfont=dict(color="#EDF1F9"))),
+            paper_bgcolor="rgba(0,0,0,0)", legend=dict(font=dict(color="#EDF1F9")),
+            height=420, margin=dict(t=40, b=20))
+        st.plotly_chart(fig, width="stretch")
 
-    # numeric table
-    rows = []
-    for lab, k in RADAR_METRICS:
-        rows.append({"Metric": lab,
-                     name_a: round(float(ma[k]), 2),
-                     f"{name_a} pct": round(float(ma[f'pct_{k}'])),
-                     name_b: round(float(mb[k]), 2),
-                     f"{name_b} pct": round(float(mb[f'pct_{k}']))})
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-    st.caption("Rates are raw per-minute / per-game values; 'pct' columns are the "
-               "percentile ranks plotted on the radar. Same small-sample caveat as "
-               "everywhere: 2 rounds of data.")
+        def _made_of(pr, cat):
+            r = pr.loc[cat]
+            if pd.isna(r.score):
+                return "—"
+            return f"{r.score:.0f}" + (f" ({int(r.metrics)} of {int(r['of'])})"
+                                       if r.metrics < r["of"] else "")
+        st.dataframe(pd.DataFrame({
+            "Category": RADAR_CATEGORIES,
+            f"{name_a} ({pos_a})": [_made_of(prof_a, c) for c in RADAR_CATEGORIES],
+            f"{name_b} ({pos_b})": [_made_of(prof_b, c) for c in RADAR_CATEGORIES]}),
+            width="stretch", hide_index=True)
+        st.caption("Each category is the average of its metrics in the positional "
+                   "framework (volume and rate), each scored against the same position. "
+                   "\"3 of 6\" means only three of the six could be scored from the data. "
+                   "Players in different positions are each measured against their own "
+                   "position, so the shapes compare how good each is at his job. The "
+                   "Position page shows every metric behind these numbers.")
 
 # ─── PAGE 2: Positional Benchmarks ─────────────────────────────────────
 elif page == "📊 Benchmarks":
@@ -904,8 +960,8 @@ elif page == "🎯 Position":
         if mine.degraded.any():
             st.caption("⚠ Where a metric is marked with a narrower definition, one of "
                        "its inputs is not in the data. Set restarts are absent from the "
-                       "Super League extract, so discipline there counts penalties "
-                       "alone; kick try assists are absent everywhere, so break "
+                       "Super League extract before 2026, so discipline there counts "
+                       "penalties alone; kick try assists are absent everywhere, so break "
                        "conversion is a floor rather than the full figure. The ranking "
                        "within this competition is still right; the number is not "
                        "comparable with another competition's.")
@@ -1092,12 +1148,10 @@ elif page == "🔄 Comparison":
                 st.caption(f"Top third: a season rating among the top third of every rated "
                            f"player in {COMP_NAME[tgt]} that season. Calibrated on forecasts "
                            f"made out of sample for {tt['n_pairs']:,} earlier next-season "
-                           f"moves in all directions, through {tt['fitted_through']}. In an "
-                           f"exploratory backtest, the third of entrants into Super League "
-                           f"with the highest forecast reached the top third 29 times in 45 "
-                           f"(64%), against 48% of all entrants; in 2023 the shortlist did "
-                           f"worse than that. The rating does not tell who will start: that "
-                           f"was no better than chance.")
+                           f"moves in all directions, through {tt['fitted_through']}. "
+                           + shortlist_sentence()
+                           + "The rating does not tell who will start: that was no better "
+                           "than chance.")
             if rec and rec["games"] and rec["starts"] < 0.5 * rec["games"]:
                 msg = (f"**Mostly off the bench in {COMP_NAME[src]}**: {int(rec['starts'])} "
                        f"starts in {int(rec['games'])} matches. The rating is per minute, "
@@ -1115,13 +1169,8 @@ elif page == "🔄 Comparison":
                                f"be chance (p = {ev_b['p_value']:.2f})."
                                if ev_b.get("p_value", 0) >= 0.05 else "."))
                 st.warning(msg)
-            ret = retention(tgt)
-            if ret and ret["n1"] >= 20:
-                st.caption(f"Of {int(ret['n1'])} earlier entrants into {COMP_NAME[tgt]} "
-                           f"(landing {int(ret['landing_from'])}–{int(ret['landing_to'])}), "
-                           f"{100 * ret['stay1']:.0f}% were still playing there the season "
-                           f"after, and {100 * ret['stay2']:.0f}% of {int(ret['n2'])} with "
-                           f"two seasons to look at were there in both.")
+            if retention_sentence(tgt):
+                st.caption(retention_sentence(tgt))
 
         st.divider()
         st.write(f"**{COMP_NAME[tgt]} players at a comparable level**")
@@ -1183,9 +1232,53 @@ elif page == "🌐 Into Super League":
     with f4:
         max_age = st.slider("Age, at most:", 20, 38, 33, key="isl_age")
 
+    # The four recruitment views. Proposed thresholds, shown on the page so a club can
+    # see exactly what each view means and ask for different ones.
+    sl_thr = pd.read_sql("SELECT threshold FROM top_third_thresholds WHERE comp = 'SL' "
+                         "ORDER BY season DESC LIMIT 1", con)
+    sl_top = float(sl_thr.threshold[0]) if len(sl_thr) else 65.0
+    sl_base = top_third(50, "SL")
+    sl_base = sl_base["base_rate"] if sl_base else 0.45
+    VIEWS = {
+        "All players": ("", lambda t: np.ones(len(t), bool)),
+        "Immediate starters": (
+            "started at least 75% of his matches last season, averaging 60 minutes or "
+            "more, with a Super League forecast of 50 or above (at least the middle of "
+            "Super League players in his position)",
+            lambda t: (t.start_pct >= 75) & (t.mins_pg >= 60) & (t.forecast >= 50)),
+        "Young prospects": (
+            f"23 or younger, with a top-third chance at least the {100 * sl_base:.0f}% "
+            f"that new arrivals reach on average; no condition on starts",
+            lambda t: (t.age <= 23) & (t.p_top3 >= sl_base)),
+        "High upside": (
+            f"26 or younger, playing above his own level right now (Form at least 5 "
+            f"points over Class), and the top of his 80% range reaching Super League's "
+            f"top third ({sl_top:.0f})",
+            lambda t: (t.age <= 26) & (t.form_score - t.class_score >= 5)
+            & (t.hi80 >= sl_top)),
+        "Reliable squad options": (
+            "a rating built on two or more seasons and 30 or more matches in that "
+            "competition, 12 or more matches last season, and a Super League forecast of "
+            "40 or above",
+            lambda t: (t.n_seasons >= 2) & (t.n_matches >= 30) & (t.games >= 12)
+            & (t.forecast >= 40)),
+    }
+    v1, v2 = st.columns([1, 2])
+    with v1:
+        view_pick = st.selectbox("View:", list(VIEWS), key="isl_view")
+    with v2:
+        names_in = st.text_area(
+            "Only these players (paste names, one per line, e.g. an off-contract list):",
+            key="isl_names", height=68)
+    if VIEWS[view_pick][0]:
+        st.caption(f"**{view_pick}** — {VIEWS[view_pick][0]}. Suggested definition; "
+                   "the thresholds can be changed.")
+
     @st.cache_data
-    def _isl_table(src):
-        pl = load_all_players(src)
+    def _isl_table(src, current):
+        pl = _rated_players(src)
+        if current:
+            pl = pl[pl.player_id.isin(current_ids(src))].reset_index(drop=True)
         meta = load_player_meta(src)
         if pl.empty:
             return pd.DataFrame()
@@ -1198,56 +1291,179 @@ elif page == "🌐 Into Super League":
                           "player_season_starts WHERE comp = ? AND season = ?", con,
                           params=(src, season_of(src)))
         d = d.merge(st_, on="player_id", how="left")
-        # his club in that competition and season (the registry's team list spans every
-        # competition and season he has played in)
-        club = pd.read_sql("SELECT player_id, team, count(*) n FROM player_match_stats "
-                           "WHERE competition = ? AND season = ? GROUP BY 1, 2", con,
-                           params=(src, season_of(src)))
-        club = club.sort_values("n", ascending=False).drop_duplicates("player_id")
-        d = d.merge(club[["player_id", "team"]], on="player_id", how="left")
+        # how much evidence the rating rests on: seasons and matches in this competition
+        ev = pd.read_sql("SELECT player_id, count(DISTINCT season) n_seasons "
+                         "FROM player_match_stats WHERE competition = ? AND season <= ? "
+                         "GROUP BY 1", con, params=(src, season_of(src)))
+        d = d.merge(ev, on="player_id", how="left")
+        d["team"] = d.teams
         d["source"] = src
         return d
 
-    tabs = [_isl_table(c) for c in srcs]
+    tabs = [_isl_table(c, CURRENT_ONLY) for c in srcs]
     tab = pd.concat([t for t in tabs if len(t)], ignore_index=True) if any(
         len(t) for t in tabs) else pd.DataFrame()
     if tab.empty:
         st.info("No rated players in the chosen competitions.")
     else:
+        tab["start_pct"] = 100 * tab.starts / tab.games_all
+        tab["mins_total"] = tab.mins_pg * tab.games
         m = (tab.games.fillna(0) >= min_games) & (tab.age.fillna(0) <= max_age)
         if grp_pick != "All":
             m &= tab.pos_group == grp_pick
+        m &= np.asarray(VIEWS[view_pick][1](tab.fillna({"age": 99})), bool)
+        missing = []
+        if names_in.strip():
+            def _key(s):
+                s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
+                return re.sub(r"[^a-z]", "", s.lower())
+            want = {_key(n): n.strip() for n in names_in.splitlines() if n.strip()}
+            keys = tab.name.map(_key)
+            m &= keys.isin(want)
+            missing = [n for k, n in want.items() if k not in set(keys)]
         v = tab[m].sort_values("p_top3", ascending=False).copy()
         v["From"] = v.source.map(COMP_NAME)
         v["Team"] = v.team.fillna("—")
-        v["Started"] = [f"{int(a)} of {int(b)}" if pd.notna(a) and pd.notna(b) else "—"
+        v["Started"] = [f"{100 * a / b:.0f}% ({int(a)} of {int(b)})"
+                        if pd.notna(a) and pd.notna(b) and b else "—"
                         for a, b in zip(v.starts, v.games_all)]
         v["Mostly bench"] = np.where(v.starts.notna() & (v.starts < 0.5 * v.games_all),
                                      "yes", "")
+        v["Sample"] = [f"{int(s)} season{'s' if s != 1 else ''} · {int(n)} matches"
+                       if pd.notna(s) else "—" for s, n in zip(v.n_seasons, v.n_matches)]
         v["Likely range (50%)"] = [f"{a:.0f}–{b:.0f}" for a, b in zip(v.lo50, v.hi50)]
         v["Top-third chance"] = (100 * v.p_top3).round(0)
         show = v[["name", "From", "Team", "position", "age", "class_score", "forecast",
-                  "Likely range (50%)", "Top-third chance", "Started", "Mostly bench"]]
+                  "Likely range (50%)", "Top-third chance", "games", "mins_pg",
+                  "mins_total", "Started", "Sample", "Mostly bench"]]
         show.columns = ["Player", "From", "Team", "Position", "Age", "Rating there",
                         "SL forecast", "Likely range (50%)", "Top-third chance (%)",
-                        f"Started, {season_of('NRL')}", "Mostly bench"]
-        st.caption(f"{len(v):,} players match the filters.")
+                        f"Matches {season_of('NRL')}", "Avg min", "Total min",
+                        "Started", "Rating built on", "Mostly bench"]
+        st.caption(f"{len(v):,} players match the filters."
+                   + (f" Not found among them: {', '.join(missing)}." if missing else ""))
         st.dataframe(show.head(150).round(1), width="stretch", hide_index=True)
         st.download_button("⬇️ Export this list (CSV)", show.to_csv(index=False),
                            "into_super_league.csv", "text/csv", key="isl_csv")
-        ret = retention("SL")
+        val = shortlist_table()
         st.caption(
             "**How to read it.** The forecast is the app's straight line for each "
             "direction, fitted on earlier moves into Super League; the range is that "
             "line's past errors; the chance is calibrated on forecasts made out of sample. "
-            "In an exploratory backtest on 2023–2026 entrants, the third of entrants into "
-            "Super League with the highest forecast reached the top third 29 times in 45 "
-            "(64%), against 48% of all entrants. Most of these players will never move, "
-            "and the list says nothing about who is available or affordable; it ranks how "
-            "a move would be expected to go on the numbers. A high rating built mostly off "
-            "the bench is flagged, because short stints can carry a per-minute rating."
-            + (f" Of {int(ret['n1'])} earlier entrants into Super League, "
-               f"{100 * ret['stay1']:.0f}% were still there a season later." if ret else ""))
+            + shortlist_sentence()
+            + "Most of these players will never move, and the list says nothing about who "
+            "is available or affordable; it ranks how a move would be expected to go on "
+            "the numbers. A high rating built mostly off the bench is flagged, because "
+            "short stints can carry a per-minute rating. *Rating built on* is the "
+            "evidence behind the rating: a high rating from five matches is less certain "
+            "than the same rating over two seasons, and the rating is already pulled "
+            "toward average the less evidence there is."
+            + (" " + retention_sentence("SL") if retention_sentence("SL") else ""))
+        if len(val):
+            with st.expander("Is the forecast a better shortlist than simpler rules?"):
+                tv = val.copy()
+                tv["Hit rate"] = [f"{100 * r:.0f}% ({int(h)} of {int(k)})"
+                                  for r, h, k in zip(tv.hit_rate, tv.hits, tv.shortlisted)]
+                tv["Forecast minus rule"] = [
+                    "—" if pd.isna(d_) else f"{100 * d_:+.0f} pts [{100 * lo:+.0f}, {100 * hi:+.0f}]"
+                    for d_, lo, hi in zip(tv.forecast_minus, tv.lo, tv.hi)]
+                st.dataframe(tv[["label", "Hit rate", "Forecast minus rule", "auc"]]
+                             .rename(columns={"label": "Shortlist by", "auc": "AUC"})
+                             .round(2), width="stretch", hide_index=True)
+                st.caption(
+                    f"The same {int(val.entrants.iloc[0])} entrants into Super League, each "
+                    "season's top third by each rule, using only what was known before "
+                    "the move. A hit is a season in Super League's top third. Brackets "
+                    "are 95% intervals; an interval that includes 0 means the backtest "
+                    "cannot tell the two rules apart. Within one source competition the "
+                    "forecast ranks players exactly as their rating does, so the two "
+                    "differ only in how they rank players from different competitions. "
+                    "Exploratory: these entrants have been studied before.")
+
+        # ── the meeting shortlist ────────────────────────────────────────────
+        st.divider()
+        st.markdown("**Shortlist for a meeting** — up to five players from the list "
+                    "above, with what to expect and how sure the numbers are")
+        picks = st.multiselect("Players:", v.name.tolist(),
+                               default=v.name.head(5).tolist(), max_selections=5,
+                               key="isl_picks")
+        for nm in picks:
+            r = v[v.name == nm].iloc[0]
+            cmp_ = comparables(r.class_score, r.source, "SL",
+                               position_group=r.pos_group, exclude_player=r.player_id)
+            with st.container(border=True):
+                st.markdown(f"**{r['name']}** — {r.Team}, {COMP_NAME[r.source]} · "
+                            f"{r.position}" + (f" · {r.age:.0f}" if pd.notna(r.age) else ""))
+                k = st.columns(4)
+                k[0].metric("SL forecast", f"{r.forecast:.0f}",
+                            help="Expected season rating in Super League, on the peer "
+                                 "scale (50 = middle of his position group).")
+                k[1].metric("Likely range", f"{r.lo50:.0f}–{r.hi50:.0f}",
+                            delta=f"80%: {r.lo80:.0f}–{r.hi80:.0f}", delta_color="off")
+                k[2].metric("Top-third chance", f"{100 * r.p_top3:.0f}%",
+                            delta=f"average arrival {100 * sl_base:.0f}%", delta_color="off")
+                k[3].metric("Started", r.Started.split(" (")[0],
+                            delta=(f"{r.mins_pg:.0f} min a match" if pd.notna(r.mins_pg)
+                                   else None), delta_color="off")
+                note = [f"Rating built on {r.Sample}."]
+                if r["Mostly bench"]:
+                    note.append("Mostly off the bench last season, so the rating may "
+                                "flatter him over 80 minutes.")
+                if cmp_["n"]:
+                    note.append(f"{cmp_['n']} earlier entrants from "
+                                f"{COMP_NAME[r.source]} at a similar rating "
+                                f"({cmp_['basis']}) went on to rate "
+                                f"{cmp_['q25']:.0f}–{cmp_['q75']:.0f} in Super League "
+                                f"(middle half; median {cmp_['median']:.0f}).")
+                st.caption(" ".join(note))
+        if picks:
+            st.download_button(
+                "⬇️ Export the shortlist (CSV)",
+                show[show.Player.isin(picks)].to_csv(index=False),
+                "bosc_shortlist_into_sl.csv", "text/csv", key="isl_picks_csv")
+
+    # ── the track record ─────────────────────────────────────────────────────
+    try:
+        bt = pd.read_sql("SELECT * FROM entrant_backtest", con)
+    except Exception:
+        bt = pd.DataFrame()
+    if len(bt):
+        st.divider()
+        st.markdown("**Track record** — every player who moved into Super League from "
+                    f"these competitions, {int(bt.season_tgt.min())}–"
+                    f"{int(bt.season_tgt.max())}: what the forecast said before he moved, "
+                    "and what happened")
+        t1, t2 = st.columns(2)
+        with t1:
+            bt_src = st.multiselect("From:", sorted(bt.source.unique()),
+                                    default=sorted(bt.source.unique()),
+                                    format_func=lambda c: COMP_NAME[c], key="bt_src")
+        with t2:
+            bt_seas = st.multiselect("Season in Super League:",
+                                     sorted(bt.season_tgt.unique(), reverse=True),
+                                     default=sorted(bt.season_tgt.unique(), reverse=True),
+                                     key="bt_seas")
+        b_ = bt[bt.source.isin(bt_src) & bt.season_tgt.isin(bt_seas)].copy()
+        b_["Moved"] = [f"{COMP_NAME[c]} {int(a)} → SL {int(t)}"
+                       for c, a, t in zip(b_.source, b_.season_src, b_.season_tgt)]
+        b_["Range (50%)"] = [f"{a:.0f}–{b:.0f}" for a, b in zip(b_.lo50, b_.hi50)]
+        b_["Range (80%)"] = [f"{a:.0f}–{b:.0f}" for a, b in zip(b_.lo80, b_.hi80)]
+        b_["Outcome"] = np.where(b_.in50, "inside 50%",
+                                 np.where(b_.in80, "inside 80%", "outside"))
+        b_["Top third"] = np.where(b_.top3 == 1, "yes", "")
+        view = b_.sort_values(["season_tgt", "forecast"], ascending=False)[
+            ["name", "Moved", "position", "rating_source", "forecast", "Range (50%)",
+             "Range (80%)", "actual", "Outcome", "Top third", "matches_sl"]]
+        view.columns = ["Player", "Moved", "Position", "Rating before", "Forecast",
+                        "Range (50%)", "Range (80%)", "Rated in SL", "Outcome",
+                        "SL top third", "SL matches"]
+        st.dataframe(view.round(0), width="stretch", hide_index=True)
+        st.caption(
+            f"{len(b_)} moves shown. Each forecast uses only the seasons before the move. "
+            f"The 50% range held {100 * b_.in50.mean():.0f}% of them and the 80% range "
+            f"{100 * b_.in80.mean():.0f}%; the forecast missed by "
+            f"{(b_.actual - b_.forecast).abs().mean():.0f} points on average. All moves "
+            "are listed, the misses with the hits. Exploratory backtest.")
 
 # ─── PAGE: Historical Seasons ──────────────────────────────────────────
 elif page == "📚 Historical Seasons":

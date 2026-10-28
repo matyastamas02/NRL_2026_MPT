@@ -129,13 +129,12 @@ AVAILABILITY = {
         "name promises. Declared missing everywhere so the degraded flag fires on all of "
         "them rather than the shortfall living only in a note nobody reads — see "
         "DATA-2.")),
-    "SetRestart": dict(missing_in=["SL"], note=(
-        "NULL on all 31,769 Super League rows; 8,012 conceded in the NRL, 2,456 in the "
-        "NSW Cup, 3,295 in the Queensland Cup. Six-again is played in Super League, so "
-        "this is a gap in the extract rather than in the sport, and it is worth asking "
-        "Stats Perform for. Until it arrives, 'Combined Infringements' means penalties "
-        "plus set restarts in Australia and penalties alone in Super League, which is "
-        "not the same measure — see DATA-1.")),
+    "SetRestart": dict(missing_in=["SL"], present_from={"SL": 2026}, note=(
+        "NULL on every Super League row of 2021-2025; the 2026 export carries it on every "
+        "row. Six-again is played in Super League, so this is a gap in the extract "
+        "rather than in the sport. Until the earlier seasons are re-exported, 'Combined "
+        "Infringements' means penalties plus set restarts in Australia and in Super "
+        "League 2026, and penalties alone in Super League 2021-2025 — see DATA-1.")),
     "KM": dict(usable_from=2023, note=(
         "Kick metres are effectively empty for NSW Cup and Queensland Cup in 2021-2022 "
         "(0-6% of rows) and populated from 2023. Affects the Halves Yardage category "
@@ -496,7 +495,8 @@ def resolve(position, competition, season):
                     continue
                 if av.get("usable_from") and season < av["usable_from"]:
                     blocked.append(f"{code} not recorded before {av['usable_from']}")
-                if competition in (av.get("missing_in") or []):
+                if (competition in (av.get("missing_in") or [])
+                        and season < (av.get("present_from") or {}).get(competition, 9999)):
                     blocked.append(f"{code} absent in {competition}")
             rows.append(dict(volume=m["volume"], rate=m["rate"], inputs=m["inputs"],
                              note=m["note"], blocked_by=blocked,
