@@ -204,6 +204,45 @@ def _write_rows(con, df, a, rounds):
     con.commit()
 
 
+def registry_dob(con):
+    """One ISO date of birth per player, or none.
+
+    A date already in the registry stays: a later feed writing it in another format
+    would otherwise replace it, and the frozen tests fingerprint these dates. New players
+    take the feed's date; corrections to an existing one are made explicitly, not by an
+    import. A placeholder (`0000-00-00`) is not a date: it is replaced by the feed's real
+    date when one exists, which four players were missing until 2026-10-28. Every date is
+    written as yyyy-mm-dd; the old Super League feed's dd/mm/yyyy is converted."""
+    kept = pd.read_sql("SELECT player_id, dob FROM players", con)
+    kept["dob"] = sp.parse_dob(kept.dob)
+    kept = kept.dropna(subset=["dob"])
+    feed = pd.read_sql('SELECT DISTINCT player_id, "Date of Birth" dob FROM player_match_raw '
+                       'WHERE "Date of Birth" IS NOT NULL', con)
+    feed["dob"] = sp.parse_dob(feed.dob)
+    feed = feed.dropna(subset=["dob"]).groupby("player_id", as_index=False).dob.min()
+    dob = pd.concat([kept, feed[~feed.player_id.isin(kept.player_id)]], ignore_index=True)
+    dob["dob"] = dob.dob.dt.strftime("%Y-%m-%d")
+    return dob
+
+
+def refresh_registry(con):
+    """Rebuild the small `players` table from the match rows (rebuilt, not patched)."""
+    pms = pd.read_sql("SELECT player_id, player, team, competition, season, minutes, "
+                      "position FROM player_match_stats", con)
+    players =(pms.groupby("player_id").agg(
+        name=("player", "first"),
+        comps=("competition", lambda x: "; ".join(sorted(set(x)))),
+        teams=("team", lambda x: "; ".join(sorted(set(map(str, x))))),
+        seasons=("season", lambda x: f"{int(min(x))}-{int(max(x))}"),
+        matches=("player", "count"), total_minutes=("minutes", "sum"),
+        positions=("position", lambda x: x.mode().iloc[0] if len(x.mode()) else "Unknown"))
+        .reset_index().merge(registry_dob(con), on="player_id", how="left"))
+    players.to_sql("players", con, if_exists="replace", index=False)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_players_id ON players(player_id)")
+    con.commit()
+    return players
+
+
 def main():
     ap = argparse.ArgumentParser(description="Weekly Stats Perform import")
     ap.add_argument("--file", required=True)
@@ -291,28 +330,7 @@ def main():
         con.close()
     con = sqlite3.connect(DB)
     eng_cols = [r[1] for r in con.execute("PRAGMA table_info(player_match_stats)")]
-    # ── registry refresh (small table; rebuilt rather than patched) ──────────
-    pms = pd.read_sql("SELECT player_id, player, team, competition, season, minutes, "
-                      "position FROM player_match_stats", con)
-    dob = pd.read_sql('SELECT player_id, min("Date of Birth") dob FROM player_match_raw '
-                      'WHERE "Date of Birth" IS NOT NULL GROUP BY player_id', con)
-    # A date of birth already in the registry stays: a later feed writing it in another
-    # format, or a placeholder 0000-00-00, would otherwise replace it through the string
-    # min above, and the frozen 2026 test fingerprints these dates. New players take the
-    # feed's date; corrections to an existing one are made explicitly, not by an import.
-    kept = pd.read_sql("SELECT player_id, dob FROM players WHERE dob IS NOT NULL", con)
-    dob = pd.concat([kept, dob[~dob.player_id.isin(kept.player_id)]], ignore_index=True)
-    players = (pms.groupby("player_id").agg(
-        name=("player", "first"),
-        comps=("competition", lambda x: "; ".join(sorted(set(x)))),
-        teams=("team", lambda x: "; ".join(sorted(set(map(str, x))))),
-        seasons=("season", lambda x: f"{int(min(x))}-{int(max(x))}"),
-        matches=("player", "count"), total_minutes=("minutes", "sum"),
-        positions=("position", lambda x: x.mode().iloc[0] if len(x.mode()) else "Unknown"))
-        .reset_index().merge(dob, on="player_id", how="left"))
-    players.to_sql("players", con, if_exists="replace", index=False)
-    con.execute("CREATE INDEX IF NOT EXISTS ix_players_id ON players(player_id)")
-    con.commit()
+    players = refresh_registry(con)
 
     after = pd.read_sql("SELECT count(*) n, max(round) r FROM player_match_stats "
                         "WHERE competition=? AND season=?", con,

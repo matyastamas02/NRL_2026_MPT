@@ -54,6 +54,8 @@ Key tables:
   competition for the whole history, chosen from overall position coverage — mixing
   position-relative and competition-relative seasons into one Class would be
   meaningless.
+- `player_season_ratings` — one rating per player, competition and season, from that
+  season alone, with its club; the Historical Seasons page reads it.
 - `player_contribution`, `player_contribution_rating` — Player Contribution: a player's
   share of his own team's output.
 - `translation_ladder`, `translation_pairs`, `translation_model_meta` — the measured
@@ -73,9 +75,10 @@ the boundaries are enforced in code, not just documented.
 | `weekly_update.py` | one round of `player_match_stats` / `player_match_raw`, `players` | **every week in season** |
 | `ingest_full_season.py` | rebuilds NRL 2026 + SL from their season files | rarely; refuses to run while other competitions are present |
 | `ingest_aus_history.py` | appends the Australian history file | once, done 2026-08-19 |
-| `regenerate_full.py` | `player_ratings`, `player_contribution*` (all four competitions) | after any data change |
+| `regenerate_full.py` | `player_ratings`, `player_season_ratings`, `player_contribution*` (all four competitions) | after any data change |
 | `unify_sl_ids.py` | re-keys SL history onto permanent ids | superseded — the 2021-2026 master carries real ids |
 | `resolve_duplicates.py` | splits identifiers covering two players, restores the 16 held-out rows | once, done 2026-08-25 |
+| `merge_reissued_ids.py` | merges identifiers re-issued to one player (same name and date of birth, never in the same match) | once, done 2026-10-28; rerun is a no-op |
 | `gigot_v2.py` | nothing — evaluation only, writes `gigot_v2_results.csv` | when the question is asked again |
 | `fit_translation_v2.py` | translation tables + `translation_model_v2.pkl` | when a season completes |
 | `contribution.py` | **nothing** — import-only module holding the formula | — |

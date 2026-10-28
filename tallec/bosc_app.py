@@ -28,6 +28,7 @@ from predict_translation import (translate, available_pairs, comparables, COMP_N
                                  top_third, start_record, bench_evidence, retention,
                                  line_forecasts, league_strength)
 from sp_schema import POSITION_GROUP
+import player_rating_engine as pre
 import runtime
 
 st.set_page_config(
@@ -108,9 +109,8 @@ def get_db(version):
 
 con = get_db(DB_VERSION)
 
-# The competitions do not share a current season — NSW Cup and Queensland Cup data
-# stops at 2025 while NRL and Super League run to 2026 — so every competition-scoped
-# query resolves its own. SEASON stays as the default for anything unscoped.
+# The competitions need not share a current season, so every competition-scoped query
+# resolves its own (`season_of`). SEASON stays as the default for anything unscoped.
 SEASON = 2026
 
 # ─── What the 0-100 number is, said once ───────────────────────────────
@@ -184,7 +184,62 @@ def load_position_categories(comp, season):
 
 
 @st.cache_data
+def player_home():
+    """Where each player is now: his most recent rated season, and in it the competition
+    he played the most minutes in. Current Players shows every player once, there, so an
+    NRL player with three NSW Cup games is not also listed as a NSW Cup player, and a
+    Queensland Cup career that ended before this season is not shown as current."""
+    d = pd.read_sql("SELECT player_id, competition AS comp, season, count(*) AS games, "
+                    "sum(minutes) AS mins FROM player_match_stats "
+                    "WHERE season <= (SELECT max(season) FROM player_ratings) "
+                    "GROUP BY 1, 2, 3", con)
+    d = d[d.season == d.groupby("player_id").season.transform("max")]
+    d = d.sort_values(["mins", "games"], ascending=False)
+    home = d.drop_duplicates("player_id").rename(
+        columns={"comp": "home_comp", "season": "home_season"})
+    rest = d[d.duplicated("player_id")]
+    also = (rest.assign(txt=[f"{COMP_NAME.get(c, c)} ({n})"
+                             for c, n in zip(rest.comp, rest.games)])
+            .groupby("player_id").txt.agg(", ".join).rename("also_played").reset_index())
+    return home[["player_id", "home_comp", "home_season"]].merge(
+        also, on="player_id", how="left")
+
+
+def current_ids(comp):
+    """The players whose competition this is, this season (see `player_home`)."""
+    h = player_home()
+    return set(h[(h.home_comp == comp) & (h.home_season == season_of(comp))].player_id)
+
+
 def load_all_players(comp):
+    """The rated players of `comp`: with Current Players on, only those whose main
+    competition this is in their most recent season."""
+    d = _rated_players(comp)
+    if CURRENT_ONLY:
+        d = d[d.player_id.isin(current_ids(comp))]
+    return d.reset_index(drop=True)
+
+
+@st.cache_data
+def load_season_ratings(comp):
+    """Every player-season of `comp`, rated on that season alone, with where the player
+    is now (his main competition and club in his most recent season)."""
+    d = pd.read_sql("SELECT s.*, p.dob FROM player_season_ratings s "
+                    "JOIN players p ON p.player_id = s.player_id "
+                    "WHERE s.competition = ?", con, params=(comp,))
+    if d.empty:
+        return d
+    d = d.merge(player_home(), on="player_id", how="left")
+    now = pd.read_sql("SELECT player_id, competition AS home_comp, season AS home_season, "
+                      "team AS home_team FROM player_season_ratings", con)
+    d = d.merge(now, on=["player_id", "home_comp", "home_season"], how="left")
+    d["age"] = ((pd.to_datetime(d.season.astype(int).astype(str) + "-06-30")
+                 - sp.parse_dob(d.dob)).dt.days / 365.25).round(1)
+    return d
+
+
+@st.cache_data
+def _rated_players(comp):
     """Players active in `comp` this season, joined to their ratings."""
     query = """
     SELECT r.player_id, p.name, p.teams, p.total_minutes, p.positions,
@@ -205,7 +260,19 @@ def load_all_players(comp):
     WHERE r.competition = ? AND r.season = ?
     ORDER BY p.name
     """
-    return pd.read_sql(query, con, params=(comp, season_of(comp)))
+    d = pd.read_sql(query, con, params=(comp, season_of(comp)))
+    # The registry lists every club a player has had, in any competition and season,
+    # alphabetically, and the pages showed its first entry -- an old club as often as
+    # not (Keano Kini, a Gold Coast player, showed as Burleigh Bears). `teams` now holds
+    # his club in this competition and season: the one he played the most matches for.
+    club = pd.read_sql("SELECT player_id, team, count(*) n FROM player_match_stats "
+                       "WHERE competition = ? AND season = ? GROUP BY 1, 2", con,
+                       params=(comp, season_of(comp)))
+    club = club.sort_values("n", ascending=False).drop_duplicates("player_id")
+    d = d.merge(club[["player_id", "team"]].rename(columns={"team": "club"}),
+                on="player_id", how="left")
+    d["teams"] = d.club.fillna(d.teams)
+    return d.drop(columns="club").merge(player_home(), on="player_id", how="left")
 
 @st.cache_data
 def get_player_stats(player_id, comp):
@@ -367,8 +434,15 @@ with nav2:
     page = st.selectbox(
         "Select section:",
         ["🔍 Search", "⚖️ Compare", "📊 Benchmarks", "🎯 Position", "🔄 Comparison",
-         "🌐 Into Super League", "👥 Player Contribution", "📈 Trends"],
+         "🌐 Into Super League", "📚 Historical Seasons", "👥 Player Contribution",
+         "📈 Trends"],
         label_visibility="collapsed")
+CURRENT_ONLY = st.toggle(
+    "Current players only", value=True, key="current_only",
+    help="Each player once, in the competition he played the most minutes in during "
+         "his most recent season. Turn off to list everyone with a rating in this "
+         "competition, including players whose main competition is now another one. "
+         "Earlier seasons are on the Historical Seasons page.")
 _basis = pd.read_sql("SELECT rating_basis, count(*) n FROM player_ratings "
                      "WHERE competition = ? AND season = ? GROUP BY 1 "
                      "ORDER BY n DESC LIMIT 1", con, params=(comp, season_of(comp)))
@@ -415,6 +489,10 @@ if page == "🔍 Search":
             st.metric("Matches played", int(player["n_matches"]))
         with col3:
             st.metric("Minutes played", int(player["n_minutes"]))
+        if isinstance(player.get("also_played"), str):
+            st.caption(f"Also played in {season_of(comp)}: {player['also_played']} "
+                       f"matches. His main competition that season was "
+                       f"{COMP_NAME.get(player['home_comp'], player['home_comp'])}.")
 
         st.divider()
 
@@ -549,7 +627,10 @@ if page == "🔍 Search":
                                    sl_view.to_csv(index=False).encode(),
                                    file_name="bosc_shortlist.csv", mime="text/csv")
     else:
-        st.warning("No players found. Try a different search.")
+        st.warning("No players found. Try a different search"
+                   + (", or turn off *Current players only* to include players whose "
+                      "main competition this season is another one." if CURRENT_ONLY
+                      else "."))
 
 # ─── PAGE: Head-to-Head Compare ────────────────────────────────────────
 elif page == "⚖️ Compare":
@@ -559,6 +640,8 @@ elif page == "⚖️ Compare":
 
     metrics = load_player_metrics(comp)
     all_players = load_all_players(comp)
+    if CURRENT_ONLY:
+        metrics = metrics[metrics.player_id.isin(current_ids(comp))]
     names = metrics.sort_values("name")["name"].tolist()
 
     default_b = 1 if len(names) > 1 else 0
@@ -720,7 +803,8 @@ elif page == "📊 Benchmarks":
             key = "form_score" if metric == "Form" else "class_score"
             st.write(f"**Top 15 by {metric}**")
             st.dataframe(table(pool, 15, key), width="stretch", hide_index=True)
-            st.caption("Form is the recent window, Class the full season, both shrunk "
+            st.caption("Form is his last five matches; Class combines his seasons in "
+                       "this competition, the latest weighted most. Both are shrunk "
                        "toward average by sample size. Divergence is Form minus Class: "
                        "positive means playing above his own level right now. "
                        + peer_note(comp))
@@ -762,7 +846,12 @@ elif page == "🎯 Position":
         c1, c2 = st.columns([1, 2])
         with c1:
             grp = st.selectbox("Position:", groups, key="pos_group")
-        pool = (mets[mets.position == grp][["player_id", "name", "matches"]]
+        # every score is ranked against the whole pool of the position; the toggle only
+        # decides whose profile can be opened and who is on the board below
+        ranked = mets[mets.position == grp].player_id.nunique()
+        shown = mets[mets.player_id.astype(str).isin(current_ids(comp))] \
+            if CURRENT_ONLY else mets
+        pool = (shown[shown.position == grp][["player_id", "name", "matches"]]
                 .drop_duplicates().sort_values("name"))
         with c2:
             who = st.selectbox(f"{grp} ({len(pool)} players):", pool.name.values,
@@ -787,11 +876,11 @@ elif page == "🎯 Position":
                             f"{row.score.iloc[0]:.0f}" if len(row) else "—",
                             delta=made_of or None, delta_color="off")
         st.caption(
-            f"Ranked against the {len(pool)} {grp}s in "
+            f"Ranked against the {ranked} {grp}s in "
             f"{COMP_NAME.get(comp, comp)} {season} with five matches or more."
             + ("  ⚠ A pool this small makes each place in the order worth several "
                "points — read these as broad bands, not as precise scores."
-               if len(pool) < 40 else ""))
+               if ranked < 40 else ""))
 
         for cat in ["Yardage", "Attack", "Involvement", "Defence & Discipline"]:
             g = mine[mine.category == cat]
@@ -835,7 +924,8 @@ elif page == "🎯 Position":
         st.write(f"**Strongest {grp}s in {COMP_NAME.get(comp, comp)} {season}**")
         st.caption("Average of the four category scores. A blunt summary — the profile "
                    "above is where the useful information is.")
-        board = (cats[cats.position == grp]
+        board_cats = cats[cats.player_id.astype(str).isin(set(pool.player_id.astype(str)))]
+        board = (board_cats[board_cats.position == grp]
                  .pivot_table(index="name", columns="category", values="score")
                  .round(0))
         if len(board):
@@ -1158,6 +1248,58 @@ elif page == "🌐 Into Super League":
             "the bench is flagged, because short stints can carry a per-minute rating."
             + (f" Of {int(ret['n1'])} earlier entrants into Super League, "
                f"{100 * ret['stay1']:.0f}% were still there a season later." if ret else ""))
+
+# ─── PAGE: Historical Seasons ──────────────────────────────────────────
+elif page == "📚 Historical Seasons":
+    st.subheader("Historical Seasons")
+    st.write("Every player-season in this competition, each rated on that season alone "
+             "and shown with its year and club. A strong season here is not a current "
+             "rating: **Now** says where the player played most in his latest season. "
+             "The other pages show current players only.")
+    hs = load_season_ratings(comp)
+    if hs.empty:
+        st.info(f"No season ratings held for {COMP_NAME.get(comp, comp)}.")
+    else:
+        f1, f2, f3, f4 = st.columns(4)
+        seasons = sorted(hs.season.unique(), reverse=True)
+        with f1:
+            pick = st.multiselect("Seasons:", seasons, default=seasons, key="hs_seasons")
+        with f2:
+            grp_hs = st.selectbox("Position group:", ["All"] + sorted(
+                hs.group.dropna().unique()), key="hs_grp")
+        with f3:
+            min_hs = st.slider("Matches that season, at least:", 1, 25, 8, key="hs_min")
+        with f4:
+            who_hs = st.text_input("Player name contains:", key="hs_name")
+        v = hs[hs.season.isin(pick) & (hs.matches >= min_hs)]
+        if grp_hs != "All":
+            v = v[v.group == grp_hs]
+        if who_hs:
+            v = v[v.name.str.contains(who_hs, case=False, na=False)]
+        v = v.sort_values("season_score", ascending=False).copy()
+        v["Now"] = [
+            f"{COMP_NAME.get(c, c)} {int(y)}" + (f" · {t}" if isinstance(t, str) else "")
+            if isinstance(c, str) else "—"
+            for c, y, t in zip(v.home_comp, v.home_season, v.home_team)]
+        show = v[["name", "season", "team", "position", "age", "matches", "minutes",
+                  "season_score", "Now"]].copy()
+        show.columns = ["Player", "Season", "Club", "Position", "Age", "Matches",
+                        "Minutes", "Season rating", "Now"]
+        st.caption(f"{len(v):,} player-seasons match the filters.")
+        st.dataframe(show.head(200).round(1), width="stretch", hide_index=True)
+        st.download_button("⬇️ Export this list (CSV)", show.to_csv(index=False),
+                           f"historical_seasons_{comp}.csv", "text/csv", key="hs_csv")
+        w = pre.SEASON_WEIGHTS or []
+        st.caption(
+            "**Season rating** is the same 0–100 peer score as Class, built from that "
+            "season's matches alone and pulled toward 50 the fewer there were. 50 is the "
+            "median of the position group in that competition and season, so a season "
+            "rating is not comparable with one in another competition. **Class**, on the "
+            "other pages, combines a player's seasons in a competition: the latest counts "
+            + ", the one before ".join(["1.0"] + [f"{x:g}" for x in w[1:2]])
+            + (", then " + ", ".join(f"{x:g}" for x in w[2:]) if len(w) > 2 else "")
+            + f", and anything older {pre.SEASON_WEIGHT_FLOOR:g}. Form is his last "
+            "five matches.")
 
 # ─── PAGE: Player Contribution ─────────────────────────────────────────
 elif page == "👥 Player Contribution":

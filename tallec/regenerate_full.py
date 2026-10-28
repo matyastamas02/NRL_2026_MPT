@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Regenerate ratings + contribution, PER COMPETITION, over the full history.
 
-THIS SCRIPT IS THE SINGLE WRITER of player_ratings, player_contribution and
-player_contribution_rating. The contribution formula lives in contribution.py
+THIS SCRIPT IS THE SINGLE WRITER of player_ratings, player_season_ratings,
+player_contribution and player_contribution_rating. The contribution formula lives in contribution.py
 (import-only) so the two files cannot drift apart.
 
 Two design decisions worth knowing before reading the numbers.
@@ -22,16 +22,21 @@ player's 2025 matches could be position-relative while his 2023 matches were
 competition-relative, and averaging them into one Class would be meaningless. All four
 competitions now clear the threshold and are rated within position group — Super League
 included, since its match-sheet positions were loaded for every season on 2026-08-25.
-Only the NRL's 2026 rows still carry estimated positions, and the freeze keeps those out
-of the fit entirely.
+The NRL's 2021-2025 rows carry career positions; its 2026 rows carry the match sheet's.
 
 Ratings are published for players active in each competition's most recent season —
 that is who a recruiter is looking at — but built from everything they have played.
 
+`player_season_ratings` is the other view: one row per player, competition and season,
+rated on that season alone (`rating_history`'s season-only snapshot, the same engine and
+scale), with the club, position, matches and minutes of that season. The app's
+Historical Seasons page reads it, so a strong Queensland Cup season of a player who is
+now in the NRL is shown with its year and competition, not as his current rating.
+
 **Nothing is fitted past `evaluation.freeze_season`.** Seasons after it exist in the
 database and the app can show them; what they must not do is contribute to the ratings
-that are then tested against them. With the freeze at 2025, "most recent season" means
-2025 for all four competitions, which is also the last one the Australian feeds cover.
+that are then tested against them. With the freeze at 2026, "most recent season" means
+2026 for all four competitions.
 """
 import os
 import sqlite3
@@ -42,8 +47,10 @@ import pandas as pd
 import time
 
 import player_rating_engine as pre
+import rating_history as rh
 import runtime
 import contribution as gc
+import sp_schema as sp
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "tallec.db")
@@ -117,7 +124,7 @@ for comp in COMPS:
     snap["season"] = current
     snap["positional_benchmark"] = snap["class_score"]
     snap["competition_translation_factor"] = 0.0
-    snap["updated_at"] = "2026-08-20"
+    snap["updated_at"] = time.strftime("%Y-%m-%d")
     rating_frames.append(snap)
     _stats[comp] = {"players": int(len(snap)), "season": current,
                     "rows": int(len(pm)), "mode": eng.position_mode,
@@ -147,6 +154,28 @@ cols = ["player_id", "season", "comp_code", "competition", "form_score", "form_z
         # group's own or the competition's, and a plain percentile alongside the score —
         # the 0-100 was being read as a percentile and is not one
         "group", "scale_basis", "class_percentile"]
+# one rating per player-season, from that season alone
+_, sea, _ = rh.all_competitions(DB, through=pre.FREEZE_SEASON)
+sea = sea.rename(columns={"comp": "competition", "class_score": "season_score"})
+pms = pd.read_sql("SELECT player_id, competition, season, team, position, minutes "
+                  "FROM player_match_stats", con)
+pms = pms[pms.season <= (pre.FREEZE_SEASON or pms.season.max())]
+club = (pms.groupby(["player_id", "competition", "season", "team"]).size()
+        .rename("n").reset_index().sort_values("n", ascending=False)
+        .drop_duplicates(["player_id", "competition", "season"]))
+pos = (pms[pms.position.notna() & (pms.position != "Unknown")]
+       .groupby(["player_id", "competition", "season", "position"]).size()
+       .rename("n").reset_index().sort_values("n", ascending=False)
+       .drop_duplicates(["player_id", "competition", "season"]))
+vol = (pms.groupby(["player_id", "competition", "season"])
+       .agg(matches=("minutes", "size"), minutes=("minutes", "sum")).reset_index())
+key = ["player_id", "competition", "season"]
+season_ratings = (sea[key + ["name", "season_score", "n_games", "confidence"]]
+                  .merge(club[key + ["team"]], on=key, how="left")
+                  .merge(pos[key + ["position"]], on=key, how="left")
+                  .merge(vol, on=key, how="left"))
+season_ratings["group"] = season_ratings.position.map(sp.POSITION_GROUP)
+
 per_match_all = pd.concat(match_frames, ignore_index=True)
 contrib = pd.concat(contrib_frames, ignore_index=True).sort_values(
     "contribution_rating", ascending=False)
@@ -159,11 +188,15 @@ with runtime.guarded_write("regenerate_full",
     ratings[cols].to_sql("player_ratings", con, if_exists="replace", index=False)
     con.execute("CREATE INDEX IF NOT EXISTS ix_ratings_comp "
                 "ON player_ratings(competition, season)")
+    season_ratings.to_sql("player_season_ratings", con, if_exists="replace", index=False)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_season_ratings "
+                "ON player_season_ratings(competition, season)")
     per_match_all.to_sql("player_contribution", con, if_exists="replace", index=False)
     contrib.to_sql("player_contribution_rating", con, if_exists="replace", index=False)
     con.commit()
 
 print(f"\nplayer_ratings: {len(ratings)} rows | "
+      f"player_season_ratings: {len(season_ratings)} rows | "
       f"player_contribution: {len(per_match_all)} rows | "
       f"player_contribution_rating: {len(contrib)} rows")
 runtime.record_model_run("player_ratings+contribution", _stats, time.time() - _t0,

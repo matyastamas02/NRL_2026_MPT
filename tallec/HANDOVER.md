@@ -280,7 +280,7 @@ for the package one folder up, so run it from `~/Downloads/TALLEC/` or pass `--o
 `v1_holdout_record.json` records an out-of-sample result produced by that exact file, the
 only untouched holdout the project has. Do not touch `v1_holdout_record.json` either. The
 current ladder and model come from `fit_translation_v3.py`. Every new fit reads
-`FREEZE_SEASON` (2025) from `config.json`.
+`FREEZE_SEASON` from `config.json`: 2026 since 2026-10-28 (it was 2025 until the 2026 test had run).
 
 **The live app reads `tallec_app.db`, not `tallec.db`.** A weekly update changes nothing
 on the live site until `python build_app_db.py` has run and `tallec_app.db` is committed

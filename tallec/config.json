@@ -68,9 +68,9 @@
     "description": "Expected change in a player's 0-100 rating over the next season, by age, linearly interpolated between the knots and held flat outside them. MEASURED 2026-09-14 from 3,711 season-to-season pairs across the four competitions: improvement into the early twenties, a plateau from 23 to 26, and a decline of about three quarters of a point a year from 27. The declines after 27 and after 31 are both clearly separated from zero. The curve is a real feature of the data. What it has NOT yet done is improve any prediction: added to the translation model it changes the error by +0.01 points, i.e. nothing. The reason is scale — three quarters of a point a year against a residual error near six — not that the effect is imaginary. It is kept because it is measured, because age was previously only a straight line and could not represent a curve at all, and because a proper next-season projection will need it. Set to null to switch the adjustment off."
   },
   "evaluation": {
-    "freeze_season": 2025,
-    "description": "Ratings and the translation model are fitted through this season and no further; everything after it is held out. Mike's decision (2026-08-26): the 2026 season is left alone until it finishes in October and then serves as an out-of-sample test of what the ratings and the translation model projected, which only means anything if no part of 2026 helped produce those projections. Read by regenerate_full.py and fit_translation_v2.py through player_rating_engine.FREEZE_SEASON. Set to null to fit on everything.",
-    "held_out_note": "2026 player-matches stay in player_match_stats and the app can still show them; what the freeze governs is what is FITTED."
+    "freeze_season": 2026,
+    "description": "Ratings and the translation model are fitted through this season and no further; everything after it is held out. Until 2026-10-28 this was 2025 (Mike's decision of 2026-08-26), so that the 2026 season could test what the ratings and the translation model projected; that test ran on 2026-10-15 (FROZEN_2026_RESULT.md, record in frozen_2026_run/), and the freeze then moved to 2026 so that the app rates the 2026 seasons and forecasts 2027. Read by regenerate_full.py and fit_translation_v2.py through player_rating_engine.FREEZE_SEASON. Set to null to fit on everything.",
+    "held_out_note": "Later player-matches stay in player_match_stats and the app can still show them; what the freeze governs is what is FITTED."
   },
   "data_quality_thresholds": {
     "min_minutes_for_form": 20,

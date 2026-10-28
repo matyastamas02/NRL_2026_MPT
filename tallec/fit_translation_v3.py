@@ -237,8 +237,9 @@ def main():
         lad.to_sql("translation_ladder_v3", con, if_exists="replace", index=False)
         p[[c for c in keep if c in p.columns]].to_sql(
             "translation_pairs_v3", con, if_exists="replace", index=False)
+        # the per-feature multipliers are a list: they go in the pickle, not the table
         pd.DataFrame([{k: v for k, v in m.items()
-                       if k not in ("model", "scaler", "spec", "features", "pairs")}
+                       if k not in ("model", "scaler", "spec", "features", "pairs", "mult")}
                       for m in out.values()]).to_sql(
             "translation_model_v3_meta", con, if_exists="replace", index=False)
         runtime.record_model_run(
